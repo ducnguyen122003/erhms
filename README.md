@@ -1,132 +1,119 @@
 # KCN Connect — Spring Boot + React + PostgreSQL
 
-Bộ khung có mã nguồn FE/BE riêng, form tuyển dụng lưu dữ liệu, đăng nhập và luồng phê duyệt. Giao diện và thông báo bằng tiếng Việt. Đây là starter để phát triển dự án, chưa phải toàn bộ hệ thống trong report.
+Dự án có hai website dùng chung backend và database:
 
-## 1. Chạy nhanh trên Windows bằng Docker Desktop
-Cài và mở Docker Desktop (Linux containers). Giải nén toàn bộ ZIP, mở thư mục `kcn-connect-starter`, chạy `start.bat`. Lần đầu cần Internet để tải image và dependency.
+| Thành phần | Thư mục | URL mặc định |
+| --- | --- | --- |
+| Website ngành nghề, đào tạo và đăng ký tư vấn | `G5_FE2` | http://localhost:8081 |
+| Website quản lý nhu cầu tuyển dụng | `G5_FE1` | http://localhost:8082 |
+| REST API Spring Boot | `G5_BE` | http://localhost:8080 |
 
-Hoặc mở PowerShell trong thư mục đó:
+## Chạy khi lập trình trên Windows
+
+Yêu cầu Java 17, Maven, Node.js 22.12+ hoặc 24 và PostgreSQL. Chạy các lệnh bên dưới từ thư mục gốc dự án trong các terminal riêng. Nếu backend đang chạy trong IDE, khởi động lại để nhận API và migration mới; nếu frontend đang chạy, dừng và chạy lại để nhận cấu hình cổng.
+
+### 1. Backend
+
+Backend mặc định kết nối database `erhms` tại `localhost:5432`. Tạo database này nếu chưa có:
+
+```sql
+CREATE DATABASE erhms ENCODING 'UTF8';
+```
+
+Đặt thông tin kết nối phù hợp với PostgreSQL của bạn, rồi chạy:
+
 ```powershell
-Copy-Item .env.example .env
+$env:DB_URL = "jdbc:postgresql://localhost:5432/erhms"
+$env:DB_USER = "postgres"
+$env:DB_PASSWORD = "<mat-khau-PostgreSQL-cua-ban>"
+mvn -f .\G5_BE\pom.xml spring-boot:run
+```
+
+Spring Boot không tự đọc file `.env` ở thư mục gốc khi chạy Maven/IDE. Có thể đặt các biến trên trong cấu hình Run của IDE. Kiểm tra backend tại http://localhost:8080/actuator/health.
+
+Khi được bật, Flyway chạy trước bước Hibernate kiểm tra schema. Cấu hình hiện tại trong `G5_BE/src/main/resources/application.yml` đang tắt Flyway; để tự chạy migration khi khởi động, đặt `spring.flyway.enabled: true`, `spring.flyway.baseline-on-migrate: true`, `spring.flyway.baseline-version: 1`.
+
+- Database rỗng: chạy V1 tạo schema và dữ liệu demo, V2 tạo bảng tư vấn và V3 chuyển bảng sang cấu trúc hiện tại.
+- Database đã có schema V1 nhưng chưa có lịch sử Flyway: đánh dấu baseline phiên bản 1 và chạy V2, V3. Dữ liệu hiện có được giữ lại.
+- Database đã chạy V2: V3 đổi các cột tư vấn sang `description`, `created_date`, `program_name`, chuyển mã ngành/khóa học cũ thành tên hiển thị và bỏ `kind`, `consent` theo cấu trúc mới.
+- V4 bổ sung `m_user.phone VARCHAR(20)` cho thông tin cá nhân; tài khoản cũ giữ nguyên và có điện thoại `NULL`.
+- Những lần khởi động sau chỉ chạy migration chưa áp dụng. Không cần tự tạo bảng tư vấn hoặc sửa migration V1.
+
+### 2. Website quản lý — cổng 8082
+
+```powershell
+npm.cmd --prefix .\G5_FE1 ci
+npm.cmd --prefix .\G5_FE1 run dev
+```
+
+Mở http://localhost:8082. Các tài khoản của database mới tạo bằng V1: `user1@erhms.local`, `user2@erhms.local`, `manager@erhms.local`; mật khẩu demo `Demo@123456`. Database đang sử dụng giữ nguyên tài khoản/mật khẩu của nó.
+
+### 3. Website tư vấn — cổng 8081
+
+```powershell
+npm.cmd --prefix .\G5_FE2 ci
+npm.cmd --prefix .\G5_FE2 run dev
+```
+
+Mở http://localhost:8081/lien-he.html. Cần chạy qua server này để gửi form; mở file HTML trực tiếp hoặc chạy Python static server sẽ không có proxy API.
+
+Cả hai frontend chuyển tiếp `/api` tới `http://localhost:8080`. Nếu backend dùng địa chỉ khác, đặt `$env:API_TARGET = "http://localhost:<cong>"` trước khi chạy frontend. Cổng frontend được cố định: nếu cổng bận, Vite báo lỗi thay vì tự chuyển sang cổng khác.
+
+## Xem và cập nhật thông tin cá nhân
+
+Trong web quản lý cổng 8082, bấm avatar hoặc tên người dùng cạnh nút đăng xuất để mở **Thông tin cá nhân**. Có thể cập nhật họ tên và số điện thoại, rồi bấm lưu. Số điện thoại có thể để trống. Email đăng nhập được khóa, chỉ xem và sao chép; backend không cho cập nhật email qua API hồ sơ.
+
+Trong phần **Đổi mật khẩu**, nhập mật khẩu hiện tại, mật khẩu mới và xác nhận mật khẩu mới. Mật khẩu mới cần ít nhất 8 ký tự và tối đa 72 byte UTF-8. Backend kiểm tra mật khẩu cũ và phần xác nhận trước khi lưu hash BCrypt mới. Khi thành công, ba ô mật khẩu được xóa; phiên hiện tại vẫn hoạt động và lần đăng nhập tiếp theo dùng mật khẩu mới. Nhập sai mật khẩu cũ hoặc xác nhận không khớp sẽ không đổi mật khẩu.
+
+Thông tin được lưu trong bảng `m_user`; migration V4 bổ sung cột `phone`. API `GET /api/auth/me` cung cấp thông tin, `PUT /api/auth/me` cập nhật họ tên/điện thoại và `POST /api/auth/change-password` đổi mật khẩu cho tài khoản đang đăng nhập. Tính năng đổi mật khẩu không cần thêm cột database. Nếu backend đang chạy trong IDE, khởi động lại sau khi cập nhật code để nhận tính năng mới.
+
+## Đăng ký tư vấn và kiểm tra dữ liệu
+
+1. Mở trang liên hệ ở cổng 8081, nhập họ tên, số điện thoại, email nếu có, thời gian liên hệ, ngành/khóa học quan tâm và lời nhắn.
+2. Đồng ý sử dụng thông tin để tư vấn rồi bấm **Gửi đăng ký tư vấn**.
+3. Frontend lấy CSRF token, gọi `POST /api/public/consultations`; backend kiểm tra dữ liệu và lưu transaction vào PostgreSQL. Không cần đăng nhập để đăng ký.
+4. Khi lưu thành công, API trả `201` cùng mã đăng ký; website hiển thị mã này. Nếu có lỗi, form giữ thông tin để người dùng sửa hoặc gửi lại.
+5. Trong công cụ quản lý PostgreSQL, kết nối đúng database backend đang dùng và chạy:
+
+```sql
+SELECT id, full_name, phone, email, contact_time,
+       description, created_date, program_name
+FROM consultation_registrations
+ORDER BY created_date DESC;
+```
+
+`program_name` lưu phần chữ hiển thị của lựa chọn ngành/khóa học, ví dụ `Điện công nghiệp nền tảng`; `contact_time` lưu `any`, `morning` hoặc `afternoon`. Email và mô tả để trống được lưu `NULL`. Checkbox đồng ý chỉ kiểm tra trên giao diện. Mã đăng ký và `created_date` do backend cấp. API công khai chỉ nhận đăng ký; không cung cấp danh sách thông tin cá nhân.
+
+Chi tiết request, response và CSRF trong [docs/API.md](docs/API.md).
+
+## Chạy bằng Docker Compose
+
+Mở Docker Desktop. Chỉ khi chưa có `.env`, copy `.env.example` thành `.env` và cấu hình thông tin database. Từ thư mục gốc:
+
+```powershell
 docker compose up --build -d
-```
-Chỉ copy `.env` lần đầu; không ghi đè cấu hình bạn đã chỉnh. Trên macOS/Linux:
-```bash
-sh start.sh
-```
-
-- FE: http://localhost:5173
-- BE health: http://localhost:8080/actuator/health
-- PostgreSQL: localhost:5432 / database `kcn_connect` / user `kcn` / password theo `DB_PASSWORD` trong `.env`.
-- Tài khoản nhân sự: `hr@kcn.local`
-- Tài khoản quản lý: `manager@kcn.local`
-- Mật khẩu mẫu cả hai: `KcnDemo@2026!` (theo DEMO_PASSWORD trong `.env.example`). Chỉ dành cho máy phát triển.
-
-Xem tình trạng và log:
-```bash
 docker compose ps
-docker compose logs -f backend
 ```
-Dừng, vẫn giữ dữ liệu:
-```bash
+
+`start.bat` / `start.sh` cũng chạy stack này. Compose sử dụng các thư mục `G5_BE`, `G5_FE1`, `G5_FE2`; Nginx của hai frontend proxy API tới service `backend:8080`.
+
+Compose dùng database riêng trong volume `postgres_data`, tên mặc định `kcn_connect` (đổi bằng `DB_NAME` trong `.env`). PostgreSQL đang chạy trực tiếp trên máy và database `erhms` không tự chuyển sang database của Compose. Dừng các dịch vụ phát triển đang chiếm cổng trước khi chạy toàn bộ stack; nếu đã có PostgreSQL tại cổng 5432, có thể đặt `DB_PORT=5433` trong `.env` cho database Docker.
+
+Các cổng Docker lấy từ `PUBLIC_FRONTEND_PORT=8081`, `FRONTEND_PORT=8082`, `BACKEND_PORT=8080`, `DB_PORT=5432`. Mật khẩu database lấy từ `.env`. Đổi mật khẩu trong file không tự đổi mật khẩu của PostgreSQL đã khởi tạo trong volume.
+
+```powershell
+docker compose logs -f backend
 docker compose down
 ```
-Volume `postgres_data` giữ dữ liệu giữa các lần chạy. Không dùng `down -v` nếu muốn giữ dữ liệu. Thay mật khẩu DB trong `.env` không tự thay mật khẩu của PostgreSQL đã khởi tạo trong volume. DEMO_PASSWORD chỉ áp dụng khi tạo tài khoản lần đầu, không reset tài khoản đã có.
 
-## 2. Thử luồng FE → BE → database
-1. Đăng nhập bằng nhân sự.
-2. Chọn **Tạo nhu cầu**, điền vị trí, số lượng, ca, địa điểm, ngày và kỹ năng.
-3. Chọn **Lưu bản nháp**. Mở lại bản ghi, chọn **Gửi duyệt**.
-4. Đăng xuất; đăng nhập quản lý.
-5. Mở bản ghi, nhập ghi chú và chọn **Yêu cầu sửa**, hoặc **Phê duyệt**.
-6. Với yêu cầu cần sửa, nhân sự sửa/lưu rồi gửi lại.
-7. Quản lý có thể đóng yêu cầu đã duyệt. Mở chi tiết để xem lịch sử.
-8. Tải lại trang hoặc khởi động lại stack: bản ghi vẫn nằm trong PostgreSQL.
+`down` giữ dữ liệu volume. Không dùng `down -v` nếu muốn giữ dữ liệu.
 
-Các danh sách ban đầu trống có chủ đích: seed chỉ tạo doanh nghiệp và hai tài khoản. Trang Lộ trình ghi rõ module nào chưa triển khai.
+## Build và kiểm thử
 
-## 3. Chạy riêng khi lập trình
-Yêu cầu: Java 17, Maven 3.9+, Node.js 22.12+ hoặc 24, PostgreSQL 17. Nếu dùng Docker chạy toàn bộ thì không cần cài riêng Java/Node/Maven/PostgreSQL.
-
-### PostgreSQL
-Từ thư mục gốc, đã có `.env`:
-```bash
-docker compose up -d db
-```
-Hoặc tạo database `kcn_connect` trong PostgreSQL cài sẵn, rồi cập nhật DB_URL/DB_USER/DB_PASSWORD. Nếu đang chạy stack toàn bộ, dừng frontend/backend trước để tránh trùng cổng:
-```bash
-docker compose stop frontend backend
-```
-
-### Backend — PowerShell
 ```powershell
-cd backend
-$env:DB_URL="jdbc:postgresql://localhost:5432/kcn_connect"
-$env:DB_USER="kcn"
-$env:DB_PASSWORD="kcn_local_dev_2026"
-$env:SEED_DEMO="true"
-$env:DEMO_PASSWORD="KcnDemo@2026!"
-mvn spring-boot:run
-```
-Các giá trị phải khớp `.env` của database. Spring không tự đọc file `.env` khi chạy trực tiếp bằng Maven/IDE; cần cấu hình environment variables như trên.
-
-### Backend — macOS/Linux
-```bash
-cd backend
-export DB_URL=jdbc:postgresql://localhost:5432/kcn_connect
-export DB_USER=kcn
-export DB_PASSWORD=kcn_local_dev_2026
-export SEED_DEMO=true
-export DEMO_PASSWORD='KcnDemo@2026!'
-mvn spring-boot:run
+mvn -f .\G5_BE\pom.xml test
+npm.cmd --prefix .\G5_FE1 run build
+npm.cmd --prefix .\G5_FE2 run build
 ```
 
-### Frontend — terminal khác
-```bash
-cd frontend
-npm ci
-npm run dev
-```
-Vite proxy `/api` tới localhost:8080. Mở http://localhost:5173. Nếu backend dùng cổng khác, đặt API_TARGET trước khi chạy Vite. Không mở trực tiếp index.html bằng file://.
-
-## 4. Cấu trúc và công nghệ
-- `backend/`: Maven, Spring Boot 3.5.16, Java 17, Spring Web, JPA, Validation, Security, Flyway, Actuator.
-- `frontend/`: React 19, Vite, CSS responsive, lucide-react; có package-lock.
-- `compose.yaml`: PostgreSQL → backend → frontend, có healthcheck.
-- `backend/src/main/resources/db/migration/`: SQL versioned. Hibernate chỉ validate schema; không tự update.
-- `docs/ARCHITECTURE.md`: module, trạng thái, quyền và hướng mở rộng.
-- `docs/API.md`: endpoint, request/response, cách dùng session và CSRF.
-- `docs/VERIFICATION.md`: kết quả và giới hạn kiểm chứng trong môi trường tạo file.
-
-## 5. Build và kiểm tra
-```bash
-cd backend
-mvn test
-mvn package
-```
-Test dùng H2 chế độ PostgreSQL, chạy migration thật của dự án và kiểm tra qua MockMvc. Đây không thay thế kiểm thử trên PostgreSQL thật.
-
-Sau khi stack Docker sẵn sàng, có thể kiểm tra REST API với Python 3 (không cần thư viện ngoài), từ thư mục gốc:
-```bash
-python scripts/smoke_test.py
-```
-Script tạo một nhu cầu có tiền tố `[SMOKE]`, gửi duyệt, phê duyệt rồi đóng; bản ghi kiểm tra được giữ lại để xem lịch sử. Nếu đã đổi mật khẩu mẫu, đặt biến môi trường DEMO_PASSWORD tương ứng trước khi chạy.
-```bash
-cd frontend
-npm ci
-npm run build
-```
-
-## 6. Đã có và cần phát triển tiếp
-Đã có: xác thực session, CSRF, BCrypt, hai vai trò, phạm vi doanh nghiệp, tạo/sửa/xem/tìm kiếm/phân trang nhu cầu, chuyển trạng thái có điều kiện, version chống ghi đè, lịch sử, validation FE/BE, xử lý loading/lỗi/rỗng.
-
-Chưa có: đăng ký/quên mật khẩu, quản trị tài khoản, đủ bảy vai trò, tin tuyển dụng công khai, hồ sơ công nhân, ứng tuyển/phỏng vấn, phân lớp/đào tạo, offer/nhận việc, email, CI/CD, cấu hình production. Trang Lộ trình là mô tả phạm vi, không gọi API giả.
-
-## 7. Lỗi thường gặp
-- Docker không chạy: mở Docker Desktop, chờ engine sẵn sàng.
-- Cổng bận: chỉnh FRONTEND_PORT/BACKEND_PORT/DB_PORT trong .env. Địa chỉ truy cập đổi theo cổng mới.
-- BE chưa khởi động: xem `docker compose logs backend`; lần build đầu có thể lâu.
-- 401: đăng nhập lại. 403 CSRF: tải lại trang và đăng nhập lại nếu phiên hết hạn.
-- 409: dữ liệu đã thay đổi hoặc hành động không hợp lệ; đóng và mở lại chi tiết.
-- `password authentication failed`: kiểm tra password trong DB hiện có; thay .env không đổi mật khẩu volume cũ.
-- Ngày không hợp lệ: chọn ngày hôm nay hoặc tương lai theo giờ Việt Nam.
+Backend tests dùng H2 ở chế độ PostgreSQL, chạy các migration thật, kiểm tra đăng ký tư vấn, validation, CSRF, phân quyền và luồng tuyển dụng. Website `G5_FE2` build đầy đủ các trang HTML.

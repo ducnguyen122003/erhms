@@ -72,7 +72,7 @@ Yêu cầu được xác định chủ sở hữu qua `recruitment_requests.crea
 
 ## Khởi tạo database mới và dữ liệu demo
 
-Dự án dùng duy nhất migration `src/main/resources/db/migration/V1__init_erhms_with_demo.sql`. File này tạo trực tiếp schema hiện tại với hai sequence, bốn bảng và dữ liệu demo.
+Dự án dùng migration `src/main/resources/db/migration/V1__init_erhms_with_demo.sql` để tạo schema tuyển dụng với hai sequence, bốn bảng và dữ liệu demo. Migration `V2__create_consultation_registrations.sql` thêm bảng tư vấn; V3 chuyển bảng tư vấn sang 8 cột hiện tại, với `program_name` lưu tên hiển thị của ngành/khóa học.
 
 ### 1. Tạo database PostgreSQL rỗng
 
@@ -90,7 +90,7 @@ Sau đó ứng dụng kết nối tới `jdbc:postgresql://localhost:5432/erhms`
 mvn spring-boot:run
 ```
 
-Flyway chạy migration V1 một lần, tạo bảng `m_role`, `m_user`, `recruitment_requests`, `request_events`, cùng hai sequence `m_role_seq`, `m_user_seq`. Những lần khởi động sau giữ dữ liệu đã có. Cấu hình khởi tạo mới sử dụng database rỗng, không cần baseline.
+Khi bật `spring.flyway.enabled`, database rỗng chạy V1, V2, V3 một lần, tạo bảng `m_role`, `m_user`, `recruitment_requests`, `request_events`, `consultation_registrations`, cùng hai sequence `m_role_seq`, `m_user_seq`. Với database đã có schema V1 nhưng chưa có lịch sử Flyway, cấu hình `baseline-on-migrate: true`, `baseline-version: 1` giữ dữ liệu hiện có và chạy V2, V3. Những lần khởi động sau chỉ chạy các migration chưa áp dụng. Cấu hình ứng dụng hiện tại đang tắt Flyway; cần bật lại khi muốn áp dụng migration tự động.
 
 ### 3. Tài khoản demo
 

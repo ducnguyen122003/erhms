@@ -11,8 +11,10 @@ import java.sql.SQLException;
 import java.sql.Statement;
 import java.sql.Types;
 import java.time.LocalDate;
+import java.time.OffsetDateTime;
 import java.util.HashSet;
 import java.util.LinkedHashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
@@ -23,20 +25,24 @@ class FreshDatabaseMigrationTest {
     private static final String PASSWORD = "Demo@123456";
 
     @Test
-    void oneMigrationCreatesFinalSchemaAndRunsOnlyOnce() throws Exception {
+    void migrationsCreateFinalSchemaAndRunOnlyOnce() throws Exception {
         String url = databaseUrl();
         Flyway flyway = flyway(url);
-        assertEquals(1, flyway.migrate().migrationsExecuted);
+        assertEquals(4, flyway.migrate().migrationsExecuted);
         try (Connection connection = connection(url)) {
-            assertEquals(Set.of("m_role", "m_user", "recruitment_requests", "request_events"),
+            assertEquals(Set.of("m_role", "m_user", "recruitment_requests", "request_events",
+                            "consultation_registrations"),
                     names(connection, """
                             SELECT LOWER(table_name) FROM information_schema.tables
                             WHERE table_schema = CURRENT_SCHEMA()
                               AND LOWER(table_name) <> 'flyway_schema_history'
                             """));
             assertEquals(Set.of("role_id", "code", "name"), columnNames(connection, "m_role"));
-            assertEquals(Set.of("user_id", "email", "password_hash", "full_name", "role_id"),
+            assertEquals(Set.of("user_id", "email", "password_hash", "full_name", "role_id", "phone"),
                     columnNames(connection, "m_user"));
+            assertEquals(Set.of("id", "full_name", "phone", "email", "contact_time",
+                            "description", "created_date", "program_name"),
+                    columnNames(connection, "consultation_registrations"));
             assertEquals(0, scalarLong(connection, """
                     SELECT COUNT(*) FROM information_schema.columns
                     WHERE table_schema = CURRENT_SCHEMA() AND LOWER(column_name) = 'employer_id'
@@ -56,6 +62,136 @@ class FreshDatabaseMigrationTest {
             assertEquals(3, scalarLong(connection, "SELECT COUNT(*) FROM m_user"));
             assertEquals(5, scalarLong(connection, "SELECT COUNT(*) FROM recruitment_requests"));
             assertEquals(eventCount, scalarLong(connection, "SELECT COUNT(*) FROM request_events"));
+        }
+    }
+
+    @Test
+    void existingSchemaWithoutFlywayHistoryIsBaselinedWithoutChangingExistingRows() throws Exception {
+        String url = databaseUrl();
+        Flyway.configure().dataSource(url, "sa", "")
+                .locations("classpath:db/migration").target("1").load().migrate();
+        try (Connection connection = connection(url)) {
+            execute(connection, "DROP TABLE \"flyway_schema_history\"");
+            execute(connection, "UPDATE m_user SET full_name = 'Existing user' WHERE email = 'user1@erhms.local'");
+        }
+        var upgrade = Flyway.configure().dataSource(url, "sa", "")
+                .locations("classpath:db/migration").baselineOnMigrate(true).baselineVersion("1").load();
+        assertEquals(3, upgrade.migrate().migrationsExecuted);
+        try (Connection connection = connection(url)) {
+            assertEquals(3, scalarLong(connection, "SELECT COUNT(*) FROM m_user"));
+            assertEquals(1, scalarLong(connection, "SELECT COUNT(*) FROM m_user WHERE full_name = 'Existing user'"));
+            assertEquals(5, scalarLong(connection, "SELECT COUNT(*) FROM recruitment_requests"));
+            assertEquals(13, scalarLong(connection, "SELECT COUNT(*) FROM request_events"));
+            assertEquals(0, scalarLong(connection, "SELECT COUNT(*) FROM consultation_registrations"));
+            assertEquals(0, upgrade.migrate().migrationsExecuted);
+        }
+    }
+
+    @Test
+    void consultationUpgradePreservesExistingDetailsAndConvertsSelectionCodesToDisplayText() throws Exception {
+        String url = databaseUrl();
+        Flyway.configure().dataSource(url, "sa", "")
+                .locations("classpath:db/migration").target("2").load().migrate();
+        Map<String, String> labels = new LinkedHashMap<>();
+        labels.put("not-sure", "Tôi cần tư vấn ngành nghề và lộ trình học");
+        labels.put("safety", "An toàn trong môi trường sản xuất");
+        labels.put("electric", "Điện công nghiệp nền tảng");
+        labels.put("quality", "Kiểm tra chất lượng cơ bản");
+        labels.put("career-electric", "Điện công nghiệp");
+        labels.put("career-mechanical", "Cơ khí & lắp ráp");
+        labels.put("career-welding", "Kỹ thuật hàn cơ bản");
+        labels.put("career-production", "Vận hành & lắp ráp sản xuất");
+        labels.put("career-sewing", "May công nghiệp");
+        labels.put("career-quality", "Kiểm tra chất lượng sản phẩm");
+        Map<String, UUID> existingIds = new LinkedHashMap<>();
+        OffsetDateTime createdDate = OffsetDateTime.parse("2026-10-17T10:15:30.123456+07:00");
+        try (Connection connection = connection(url)) {
+            for (String code : labels.keySet()) {
+                UUID id = UUID.randomUUID();
+                existingIds.put(code, id);
+                execute(connection, """
+                        INSERT INTO consultation_registrations
+                            (id, kind, full_name, phone, email, interest, contact_time, message, consent, created_at)
+                        VALUES (?, 'training', ?, ?, ?, ?, 'afternoon', ?, TRUE, ?)
+                        """, id, "Người đăng ký " + code, "0901234567",
+                        code.equals("not-sure") ? null : "existing@example.com", code,
+                        code.equals("not-sure") ? null : "Nội dung tư vấn đã nhập", createdDate);
+            }
+        }
+
+        Flyway upgrade = flyway(url);
+        assertEquals(2, upgrade.migrate().migrationsExecuted);
+        try (Connection connection = connection(url)) {
+            assertEquals(Set.of("id", "full_name", "phone", "email", "contact_time",
+                            "description", "created_date", "program_name"),
+                    columnNames(connection, "consultation_registrations"));
+            assertEquals(labels.size(), scalarLong(connection, "SELECT COUNT(*) FROM consultation_registrations"));
+            for (var entry : existingIds.entrySet()) {
+                String code = entry.getKey();
+                try (var statement = connection.prepareStatement("""
+                        SELECT id, full_name, phone, email, contact_time, description, created_date, program_name
+                        FROM consultation_registrations WHERE id = ?
+                        """)) {
+                    statement.setObject(1, entry.getValue());
+                    try (ResultSet result = statement.executeQuery()) {
+                        assertTrue(result.next(), code);
+                        assertEquals(entry.getValue(), result.getObject("id", UUID.class));
+                        assertEquals("Người đăng ký " + code, result.getString("full_name"));
+                        assertEquals("0901234567", result.getString("phone"));
+                        assertEquals(code.equals("not-sure") ? null : "existing@example.com", result.getString("email"));
+                        assertEquals("afternoon", result.getString("contact_time"));
+                        assertEquals(code.equals("not-sure") ? null : "Nội dung tư vấn đã nhập",
+                                result.getString("description"));
+                        assertEquals(createdDate.toInstant(),
+                                result.getObject("created_date", OffsetDateTime.class).toInstant());
+                        assertEquals(labels.get(code), result.getString("program_name"));
+                        assertFalse(result.next());
+                    }
+                }
+            }
+            String newProgram = "Tên chương trình mới ngoài danh sách mã cũ";
+            execute(connection, """
+                    INSERT INTO consultation_registrations
+                        (id, full_name, phone, contact_time, created_date, program_name)
+                    VALUES (?, 'New registration', '0901234567', 'any', ?, ?)
+                    """, UUID.randomUUID(), createdDate, newProgram);
+            assertEquals(labels.size() + 1, scalarLong(connection, "SELECT COUNT(*) FROM consultation_registrations"));
+            assertIntegrityViolation(connection, "UPDATE consultation_registrations SET program_name = NULL");
+            assertEquals(0, upgrade.migrate().migrationsExecuted);
+        }
+    }
+
+    @Test
+    void userPhoneUpgradePreservesExistingAccountsAndAllowsOptionalPhoneNumbers() throws Exception {
+        String url = databaseUrl();
+        Flyway.configure().dataSource(url, "sa", "")
+                .locations("classpath:db/migration").target("3").load().migrate();
+        Map<Long, List<Object>> existingUsers;
+        try (Connection connection = connection(url)) {
+            execute(connection, "UPDATE m_user SET full_name = 'Existing user' WHERE email = 'user1@erhms.local'");
+            existingUsers = userDetails(connection);
+        }
+
+        Flyway upgrade = flyway(url);
+        assertEquals(1, upgrade.migrate().migrationsExecuted);
+        try (Connection connection = connection(url)) {
+            assertEquals(existingUsers, userDetails(connection));
+            assertEquals(existingUsers.size(), scalarLong(connection, "SELECT COUNT(*) FROM m_user WHERE phone IS NULL"));
+            try (Statement statement = connection.createStatement();
+                 ResultSet result = statement.executeQuery("SELECT phone FROM m_user WHERE 1 = 0")) {
+                var metadata = result.getMetaData();
+                assertEquals(Types.VARCHAR, metadata.getColumnType(1));
+                assertEquals(20, metadata.getPrecision(1));
+                assertEquals(java.sql.ResultSetMetaData.columnNullable, metadata.isNullable(1));
+            }
+
+            execute(connection, "UPDATE m_user SET phone = ? WHERE email = ?", "+84901234567", "user1@erhms.local");
+            assertEquals(Set.of("+84901234567"), names(connection,
+                    "SELECT phone FROM m_user WHERE email = 'user1@erhms.local'"));
+            assertEquals(existingUsers, userDetails(connection));
+            execute(connection, "UPDATE m_user SET phone = NULL WHERE email = 'user1@erhms.local'");
+            assertEquals(existingUsers.size(), scalarLong(connection, "SELECT COUNT(*) FROM m_user WHERE phone IS NULL"));
+            assertEquals(0, upgrade.migrate().migrationsExecuted);
         }
     }
 
@@ -213,6 +349,19 @@ class FreshDatabaseMigrationTest {
             assertIntegrityViolation(connection, "UPDATE recruitment_requests SET shift = 'INVALID'");
             assertIntegrityViolation(connection, "UPDATE recruitment_requests SET status = 'INVALID'");
         }
+    }
+
+    private static Map<Long, List<Object>> userDetails(Connection connection) throws SQLException {
+        Map<Long, List<Object>> users = new LinkedHashMap<>();
+        try (Statement statement = connection.createStatement(); ResultSet result = statement.executeQuery("""
+                SELECT user_id, email, password_hash, full_name, role_id FROM m_user ORDER BY user_id
+                """)) {
+            while (result.next()) {
+                users.put(result.getLong("user_id"), List.of(result.getString("email"),
+                        result.getString("password_hash"), result.getString("full_name"), result.getLong("role_id")));
+            }
+        }
+        return users;
     }
 
     private static Set<String> columnNames(Connection connection, String table) throws SQLException {

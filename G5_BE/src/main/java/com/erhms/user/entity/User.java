@@ -31,6 +31,9 @@ public class User {
     @Column(name = "full_name", nullable = false, length = 120)
     public String fullName;
 
+    @Column(length = 20)
+    public String phone;
+
     @ManyToOne(fetch = FetchType.LAZY, optional = false)
     @JoinColumn(name = "role_id", nullable = false, foreignKey = @ForeignKey(name = "fk_m_user_role"))
     public Role role;

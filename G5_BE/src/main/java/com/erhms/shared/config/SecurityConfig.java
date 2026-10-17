@@ -1,11 +1,12 @@
 package com.erhms.shared.config;
 
 import com.erhms.user.repository.UserRepository;
+import com.erhms.user.security.UserPrincipal;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.http.HttpMethod;
 import org.springframework.security.config.annotation.method.configuration.EnableMethodSecurity;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
-import org.springframework.security.core.userdetails.User;
 import org.springframework.security.core.userdetails.UserDetailsService;
 import org.springframework.security.core.userdetails.UsernameNotFoundException;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
@@ -25,10 +26,7 @@ public class SecurityConfig {
         return email -> {
             var user = users.findByEmail(email)
                     .orElseThrow(() -> new UsernameNotFoundException("Không tìm thấy tài khoản"));
-            return User.withUsername(user.email)
-                    .password(user.passwordHash)
-                    .roles(user.getRoleCode())
-                    .build();
+            return new UserPrincipal(user.id, user.email, user.passwordHash, user.getRoleCode());
         };
     }
 
@@ -36,6 +34,7 @@ public class SecurityConfig {
     SecurityFilterChain filterChain(HttpSecurity http) throws Exception {
         http.authorizeHttpRequests(authorize -> authorize
                         .requestMatchers("/api/auth/csrf", "/actuator/health", "/error").permitAll()
+                        .requestMatchers(HttpMethod.POST, "/api/public/consultations").permitAll()
                         .anyRequest().authenticated())
                 .requestCache(cache -> cache.disable())
                 .formLogin(form -> form.loginProcessingUrl("/api/auth/login")

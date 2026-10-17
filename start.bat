@@ -7,6 +7,7 @@ if errorlevel 1 (
  pause
  exit /b 1
 )
-echo Mo http://localhost:5173
-start http://localhost:5173
+echo Web tu van: http://localhost:8081
+echo Web quan ly: http://localhost:8082
+start http://localhost:8081
 pause
