@@ -49,8 +49,8 @@ class UserProfileIntegrationTest {
     @BeforeEach
     void setup() {
         String suffix = UUID.randomUUID() + "@profile.test";
-        owner = seedUser("owner-" + suffix, "Original Owner", Role.USER);
-        other = seedUser("other-" + suffix, "Other Owner", Role.SERVICE_MANAGER);
+        owner = seedUser("owner-" + suffix, "Original Owner", Role.HR);
+        other = seedUser("other-" + suffix, "Other Owner", Role.MANAGER);
     }
 
     @Test
@@ -60,7 +60,7 @@ class UserProfileIntegrationTest {
                 .andExpect(jsonPath("$.id").value(owner.id))
                 .andExpect(jsonPath("$.email").value(owner.email))
                 .andExpect(jsonPath("$.fullName").value(owner.fullName))
-                .andExpect(jsonPath("$.role").value(Role.USER))
+                .andExpect(jsonPath("$.role").value(Role.HR))
                 .andExpect(jsonPath("$.phone").isEmpty())
                 .andExpect(jsonPath("$.password").doesNotHaveJsonPath())
                 .andExpect(jsonPath("$.passwordHash").doesNotHaveJsonPath());
@@ -154,7 +154,7 @@ class UserProfileIntegrationTest {
         mvc.perform(get(ME).session(secondOwnerSession)).andExpect(status().isOk())
                 .andExpect(jsonPath("$.id").value(owner.id))
                 .andExpect(jsonPath("$.email").value(renamedEmail))
-                .andExpect(jsonPath("$.role").value(Role.USER));
+                .andExpect(jsonPath("$.role").value(Role.HR));
         mvc.perform(get("/api/recruitment-requests").session(secondOwnerSession))
                 .andExpect(status().isOk());
 
@@ -166,7 +166,7 @@ class UserProfileIntegrationTest {
         var savedOther = users.findByEmail(originalEmail).orElseThrow();
         assertEquals(other.id, savedOther.id);
         assertEquals("Other Owner", savedOther.fullName);
-        assertEquals(Role.SERVICE_MANAGER, savedOther.getRoleCode());
+        assertEquals(Role.MANAGER, savedOther.getRoleCode());
     }
 
     @Test
@@ -192,7 +192,7 @@ class UserProfileIntegrationTest {
         var payload = input();
         payload.put("id", other.id);
         payload.put("userId", other.id);
-        payload.put("role", Role.SERVICE_MANAGER);
+        payload.put("role", Role.MANAGER);
         payload.put("roleId", other.getRoleId());
         payload.put("passwordHash", "attacker-hash");
         payload.put("password", "AttackerPassword");
@@ -201,7 +201,7 @@ class UserProfileIntegrationTest {
         payload.put("confirmPassword", "AttackerPassword");
         update(session, payload).andExpect(status().isOk())
                 .andExpect(jsonPath("$.id").value(owner.id))
-                .andExpect(jsonPath("$.role").value(Role.USER))
+                .andExpect(jsonPath("$.role").value(Role.HR))
                 .andExpect(jsonPath("$.passwordHash").doesNotHaveJsonPath());
         var saved = users.findByEmail(owner.email).orElseThrow();
         assertEquals(owner.passwordHash, saved.passwordHash);

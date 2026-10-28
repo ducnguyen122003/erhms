@@ -16,6 +16,7 @@ import com.erhms.recruitment.enums.RequestStatus;
 import com.erhms.recruitment.repository.RecruitmentRepository;
 import com.erhms.recruitment.repository.RequestEventRepository;
 import com.erhms.role.entity.Role;
+import com.erhms.role.DashboardRole;
 import com.erhms.shared.exception.BusinessException;
 import com.erhms.user.entity.User;
 import com.erhms.user.repository.UserRepository;
@@ -203,7 +204,7 @@ public class RecruitmentService {
     }
 
     private boolean isManager(User user) {
-        return user.hasRole(Role.SERVICE_MANAGER);
+        return DashboardRole.resolve(user.getRoleId(), user.getRoleCode()).orElse(null) == DashboardRole.MANAGER;
     }
 
     private void requireManager(User user) {
@@ -213,14 +214,14 @@ public class RecruitmentService {
     }
 
     private void requireUser(User user) {
-        if (!user.hasRole(Role.USER)) {
+        if (DashboardRole.resolve(user.getRoleId(), user.getRoleCode()).orElse(null) != DashboardRole.HR) {
             throw new AccessDeniedException("Chỉ người dùng được thực hiện");
         }
     }
 
     private void access(RecruitmentRequest request, User user) {
         if (!isManager(user)
-                && (!user.hasRole(Role.USER) || !Objects.equals(request.createdBy, user.id))) {
+                && (DashboardRole.resolve(user.getRoleId(), user.getRoleCode()).orElse(null) != DashboardRole.HR || !Objects.equals(request.createdBy, user.id))) {
             throw new BusinessException(NOT_FOUND, "Không tìm thấy yêu cầu");
         }
     }

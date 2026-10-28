@@ -12,9 +12,28 @@ spring:
     properties:
       hibernate.jdbc.time_zone: UTC
   flyway:
-    enabled: false
-#    baseline-on-migrate: true
-#    baseline-version: 1
+    enabled: ${FLYWAY_ENABLED:true}
+    baseline-on-migrate: true
+    baseline-version: 1
+  mail:
+    # Gmail SMTP: username is the sender address; password is a Google App Password.
+    # Values can be set here for local use or supplied through SMTP_* environment variables.
+    host: ${SMTP_HOST:smtp.gmail.com}
+    port: ${SMTP_PORT:587}
+    username: ${SMTP_USER:}
+    password: ${SMTP_PASSWORD:}
+    default-encoding: UTF-8
+    properties:
+      mail.smtp.auth: ${SMTP_AUTH:true}
+      mail.smtp.starttls.enable: ${SMTP_STARTTLS:true}
+      mail.smtp.starttls.required: ${SMTP_STARTTLS:true}
+      mail.smtp.ssl.enable: ${SMTP_SSL:false}
+      mail.smtp.connectiontimeout: 5000
+      mail.smtp.timeout: 5000
+      mail.smtp.writetimeout: 5000
+app:
+  mail:
+    from: ${SMTP_FROM:${spring.mail.username:}}
 server:
   port: 8080
   servlet:

@@ -34,6 +34,15 @@ public class User {
     @Column(length = 20)
     public String phone;
 
+    @Column(name = "account_enabled", nullable = false)
+    public boolean accountEnabled = true;
+
+    @Column(name = "account_locked", nullable = false)
+    public boolean accountLocked = false;
+
+    @Column(name = "credentials_version", nullable = false)
+    public long credentialsVersion = 0;
+
     @ManyToOne(fetch = FetchType.LAZY, optional = false)
     @JoinColumn(name = "role_id", nullable = false, foreignKey = @ForeignKey(name = "fk_m_user_role"))
     public Role role;
@@ -46,11 +55,11 @@ public class User {
     }
 
     public String getRoleCode() {
-        return role.getCode();
+        return role == null ? null : role.getCode();
     }
 
     public Long getRoleId() {
-        return role.getId();
+        return role == null ? null : role.getId();
     }
 
     public boolean hasRole(String code) {

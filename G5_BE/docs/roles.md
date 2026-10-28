@@ -56,17 +56,17 @@ erDiagram
 ```
 
 - `m_user.user_id`: khóa chính `BIGINT`, tự cấp từ `m_user_seq`.
-- `m_role.role_id`: khóa chính `BIGINT`, tự cấp từ `m_role_seq`.
+- `m_role.role_id`: khóa chính `BIGINT`; bảy role được hỗ trợ có ID cố định 1–7. Sequence `m_role_seq` chỉ cấp ID mới cho các dòng bổ sung; các dòng ngoài bộ chuẩn không được đăng nhập.
 - `m_user.role_id`: bắt buộc, khóa ngoại tới `m_role.role_id`.
 - Hai sequence bắt đầu từ 1, tăng mỗi lần 1; JPA dùng `GenerationType.SEQUENCE`, `allocationSize = 1`.
-- Tạo user/role mới bằng cách để `id` bằng null; email user và mã role `code` là duy nhất.
-- Role mặc định gồm `USER` và `SERVICE_MANAGER`.
+- Tạo user mới bằng cách để `id` bằng null và gán một role chuẩn đã có; email user và mã role `code` là duy nhất.
+- Cặp `role_id`/`code` hợp lệ: `1/ADMIN`, `2/LECTURER`, `3/STUDENT`, `4/ACCOUNTANT`, `5/IT_SUPPORT`, `6/MANAGER`, `7/HR`. Kiểm tra chính xác, phân biệt chữ hoa/thường. ID ngoài 1–7, thiếu role hoặc mã sai ID trả `403`; các alias cũ không được chấp nhận lúc chạy. Xem [hướng dẫn dashboard](../../docs/DASHBOARDS.md).
 
 Entity tài khoản là `user.entity.User`. `GET /api/auth/me` trả `id`, `email`, `fullName`, `role`, `roleId`.
 
 ## Quyền với yêu cầu tuyển dụng
 
-`USER` tạo, xem, sửa và gửi yêu cầu do chính mình tạo. `SERVICE_MANAGER` được xem các yêu cầu và thực hiện các bước duyệt/đóng. Quy tắc cấm tự duyệt, trạng thái và kiểm tra version tiếp tục được áp dụng.
+`HR` (ID 7) tạo, xem, sửa và gửi yêu cầu do chính mình tạo. `MANAGER` (ID 6) được xem các yêu cầu và thực hiện các bước duyệt/đóng. Quy tắc cấm tự duyệt, trạng thái và kiểm tra version tiếp tục được áp dụng. Quyền lấy lại từ database mỗi lần gọi API, kể cả khi đã có session.
 
 Yêu cầu được xác định chủ sở hữu qua `recruitment_requests.created_by`, tham chiếu `m_user.user_id`. Response yêu cầu trả `userId` và `userName` của người tạo.
 
@@ -90,7 +90,7 @@ Sau đó ứng dụng kết nối tới `jdbc:postgresql://localhost:5432/erhms`
 mvn spring-boot:run
 ```
 
-Khi bật `spring.flyway.enabled`, database rỗng chạy V1, V2, V3 một lần, tạo bảng `m_role`, `m_user`, `recruitment_requests`, `request_events`, `consultation_registrations`, cùng hai sequence `m_role_seq`, `m_user_seq`. Với database đã có schema V1 nhưng chưa có lịch sử Flyway, cấu hình `baseline-on-migrate: true`, `baseline-version: 1` giữ dữ liệu hiện có và chạy V2, V3. Những lần khởi động sau chỉ chạy các migration chưa áp dụng. Cấu hình ứng dụng hiện tại đang tắt Flyway; cần bật lại khi muốn áp dụng migration tự động.
+Flyway mặc định bật (`FLYWAY_ENABLED=true`). Database rỗng chạy V1–V6; database có schema V1 nhưng chưa có lịch sử Flyway dùng baseline 1 và chạy V2–V6. V4 bổ sung điện thoại; V5 thêm trạng thái tài khoản, nhật ký đăng nhập và nguồn dữ liệu dashboard. V6 chuyển bộ role V5 cũ sang các ID cố định nêu trên, chuyển tài khoản `USER` về `HR` và `SERVICE_MANAGER` về `MANAGER`, giữ nguyên ID/mật khẩu user và liên kết dữ liệu nghiệp vụ. Bộ role đã đúng chuẩn được giữ nguyên. Những lần khởi động sau chỉ chạy migration chưa áp dụng.
 
 ### 3. Tài khoản demo
 
@@ -98,13 +98,13 @@ Mật khẩu chung: **`Demo@123456`**. Trong database, mật khẩu được lư
 
 | Email | Role | Yêu cầu sở hữu |
 | --- | --- | --- |
-| `user1@erhms.local` | `USER` | 3 |
-| `user2@erhms.local` | `USER` | 2 |
-| `manager@erhms.local` | `SERVICE_MANAGER` | Xem cả 5 yêu cầu |
+| `user1@erhms.local` | `HR` (ID 7) | 3 |
+| `user2@erhms.local` | `HR` (ID 7) | 2 |
+| `manager@erhms.local` | `MANAGER` (ID 6) | Xem cả 5 yêu cầu |
 
 Demo gồm 5 yêu cầu ở các trạng thái `DRAFT`, `SUBMITTED`, `REVISION_REQUIRED`, `APPROVED`, `CLOSED`, cùng 13 sự kiện lịch sử tương ứng. Ngày cần nhân sự được tính tương đối từ ngày chạy migration.
 
-Các role/user demo được cấp ID qua sequence. Khi tạo mới, ID tiếp tục tăng sau dữ liệu demo.
+Các user demo được cấp ID qua sequence; role cuối cùng dùng ID cố định theo V6. Khi tạo user mới, ID tiếp tục tăng sau dữ liệu demo.
 
 ## Kiểm thử
 

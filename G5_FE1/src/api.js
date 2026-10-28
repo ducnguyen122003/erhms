@@ -13,7 +13,7 @@ export async function api(path,options={}){
  const response=await fetch(path,{credentials:'same-origin',...options,headers});
  if(response.status===204)return null;
  const data=await response.json().catch(()=>({message:'Phản hồi máy chủ không hợp lệ'}));
- if(!response.ok){const error=new Error(data.message || 'Không thể thực hiện thao tác');error.status=response.status;error.fields=data.fields;throw error;}
+ if(!response.ok){const error=new Error(data.message || 'Không thể thực hiện thao tác');error.status=response.status;error.code=data.code;error.fields=data.fields;error.retryAfterSeconds=data.retryAfterSeconds;throw error;}
  return data;
 }
 export async function login(email,password){await refreshCsrf();await api('/api/auth/login',{method:'POST',body:new URLSearchParams({username:email,password})});await refreshCsrf();return api('/api/auth/me');}

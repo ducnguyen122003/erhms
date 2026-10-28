@@ -1,5 +1,10 @@
 package com.erhms.shared.exception;
 
+import com.erhms.role.InvalidRoleException;
+import com.erhms.user.recovery.PasswordResetException;
+import com.erhms.user.security.SessionExpiredException;
+import jakarta.servlet.http.HttpServletRequest;
+import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.dao.OptimisticLockingFailureException;
 import org.springframework.dao.PessimisticLockingFailureException;
 import org.springframework.http.ResponseEntity;
@@ -14,6 +19,31 @@ import java.util.Map;
 
 @RestControllerAdvice
 public class ApiExceptionHandler {
+    @ExceptionHandler(PasswordResetException.class)
+    ResponseEntity<?> passwordReset(PasswordResetException exception) {
+        var body = new LinkedHashMap<String, Object>();
+        body.put("message", exception.getMessage());
+        body.put("code", exception.code);
+        if (exception.retryAfterSeconds > 0 || exception.status.value() == 429) body.put("retryAfterSeconds", exception.retryAfterSeconds);
+        if (!exception.fields.isEmpty()) body.put("fields", exception.fields);
+        var response = ResponseEntity.status(exception.status);
+        if (exception.retryAfterSeconds > 0) response.header("Retry-After", String.valueOf(exception.retryAfterSeconds));
+        return response.body(body);
+    }
+
+    @ExceptionHandler(SessionExpiredException.class)
+    ResponseEntity<?> sessionExpired(SessionExpiredException exception, HttpServletRequest request) {
+        SecurityContextHolder.clearContext();
+        var session = request.getSession(false);
+        if (session != null) session.invalidate();
+        return ResponseEntity.status(401).body(Map.of("message", exception.getMessage(), "code", "SESSION_EXPIRED"));
+    }
+
+    @ExceptionHandler(InvalidRoleException.class)
+    ResponseEntity<?> invalidRole(InvalidRoleException exception) {
+        return ResponseEntity.status(403).body(Map.of("message", exception.getMessage(), "code", "INVALID_ROLE"));
+    }
+
     @ExceptionHandler(BusinessException.class)
     ResponseEntity<?> business(BusinessException exception) {
         return ResponseEntity.status(exception.status).body(Map.of("message", exception.getMessage()));

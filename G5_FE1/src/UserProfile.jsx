@@ -1,9 +1,10 @@
 import {useEffect,useRef,useState} from 'react';
 import {ArrowLeft,Check,KeyRound,Save,UserRound} from 'lucide-react';
 import {api} from './api';
+import {dashboardRoles,resolveRole} from './roles';
 
 const valuesOf=user=>({fullName:user.fullName||'',email:user.email||'',phone:user.phone||''});
-const roleNames={HR:'Nhân sự doanh nghiệp',EMPLOYER_HR:'Nhân sự doanh nghiệp',SERVICE_MANAGER:'Quản lý dịch vụ',ADMIN:'Quản trị viên',USER:'Người dùng',WORKER:'Người lao động'};
+const roleNames=Object.fromEntries(Object.keys(dashboardRoles).map(role=>[role,dashboardRoles[role].label]));
 const emptyPasswords=()=>({oldPassword:'',newPassword:'',confirmPassword:''});
 
 export default function UserProfile({user,onUserUpdate,onLogout,onBack}){
@@ -81,7 +82,7 @@ export default function UserProfile({user,onUserUpdate,onLogout,onBack}){
   <button type="button" className="profile-back text-button" onClick={onBack} disabled={saving||changingPassword}><ArrowLeft size={16}/>Quay lại</button>
   <div className="page-heading"><div><span className="eyebrow">TÀI KHOẢN / THÔNG TIN CÁ NHÂN</span><h1 id="profile-heading" ref={heading} tabIndex={-1}>Thông tin cá nhân</h1><p className="muted">Xem và cập nhật thông tin liên hệ của bạn.</p></div></div>
   <div className="profile-layout">
-   <aside className="profile-summary"><span className="profile-portrait"><UserRound size={34}/></span><h2>{user.fullName}</h2><p>{roleNames[user.role]||user.role}</p><span>Mã người dùng: {user.id}</span></aside>
+   <aside className="profile-summary"><span className="profile-portrait"><UserRound size={34}/></span><h2>{user.fullName}</h2><p>{roleNames[resolveRole(user)]||'Vai trò không hợp lệ'}</p><span>Mã người dùng: {user.id}</span></aside>
    <div className="profile-forms">
    <section className="profile-panel" aria-labelledby="profile-contact-heading">
     <h2 id="profile-contact-heading">Thông tin liên hệ</h2>

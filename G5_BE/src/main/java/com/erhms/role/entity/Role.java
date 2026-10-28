@@ -11,8 +11,13 @@ import jakarta.persistence.Table;
 @Entity
 @Table(name = "m_role")
 public class Role {
-    public static final String USER = "USER";
-    public static final String SERVICE_MANAGER = "SERVICE_MANAGER";
+    public static final String ADMIN = "ADMIN";
+    public static final String LECTURER = "LECTURER";
+    public static final String STUDENT = "STUDENT";
+    public static final String ACCOUNTANT = "ACCOUNTANT";
+    public static final String IT_SUPPORT = "IT_SUPPORT";
+    public static final String MANAGER = "MANAGER";
+    public static final String HR = "HR";
 
     @Id
     @GeneratedValue(strategy = GenerationType.SEQUENCE, generator = "m_role_generator")

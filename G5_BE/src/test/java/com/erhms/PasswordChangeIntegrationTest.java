@@ -65,7 +65,7 @@ class PasswordChangeIntegrationTest {
         payload.put("id", other.id);
         payload.put("userId", other.id);
         payload.put("email", other.email);
-        payload.put("role", Role.SERVICE_MANAGER);
+        payload.put("role", Role.MANAGER);
         payload.put("roleId", other.getRoleId());
         payload.put("passwordHash", "attacker-hash");
 
@@ -238,7 +238,7 @@ class PasswordChangeIntegrationTest {
         user.fullName = "Password Change User";
         user.phone = "0912345678";
         user.passwordHash = encoder.encode(OLD_PASSWORD);
-        user.role = roles.findByCode(Role.USER).orElseThrow();
+        user.role = roles.findByCode(Role.HR).orElseThrow();
         return users.saveAndFlush(user);
     }
 

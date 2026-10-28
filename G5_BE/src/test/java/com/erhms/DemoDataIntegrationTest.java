@@ -32,7 +32,7 @@ class DemoDataIntegrationTest {
     @Test
     void firstDemoUserLogsInAndSeesOnlyThreeOwnRequests() throws Exception {
         var session = login("user1@erhms.local");
-        var account = me(session, "user1@erhms.local", "USER");
+        var account = me(session, "user1@erhms.local", "HR");
         var page = list(session, 3);
         for (JsonNode request : page.get("items")) {
             assertEquals(account.get("id").asLong(), request.get("userId").asLong());
@@ -48,7 +48,7 @@ class DemoDataIntegrationTest {
     @Test
     void secondDemoUserLogsInAndSeesOnlyTwoOwnRequests() throws Exception {
         var session = login("user2@erhms.local");
-        var account = me(session, "user2@erhms.local", "USER");
+        var account = me(session, "user2@erhms.local", "HR");
         var page = list(session, 2);
         for (JsonNode request : page.get("items")) {
             assertEquals(account.get("id").asLong(), request.get("userId").asLong());
@@ -61,7 +61,7 @@ class DemoDataIntegrationTest {
     @Test
     void demoManagerLogsInAndSeesAllFiveRequestsAndTheirHistory() throws Exception {
         var session = login("manager@erhms.local");
-        me(session, "manager@erhms.local", "SERVICE_MANAGER");
+        me(session, "manager@erhms.local", "MANAGER");
         var page = list(session, 5);
         assertEquals(Set.of("DRAFT", "SUBMITTED", "REVISION_REQUIRED", "APPROVED", "CLOSED"), statuses(page));
         for (JsonNode request : page.get("items")) {

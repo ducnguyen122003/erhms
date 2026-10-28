@@ -50,9 +50,9 @@ class RecruitmentIntegrationTest {
         events.deleteAll();
         requests.deleteAll();
         users.deleteAll();
-        seedUser(OWNER, Role.USER);
-        seedUser(OTHER, Role.USER);
-        seedUser(MANAGER, Role.SERVICE_MANAGER);
+        seedUser(OWNER, Role.HR);
+        seedUser(OTHER, Role.HR);
+        seedUser(MANAGER, Role.MANAGER);
     }
 
     @Test
@@ -63,7 +63,7 @@ class RecruitmentIntegrationTest {
     @Test
     void csrfRequired() throws Exception {
         mvc.perform(post(REQUESTS)
-                        .with(user(OWNER).roles(Role.USER))
+                        .with(user(OWNER).roles(Role.HR))
                         .contentType("application/json")
                         .content(json.writeValueAsString(input())))
                 .andExpect(status().isForbidden());
@@ -74,7 +74,7 @@ class RecruitmentIntegrationTest {
         var data = input();
         data.put("quantity", 0);
         mvc.perform(post(REQUESTS)
-                        .with(user(OWNER).roles(Role.USER)).with(csrf())
+                        .with(user(OWNER).roles(Role.HR)).with(csrf())
                         .contentType("application/json").content(json.writeValueAsString(data)))
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.fields.quantity").exists());
@@ -85,7 +85,7 @@ class RecruitmentIntegrationTest {
         var data = input();
         data.put("neededBy", "2000-01-01");
         mvc.perform(post(REQUESTS)
-                        .with(user(OWNER).roles(Role.USER)).with(csrf())
+                        .with(user(OWNER).roles(Role.HR)).with(csrf())
                         .contentType("application/json").content(json.writeValueAsString(data)))
                 .andExpect(status().isBadRequest());
     }
@@ -93,11 +93,11 @@ class RecruitmentIntegrationTest {
     @Test
     void cannotReadAnotherUsersRequestsOrHistory() throws Exception {
         String path = requestPath(create());
-        mvc.perform(get(path).with(user(OTHER).roles(Role.USER)))
+        mvc.perform(get(path).with(user(OTHER).roles(Role.HR)))
                 .andExpect(status().isNotFound());
-        mvc.perform(get(path + "/history").with(user(OTHER).roles(Role.USER)))
+        mvc.perform(get(path + "/history").with(user(OTHER).roles(Role.HR)))
                 .andExpect(status().isNotFound());
-        mvc.perform(get(REQUESTS).with(user(OTHER).roles(Role.USER)))
+        mvc.perform(get(REQUESTS).with(user(OTHER).roles(Role.HR)))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.total").value(0));
     }
@@ -106,7 +106,7 @@ class RecruitmentIntegrationTest {
     void userCannotApprove() throws Exception {
         var request = create();
         mvc.perform(post(requestPath(request) + "/approve")
-                        .with(user(OWNER).roles(Role.USER)).with(csrf())
+                        .with(user(OWNER).roles(Role.HR)).with(csrf())
                         .contentType("application/json").content(commandBody(request)))
                 .andExpect(status().isForbidden());
     }
@@ -116,14 +116,14 @@ class RecruitmentIntegrationTest {
         var request = create();
         String path = requestPath(request);
         mvc.perform(put(path)
-                        .with(user(OTHER).roles(Role.USER)).with(csrf())
+                        .with(user(OTHER).roles(Role.HR)).with(csrf())
                         .contentType("application/json").content(json.writeValueAsString(input())))
                 .andExpect(status().isNotFound());
         mvc.perform(post(path + "/submit")
-                        .with(user(OTHER).roles(Role.USER)).with(csrf())
+                        .with(user(OTHER).roles(Role.HR)).with(csrf())
                         .contentType("application/json").content(commandBody(request)))
                 .andExpect(status().isNotFound());
-        mvc.perform(get(path).with(user(OWNER).roles(Role.USER)))
+        mvc.perform(get(path).with(user(OWNER).roles(Role.HR)))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.status").value("DRAFT"))
                 .andExpect(jsonPath("$.version").value(request.get("version").asLong()));
@@ -136,11 +136,11 @@ class RecruitmentIntegrationTest {
         var data = input();
         data.put("title", "Updated title");
         mvc.perform(put(path)
-                        .with(user(OWNER).roles(Role.USER)).with(csrf())
+                        .with(user(OWNER).roles(Role.HR)).with(csrf())
                         .contentType("application/json").content(json.writeValueAsString(data)))
                 .andExpect(status().isOk());
         mvc.perform(put(path)
-                        .with(user(OWNER).roles(Role.USER)).with(csrf())
+                        .with(user(OWNER).roles(Role.HR)).with(csrf())
                         .contentType("application/json").content(json.writeValueAsString(data)))
                 .andExpect(status().isConflict());
     }
@@ -150,22 +150,22 @@ class RecruitmentIntegrationTest {
         var request = create();
         String path = requestPath(request);
         mvc.perform(post(path + "/approve")
-                        .with(user(MANAGER).roles(Role.SERVICE_MANAGER)).with(csrf())
+                        .with(user(MANAGER).roles(Role.MANAGER)).with(csrf())
                         .contentType("application/json").content(commandBody(request)))
                 .andExpect(status().isConflict());
 
         request = json.readTree(mvc.perform(post(path + "/submit")
-                        .with(user(OWNER).roles(Role.USER)).with(csrf())
+                        .with(user(OWNER).roles(Role.HR)).with(csrf())
                         .contentType("application/json").content(commandBody(request)))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.status").value("SUBMITTED"))
                 .andReturn().getResponse().getContentAsString());
         mvc.perform(post(path + "/request-revision")
-                        .with(user(MANAGER).roles(Role.SERVICE_MANAGER)).with(csrf())
+                        .with(user(MANAGER).roles(Role.MANAGER)).with(csrf())
                         .contentType("application/json").content(commandBody(request)))
                 .andExpect(status().isBadRequest());
         request = json.readTree(mvc.perform(post(path + "/request-revision")
-                        .with(user(MANAGER).roles(Role.SERVICE_MANAGER)).with(csrf())
+                        .with(user(MANAGER).roles(Role.MANAGER)).with(csrf())
                         .contentType("application/json")
                         .content(json.writeValueAsString(Map.of(
                                 "version", request.get("version").asLong(),
@@ -174,27 +174,27 @@ class RecruitmentIntegrationTest {
                 .andExpect(jsonPath("$.status").value("REVISION_REQUIRED"))
                 .andReturn().getResponse().getContentAsString());
         request = json.readTree(mvc.perform(post(path + "/submit")
-                        .with(user(OWNER).roles(Role.USER)).with(csrf())
+                        .with(user(OWNER).roles(Role.HR)).with(csrf())
                         .contentType("application/json").content(commandBody(request)))
                 .andExpect(status().isOk())
                 .andReturn().getResponse().getContentAsString());
         request = json.readTree(mvc.perform(post(path + "/approve")
-                        .with(user(MANAGER).roles(Role.SERVICE_MANAGER)).with(csrf())
+                        .with(user(MANAGER).roles(Role.MANAGER)).with(csrf())
                         .contentType("application/json").content(commandBody(request)))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.status").value("APPROVED"))
                 .andReturn().getResponse().getContentAsString());
 
         mvc.perform(put(path)
-                        .with(user(OWNER).roles(Role.USER)).with(csrf())
+                        .with(user(OWNER).roles(Role.HR)).with(csrf())
                         .contentType("application/json").content(json.writeValueAsString(input())))
                 .andExpect(status().isConflict());
         mvc.perform(post(path + "/close")
-                        .with(user(MANAGER).roles(Role.SERVICE_MANAGER)).with(csrf())
+                        .with(user(MANAGER).roles(Role.MANAGER)).with(csrf())
                         .contentType("application/json").content(commandBody(request)))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.status").value("CLOSED"));
-        mvc.perform(get(path + "/history").with(user(OWNER).roles(Role.USER)))
+        mvc.perform(get(path + "/history").with(user(OWNER).roles(Role.HR)))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.length()").value(6));
     }
@@ -210,7 +210,7 @@ class RecruitmentIntegrationTest {
                 .andExpect(jsonPath("$.email").value(OWNER))
                 .andExpect(jsonPath("$.roleId").isNumber())
                 .andExpect(jsonPath("$.roleId").value(owner.getRoleId()))
-                .andExpect(jsonPath("$.role").value(Role.USER))
+                .andExpect(jsonPath("$.role").value(Role.HR))
                 .andExpect(jsonPath("$.employerId").doesNotHaveJsonPath());
 
         var request = create(session);
@@ -225,7 +225,7 @@ class RecruitmentIntegrationTest {
         var owner = users.findByEmail(OWNER).orElseThrow();
         var other = users.findByEmail(OTHER).orElseThrow();
         var manager = users.findByEmail(MANAGER).orElseThrow();
-        assertEquals(roles.findByCode(Role.USER).orElseThrow().id, owner.getRoleId());
+        assertEquals(roles.findByCode(Role.HR).orElseThrow().id, owner.getRoleId());
         assertEquals(owner.getRoleId(), other.getRoleId());
         assertNotEquals(owner.id, other.id);
         assertNotEquals(owner.getRoleId(), manager.getRoleId());
@@ -267,7 +267,7 @@ class RecruitmentIntegrationTest {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.id").isNumber())
                 .andExpect(jsonPath("$.roleId").isNumber())
-                .andExpect(jsonPath("$.role").value(Role.SERVICE_MANAGER))
+                .andExpect(jsonPath("$.role").value(Role.MANAGER))
                 .andExpect(jsonPath("$.employerId").doesNotHaveJsonPath());
         mvc.perform(get(REQUESTS).session(ownerSession))
                 .andExpect(status().isOk())
@@ -303,11 +303,11 @@ class RecruitmentIntegrationTest {
     @Test
     void newUserCreatesAndReadsOwnRequestsWithoutEmployerData() throws Exception {
         String otherUsersPath = requestPath(create());
-        var newUser = seedUser("new-user@test.local", Role.USER);
+        var newUser = seedUser("new-user@test.local", Role.HR);
         var session = login(newUser.email);
         mvc.perform(get("/api/auth/me").session(session))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.role").value(Role.USER))
+                .andExpect(jsonPath("$.role").value(Role.HR))
                 .andExpect(jsonPath("$.employerId").doesNotHaveJsonPath());
         mvc.perform(get(REQUESTS).session(session))
                 .andExpect(status().isOk())
@@ -333,23 +333,25 @@ class RecruitmentIntegrationTest {
         var role = roles.saveAndFlush(new Role("READ_ONLY_TEST_ROLE", "Unsupported test role"));
         try {
             var account = seedUser("read-only@test.local", role.code);
-            var session = login(account.email);
-            mvc.perform(get("/api/auth/me").session(session))
-                    .andExpect(status().isOk())
-                    .andExpect(jsonPath("$.role").value(role.code));
-            mvc.perform(get(REQUESTS).session(session)).andExpect(status().isForbidden());
-            mvc.perform(get(path).session(session)).andExpect(status().isForbidden());
-            mvc.perform(get(path + "/history").session(session)).andExpect(status().isForbidden());
-            mvc.perform(post(REQUESTS).session(session).with(csrf())
+            mvc.perform(post("/api/auth/login").with(csrf())
+                            .param("username", account.email).param("password", PASSWORD))
+                    .andExpect(status().isForbidden());
+            mvc.perform(get("/api/auth/me").with(user(account.email).roles(Role.HR)))
+                    .andExpect(status().isForbidden());
+            mvc.perform(get(REQUESTS).with(user(account.email).roles(Role.HR))).andExpect(status().isForbidden());
+            mvc.perform(get(path).with(user(account.email).roles(Role.HR))).andExpect(status().isForbidden());
+            mvc.perform(get(path + "/history").with(user(account.email).roles(Role.HR)))
+                    .andExpect(status().isForbidden());
+            mvc.perform(post(REQUESTS).with(user(account.email).roles(Role.HR)).with(csrf())
                             .contentType("application/json").content(json.writeValueAsString(input())))
                     .andExpect(status().isForbidden());
-            mvc.perform(put(path).session(session).with(csrf())
+            mvc.perform(put(path).with(user(account.email).roles(Role.HR)).with(csrf())
                             .contentType("application/json").content(json.writeValueAsString(input())))
                     .andExpect(status().isForbidden());
-            mvc.perform(post(path + "/submit").session(session).with(csrf())
+            mvc.perform(post(path + "/submit").with(user(account.email).roles(Role.HR)).with(csrf())
                             .contentType("application/json").content(commandBody(request)))
                     .andExpect(status().isForbidden());
-            mvc.perform(post(path + "/approve").session(session).with(csrf())
+            mvc.perform(post(path + "/approve").with(user(account.email).roles(Role.MANAGER)).with(csrf())
                             .contentType("application/json").content(commandBody(request)))
                     .andExpect(status().isForbidden());
             assertEquals(1, requests.count());
@@ -378,7 +380,7 @@ class RecruitmentIntegrationTest {
 
     private JsonNode create() throws Exception {
         return json.readTree(mvc.perform(post(REQUESTS)
-                        .with(user(OWNER).roles(Role.USER)).with(csrf())
+                        .with(user(OWNER).roles(Role.HR)).with(csrf())
                         .contentType("application/json").content(json.writeValueAsString(input())))
                 .andExpect(status().isCreated())
                 .andReturn().getResponse().getContentAsString());

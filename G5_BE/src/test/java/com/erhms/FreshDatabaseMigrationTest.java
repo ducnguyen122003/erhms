@@ -12,6 +12,7 @@ import java.sql.Statement;
 import java.sql.Types;
 import java.time.LocalDate;
 import java.time.OffsetDateTime;
+import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -28,18 +29,29 @@ class FreshDatabaseMigrationTest {
     void migrationsCreateFinalSchemaAndRunOnlyOnce() throws Exception {
         String url = databaseUrl();
         Flyway flyway = flyway(url);
-        assertEquals(4, flyway.migrate().migrationsExecuted);
+        assertEquals(7, flyway.migrate().migrationsExecuted);
         try (Connection connection = connection(url)) {
             assertEquals(Set.of("m_role", "m_user", "recruitment_requests", "request_events",
-                            "consultation_registrations"),
+                            "consultation_registrations", "user_login_events", "training_classes",
+                            "training_enrollments", "training_sessions", "training_attendance", "training_grades",
+                            "training_contracts", "financial_transactions", "equipment_assets", "equipment_requests",
+                            "equipment_loans", "equipment_incidents", "consultation_followups",
+                            "password_reset_challenges", "password_reset_rate_limits"),
                     names(connection, """
                             SELECT LOWER(table_name) FROM information_schema.tables
                             WHERE table_schema = CURRENT_SCHEMA()
                               AND LOWER(table_name) <> 'flyway_schema_history'
                             """));
             assertEquals(Set.of("role_id", "code", "name"), columnNames(connection, "m_role"));
-            assertEquals(Set.of("user_id", "email", "password_hash", "full_name", "role_id", "phone"),
+            assertEquals(Set.of("user_id", "email", "password_hash", "full_name", "role_id", "phone",
+                            "account_enabled", "account_locked", "credentials_version"),
                     columnNames(connection, "m_user"));
+            assertEquals(Set.of("email_key", "user_id", "challenge_id", "code_hash", "code_expires_at",
+                            "requested_at", "request_window_at", "request_count", "attempts", "token_hash",
+                            "token_expires_at", "password_snapshot", "credentials_version", "consumed"),
+                    columnNames(connection, "password_reset_challenges"));
+            assertEquals(Set.of("client_key", "window_at", "request_count"),
+                    columnNames(connection, "password_reset_rate_limits"));
             assertEquals(Set.of("id", "full_name", "phone", "email", "contact_time",
                             "description", "created_date", "program_name"),
                     columnNames(connection, "consultation_registrations"));
@@ -50,15 +62,27 @@ class FreshDatabaseMigrationTest {
             assertBigint(connection, "m_role", "role_id");
             assertBigint(connection, "m_user", "user_id");
             assertBigint(connection, "m_user", "role_id");
+            assertBigint(connection, "m_user", "credentials_version");
+            assertBigint(connection, "password_reset_challenges", "credentials_version");
             assertBigint(connection, "recruitment_requests", "created_by");
             assertBigint(connection, "request_events", "actor_id");
-            assertEquals(2, scalarLong(connection, "SELECT COUNT(*) FROM m_role"));
+            assertFixedRoleIds(connection);
+            assertEquals(7, scalarLong(connection, "SELECT COUNT(*) FROM m_role"));
             assertEquals(3, scalarLong(connection, "SELECT COUNT(*) FROM m_user"));
+            assertEquals(3, scalarLong(connection,
+                    "SELECT COUNT(*) FROM m_user WHERE account_enabled = TRUE AND account_locked = FALSE"));
+            for (String table : List.of("user_login_events", "training_classes", "training_enrollments",
+                    "training_sessions", "training_attendance", "training_grades", "training_contracts",
+                    "financial_transactions", "equipment_assets", "equipment_requests", "equipment_loans",
+                    "equipment_incidents", "consultation_followups", "password_reset_challenges",
+                    "password_reset_rate_limits")) {
+                assertEquals(0, scalarLong(connection, "SELECT COUNT(*) FROM " + table), table);
+            }
             assertEquals(5, scalarLong(connection, "SELECT COUNT(*) FROM recruitment_requests"));
             long eventCount = scalarLong(connection, "SELECT COUNT(*) FROM request_events");
             assertEquals(13, eventCount);
             assertEquals(0, flyway.migrate().migrationsExecuted);
-            assertEquals(2, scalarLong(connection, "SELECT COUNT(*) FROM m_role"));
+            assertEquals(7, scalarLong(connection, "SELECT COUNT(*) FROM m_role"));
             assertEquals(3, scalarLong(connection, "SELECT COUNT(*) FROM m_user"));
             assertEquals(5, scalarLong(connection, "SELECT COUNT(*) FROM recruitment_requests"));
             assertEquals(eventCount, scalarLong(connection, "SELECT COUNT(*) FROM request_events"));
@@ -76,7 +100,7 @@ class FreshDatabaseMigrationTest {
         }
         var upgrade = Flyway.configure().dataSource(url, "sa", "")
                 .locations("classpath:db/migration").baselineOnMigrate(true).baselineVersion("1").load();
-        assertEquals(3, upgrade.migrate().migrationsExecuted);
+        assertEquals(6, upgrade.migrate().migrationsExecuted);
         try (Connection connection = connection(url)) {
             assertEquals(3, scalarLong(connection, "SELECT COUNT(*) FROM m_user"));
             assertEquals(1, scalarLong(connection, "SELECT COUNT(*) FROM m_user WHERE full_name = 'Existing user'"));
@@ -120,7 +144,7 @@ class FreshDatabaseMigrationTest {
         }
 
         Flyway upgrade = flyway(url);
-        assertEquals(2, upgrade.migrate().migrationsExecuted);
+        assertEquals(5, upgrade.migrate().migrationsExecuted);
         try (Connection connection = connection(url)) {
             assertEquals(Set.of("id", "full_name", "phone", "email", "contact_time",
                             "description", "created_date", "program_name"),
@@ -172,7 +196,8 @@ class FreshDatabaseMigrationTest {
             existingUsers = userDetails(connection);
         }
 
-        Flyway upgrade = flyway(url);
+        Flyway upgrade = Flyway.configure().dataSource(url, "sa", "")
+                .locations("classpath:db/migration").target("4").load();
         assertEquals(1, upgrade.migrate().migrationsExecuted);
         try (Connection connection = connection(url)) {
             assertEquals(existingUsers, userDetails(connection));
@@ -200,7 +225,8 @@ class FreshDatabaseMigrationTest {
         String url = databaseUrl();
         flyway(url).migrate();
         try (Connection connection = connection(url)) {
-            assertEquals(Set.of("USER", "SERVICE_MANAGER"), names(connection, "SELECT code FROM m_role"));
+            assertEquals(Set.of("ADMIN", "LECTURER", "STUDENT", "ACCOUNTANT",
+                    "IT_SUPPORT", "MANAGER", "HR"), names(connection, "SELECT code FROM m_role"));
             var encoder = new BCryptPasswordEncoder();
             Set<String> accounts = new HashSet<>();
             try (Statement statement = connection.createStatement(); ResultSet result = statement.executeQuery("""
@@ -213,7 +239,7 @@ class FreshDatabaseMigrationTest {
                     assertTrue(result.getLong("user_id") > 0);
                     assertFalse(result.getString("full_name").isBlank());
                     assertTrue(encoder.matches(PASSWORD, result.getString("password_hash")), email);
-                    assertEquals(email.equals("manager@erhms.local") ? "SERVICE_MANAGER" : "USER",
+                    assertEquals(email.equals("manager@erhms.local") ? "MANAGER" : "HR",
                             result.getString("code"));
                 }
             }
@@ -275,7 +301,7 @@ class FreshDatabaseMigrationTest {
             assertEquals(0, scalarLong(connection, """
                     SELECT COUNT(*) FROM request_events e JOIN m_user u ON u.user_id = e.actor_id
                     JOIN m_role r ON r.role_id = u.role_id
-                    WHERE e.action IN ('APPROVE', 'REQUEST-REVISION', 'CLOSE') AND r.code <> 'SERVICE_MANAGER'
+                    WHERE e.action IN ('APPROVE', 'REQUEST-REVISION', 'CLOSE') AND r.code <> 'MANAGER'
                     """));
             assertEquals(0, scalarLong(connection, """
                     SELECT COUNT(*) FROM request_events e JOIN recruitment_requests r ON r.id = e.request_id
@@ -318,7 +344,7 @@ class FreshDatabaseMigrationTest {
             assertTrue(firstUserId > previousUserId);
             assertEquals(firstUserId + 1, secondUserId);
             assertEquals(5, scalarLong(connection, "SELECT COUNT(DISTINCT user_id) FROM m_user"));
-            assertEquals(4, scalarLong(connection, "SELECT COUNT(DISTINCT role_id) FROM m_role"));
+            assertEquals(9, scalarLong(connection, "SELECT COUNT(DISTINCT role_id) FROM m_role"));
         }
     }
 
@@ -329,7 +355,7 @@ class FreshDatabaseMigrationTest {
         try (Connection connection = connection(url)) {
             assertIntegrityViolation(connection, "UPDATE m_user SET role_id = NULL");
             assertIntegrityViolation(connection, "UPDATE m_user SET role_id = 9223372036854775807");
-            assertIntegrityViolation(connection, "DELETE FROM m_role WHERE code = 'USER'");
+            assertIntegrityViolation(connection, "DELETE FROM m_role WHERE code = 'HR'");
             assertIntegrityViolation(connection, "DELETE FROM m_user WHERE email = 'user1@erhms.local'");
             assertIntegrityViolation(connection, "DELETE FROM m_user WHERE email = 'manager@erhms.local'");
             assertIntegrityViolation(connection, "UPDATE recruitment_requests SET created_by = NULL");
@@ -338,17 +364,258 @@ class FreshDatabaseMigrationTest {
             assertIntegrityViolation(connection, "UPDATE request_events SET actor_id = 9223372036854775807");
             assertIntegrityViolation(connection,
                     "UPDATE request_events SET request_id = '99999999-0000-0000-0000-000000000001'");
-            assertIntegrityViolation(connection, "INSERT INTO m_role (code, name) VALUES ('USER', 'Duplicate')");
+            assertIntegrityViolation(connection, "INSERT INTO m_role (code, name) VALUES ('HR', 'Duplicate')");
             assertIntegrityViolation(connection, """
                     INSERT INTO m_user (email, password_hash, full_name, role_id)
                     SELECT 'user1@erhms.local', 'duplicate-hash', 'Duplicate', role_id
-                    FROM m_role WHERE code = 'USER'
+                    FROM m_role WHERE code = 'HR'
                     """);
             assertIntegrityViolation(connection, "UPDATE recruitment_requests SET quantity = 0");
             assertIntegrityViolation(connection, "UPDATE recruitment_requests SET quantity = 10001");
             assertIntegrityViolation(connection, "UPDATE recruitment_requests SET shift = 'INVALID'");
             assertIntegrityViolation(connection, "UPDATE recruitment_requests SET status = 'INVALID'");
         }
+    }
+
+    @Test
+    void historicalRoleUpgradePreservesAccountsAndUnknownRolesWhileRemappingKnownMeanings() throws Exception {
+        String url = databaseUrl();
+        migrateThroughVersionFive(url);
+        Map<Long, List<Object>> expectedUsers;
+        Map<Long, Long> newIds = Map.of(1L, 7L, 2L, 6L, 3L, 1L, 4L, 2L, 5L, 3L,
+                6L, 4L, 7L, 5L, 8L, 6L, 9L, 7L, 11L, 7L);
+        try (Connection connection = connection(url)) {
+            execute(connection, "INSERT INTO m_role (role_id, code, name) VALUES (10, 'OUTSIDE', 'Keep custom role')");
+            execute(connection, "INSERT INTO m_role (role_id, code, name) VALUES (11, 'EMPLOYER_HR', 'Legacy recruiter')");
+            for (long roleId = 1; roleId <= 11; roleId++) {
+                execute(connection, """
+                        INSERT INTO m_user (email, password_hash, full_name, role_id, phone)
+                        VALUES (?, 'existing-hash', 'Preserved account', ?, '0901234567')
+                        """, "role-" + roleId + "@example.com", roleId);
+            }
+            execute(connection, "UPDATE m_user SET account_enabled = FALSE, account_locked = TRUE WHERE role_id = 10");
+            expectedUsers = userDetails(connection);
+            expectedUsers.replaceAll((id, values) -> List.of(values.get(0), values.get(1), values.get(2),
+                    newIds.getOrDefault((Long) values.get(3), (Long) values.get(3))));
+        }
+
+        Flyway upgrade = flywayThroughVersionSix(url);
+        assertEquals(1, upgrade.migrate().migrationsExecuted);
+        try (Connection connection = connection(url)) {
+            assertFixedRoleIds(connection);
+            assertEquals(expectedUsers, userDetails(connection));
+            assertEquals(8, scalarLong(connection, "SELECT COUNT(*) FROM m_role"));
+            assertEquals(Set.of("Keep custom role"), names(connection, "SELECT name FROM m_role WHERE role_id = 10"));
+            assertEquals(1, scalarLong(connection, """
+                    SELECT COUNT(*) FROM m_user WHERE email = 'role-10@example.com' AND role_id = 10
+                    AND account_enabled = FALSE AND account_locked = TRUE AND phone = '0901234567'
+                    """));
+            assertEquals(11, scalarLong(connection, "SELECT COUNT(*) FROM m_user WHERE phone = '0901234567'"));
+            assertEquals(0, upgrade.migrate().migrationsExecuted);
+        }
+    }
+
+    @Test
+    void manuallyFixedRoleIdsAndUnsupportedExtrasAreLeftUnchanged() throws Exception {
+        String url = databaseUrl();
+        migrateThroughVersionFive(url);
+        Map<Long, List<Object>> usersBefore;
+        Map<Long, List<String>> rolesBefore;
+        try (Connection connection = connection(url)) {
+            // Keep user rows and their request/event ownership intact while modeling the user's manual setup.
+            execute(connection, "UPDATE m_user SET role_id = 9");
+            execute(connection, "DELETE FROM m_role WHERE role_id <> 9");
+            execute(connection, "UPDATE m_role SET code = 'TEMP_HR' WHERE role_id = 9");
+            List<String> codes = List.of("ADMIN", "LECTURER", "STUDENT", "ACCOUNTANT", "IT_SUPPORT", "MANAGER", "HR");
+            for (int index = 0; index < codes.size(); index++) {
+                execute(connection, "INSERT INTO m_role (role_id, code, name) VALUES (?, ?, ?)",
+                        index + 1L, codes.get(index), "Existing label " + codes.get(index));
+            }
+            execute(connection, "UPDATE m_user SET role_id = 7");
+            execute(connection, "UPDATE m_user SET role_id = 6 WHERE email = 'manager@erhms.local'");
+            execute(connection, "DELETE FROM m_role WHERE role_id = 9");
+            execute(connection, "INSERT INTO m_role (role_id, code, name) VALUES (8, 'OUTSIDE', 'Unsupported role')");
+            execute(connection, "INSERT INTO m_role (role_id, code, name) VALUES (9, 'USER', 'Unsupported legacy role')");
+            execute(connection, """
+                    INSERT INTO m_user (email, password_hash, full_name, role_id)
+                    VALUES ('outside@example.com', 'existing-hash', 'Outside account', 8)
+                    """);
+            usersBefore = userDetails(connection);
+            rolesBefore = roleDetails(connection);
+        }
+
+        assertEquals(1, flywayThroughVersionSix(url).migrate().migrationsExecuted);
+        try (Connection connection = connection(url)) {
+            assertFixedRoleIds(connection);
+            assertEquals(usersBefore, userDetails(connection));
+            assertEquals(rolesBefore, roleDetails(connection));
+        }
+    }
+
+    @Test
+    void arbitraryRoleIdsAreNotGrantedCanonicalPermissionsByMigration() throws Exception {
+        String url = databaseUrl();
+        migrateThroughVersionFive(url);
+        Map<Long, List<Object>> usersBefore;
+        Map<Long, List<String>> rolesBefore;
+        try (Connection connection = connection(url)) {
+            // An ADMIN code at ID 8 is invalid under the fixed-ID contract and must stay invalid.
+            execute(connection, "UPDATE m_role SET code = 'OLD_ADMIN' WHERE role_id = 3");
+            execute(connection, "UPDATE m_role SET code = 'OLD_MANAGER' WHERE role_id = 8");
+            execute(connection, "UPDATE m_role SET code = 'ADMIN' WHERE role_id = 8");
+            execute(connection, "UPDATE m_user SET role_id = 8 WHERE email = 'user1@erhms.local'");
+            usersBefore = userDetails(connection);
+            rolesBefore = roleDetails(connection);
+        }
+
+        assertEquals(1, flywayThroughVersionSix(url).migrate().migrationsExecuted);
+        try (Connection connection = connection(url)) {
+            assertEquals(usersBefore, userDetails(connection));
+            assertEquals(rolesBefore, roleDetails(connection));
+            assertEquals(8, scalarLong(connection, "SELECT role_id FROM m_role WHERE code = 'ADMIN'"));
+        }
+    }
+
+    @Test
+    void passwordRecoveryUpgradePreservesAllExistingRowsAndCreatesNoResetSecrets() throws Exception {
+        String url = databaseUrl();
+        flywayThroughVersionSix(url).migrate();
+        Map<String, List<List<String>>> before;
+        try (Connection connection = connection(url)) {
+            long learner = scalarLong(connection, "SELECT user_id FROM m_user WHERE email = 'user1@erhms.local'");
+            long lecturer = scalarLong(connection, "SELECT user_id FROM m_user WHERE email = 'manager@erhms.local'");
+            execute(connection, "UPDATE m_user SET phone = '0901234567' WHERE user_id = ?", learner);
+            execute(connection, "UPDATE m_user SET account_enabled = FALSE, account_locked = TRUE WHERE user_id = ?", lecturer);
+            UUID consultation = UUID.randomUUID(), trainingClass = UUID.randomUUID(), enrollment = UUID.randomUUID();
+            UUID session = UUID.randomUUID(), contract = UUID.randomUUID(), equipment = UUID.randomUUID();
+            OffsetDateTime instant = OffsetDateTime.parse("2026-10-28T09:00:00+07:00");
+            execute(connection, "INSERT INTO user_login_events (id, user_id, occurred_at) VALUES (?, ?, ?)",
+                    UUID.randomUUID(), learner, instant);
+            execute(connection, """
+                    INSERT INTO consultation_registrations
+                        (id, full_name, phone, email, contact_time, description, created_date, program_name)
+                    VALUES (?, 'Existing learner', '0901234567', 'existing@example.com', 'morning',
+                        'Keep consultation details', ?, 'Điện công nghiệp')
+                    """, consultation, instant);
+            execute(connection, """
+                    INSERT INTO training_classes (id, code, name, lecturer_id, status, total_sessions)
+                    VALUES (?, 'MIGRATION-CLASS', 'Lớp hiện có', ?, 'ACTIVE', 20)
+                    """, trainingClass, lecturer);
+            execute(connection, """
+                    INSERT INTO training_enrollments (id, class_id, student_id, status, assignment_status, records_complete)
+                    VALUES (?, ?, ?, 'ACTIVE', 'CONFIRMED', TRUE)
+                    """, enrollment, trainingClass, learner);
+            execute(connection, """
+                    INSERT INTO training_sessions (id, class_id, title, starts_at, ends_at, room, attendance_finalized)
+                    VALUES (?, ?, 'Buổi học hiện có', ?, ?, 'Phòng 1', TRUE)
+                    """, session, trainingClass, instant, instant.plusHours(2));
+            execute(connection, "INSERT INTO training_attendance (id, session_id, student_id, status) VALUES (?, ?, ?, 'PRESENT')",
+                    UUID.randomUUID(), session, learner);
+            execute(connection, "INSERT INTO training_grades (id, enrollment_id, title, score, published_at) VALUES (?, ?, 'Bài kiểm tra', 8.50, ?)",
+                    UUID.randomUUID(), enrollment, instant);
+            execute(connection, """
+                    INSERT INTO training_contracts (id, code, student_id, consultation_id, tuition_due, deposit_due, status)
+                    VALUES (?, 'MIGRATION-CONTRACT', ?, ?, 12000000, 1000000, 'ACTIVE')
+                    """, contract, learner, consultation);
+            execute(connection, """
+                    INSERT INTO financial_transactions (id, contract_id, kind, amount, status)
+                    VALUES (?, ?, 'TUITION', 5000000, 'CONFIRMED')
+                    """, UUID.randomUUID(), contract);
+            execute(connection, "INSERT INTO equipment_assets (id, code, name, status) VALUES (?, 'MIGRATION-ASSET', 'Bộ thực hành điện', 'ASSIGNED')",
+                    equipment);
+            execute(connection, """
+                    INSERT INTO equipment_requests (id, requested_by, class_id, title, quantity, status)
+                    VALUES (?, ?, ?, 'Yêu cầu hiện có', 2, 'DELIVERED')
+                    """, UUID.randomUUID(), lecturer, trainingClass);
+            execute(connection, """
+                    INSERT INTO equipment_loans (id, asset_id, student_id, class_id, received_at, deposit_amount)
+                    VALUES (?, ?, ?, ?, ?, 1000000)
+                    """, UUID.randomUUID(), equipment, learner, trainingClass, instant);
+            execute(connection, """
+                    INSERT INTO equipment_incidents (id, asset_id, reported_by, description, status, compensation_due)
+                    VALUES (?, ?, ?, 'Mô tả sự cố hiện có', 'IN_PROGRESS', 250000)
+                    """, UUID.randomUUID(), equipment, lecturer);
+            execute(connection, """
+                    INSERT INTO consultation_followups (id, consultation_id, assigned_to, status, appointment_at)
+                    VALUES (?, ?, ?, 'APPOINTMENT', ?)
+                    """, UUID.randomUUID(), consultation, lecturer, instant.plusDays(1));
+            before = preRecoverySnapshot(connection);
+            for (var entry : before.entrySet()) assertFalse(entry.getValue().isEmpty(), entry.getKey());
+        }
+
+        Flyway upgrade = flyway(url);
+        assertEquals(1, upgrade.migrate().migrationsExecuted);
+        try (Connection connection = connection(url)) {
+            assertEquals(before, preRecoverySnapshot(connection));
+            assertEquals(3, scalarLong(connection, "SELECT COUNT(*) FROM m_user WHERE credentials_version = 0"));
+            assertEquals(0, scalarLong(connection, "SELECT COUNT(*) FROM password_reset_challenges"));
+            assertEquals(0, scalarLong(connection, "SELECT COUNT(*) FROM password_reset_rate_limits"));
+            assertIntegrityViolation(connection, "UPDATE m_user SET credentials_version = NULL");
+            execute(connection, """
+                    INSERT INTO m_user (email, password_hash, full_name, role_id)
+                    VALUES ('new-after-v7@example.com', 'existing-test-hash', 'New account', 3)
+                    """);
+            assertEquals(0, scalarLong(connection,
+                    "SELECT credentials_version FROM m_user WHERE email = 'new-after-v7@example.com'"));
+            assertEquals(0, upgrade.migrate().migrationsExecuted);
+        }
+    }
+
+    private static Map<String, List<List<String>>> preRecoverySnapshot(Connection connection) throws SQLException {
+        Map<String, List<List<String>>> tables = new LinkedHashMap<>();
+        for (String table : names(connection, """
+                SELECT LOWER(table_name) FROM information_schema.tables
+                WHERE table_schema = CURRENT_SCHEMA()
+                    AND LOWER(table_name) NOT IN ('flyway_schema_history', 'password_reset_challenges', 'password_reset_rate_limits')
+                """)) {
+            String columns = table.equals("m_user")
+                    ? "user_id, email, password_hash, full_name, role_id, phone, account_enabled, account_locked" : "*";
+            List<List<String>> rows = new ArrayList<>();
+            try (Statement statement = connection.createStatement();
+                 ResultSet result = statement.executeQuery("SELECT " + columns + " FROM " + table + " ORDER BY 1")) {
+                while (result.next()) {
+                    List<String> row = new ArrayList<>();
+                    for (int index = 1; index <= result.getMetaData().getColumnCount(); index++) row.add(result.getString(index));
+                    rows.add(row);
+                }
+            }
+            tables.put(table, rows);
+        }
+        return tables;
+    }
+
+    private static void migrateThroughVersionFive(String url) {
+        Flyway.configure().dataSource(url, "sa", "")
+                .locations("classpath:db/migration").target("5").load().migrate();
+    }
+
+    private static Flyway flywayThroughVersionSix(String url) {
+        return Flyway.configure().dataSource(url, "sa", "")
+                .locations("classpath:db/migration").target("6").load();
+    }
+
+    private static void assertFixedRoleIds(Connection connection) throws SQLException {
+        assertEquals(Map.of(1L, List.of("ADMIN"), 2L, List.of("LECTURER"), 3L, List.of("STUDENT"),
+                        4L, List.of("ACCOUNTANT"), 5L, List.of("IT_SUPPORT"), 6L, List.of("MANAGER"), 7L, List.of("HR")),
+                roleCodes(connection));
+    }
+
+    private static Map<Long, List<String>> roleCodes(Connection connection) throws SQLException {
+        Map<Long, List<String>> roles = new LinkedHashMap<>();
+        try (Statement statement = connection.createStatement();
+             ResultSet result = statement.executeQuery("SELECT role_id, code FROM m_role WHERE role_id BETWEEN 1 AND 7 ORDER BY role_id")) {
+            while (result.next()) roles.put(result.getLong(1), List.of(result.getString(2)));
+        }
+        return roles;
+    }
+
+    private static Map<Long, List<String>> roleDetails(Connection connection) throws SQLException {
+        Map<Long, List<String>> roles = new LinkedHashMap<>();
+        try (Statement statement = connection.createStatement();
+             ResultSet result = statement.executeQuery("SELECT role_id, code, name FROM m_role ORDER BY role_id")) {
+            while (result.next()) roles.put(result.getLong(1), List.of(result.getString(2), result.getString(3)));
+        }
+        return roles;
     }
 
     private static Map<Long, List<Object>> userDetails(Connection connection) throws SQLException {

@@ -5,7 +5,7 @@ Dự án có hai website dùng chung backend và database:
 | Thành phần | Thư mục | URL mặc định |
 | --- | --- | --- |
 | Website ngành nghề, đào tạo và đăng ký tư vấn | `G5_FE2` | http://localhost:8081 |
-| Website quản lý nhu cầu tuyển dụng | `G5_FE1` | http://localhost:8082 |
+| Website quản lý với 7 dashboard theo vai trò | `G5_FE1` | http://localhost:8082 |
 | REST API Spring Boot | `G5_BE` | http://localhost:8080 |
 
 ## Chạy khi lập trình trên Windows
@@ -31,12 +31,15 @@ mvn -f .\G5_BE\pom.xml spring-boot:run
 
 Spring Boot không tự đọc file `.env` ở thư mục gốc khi chạy Maven/IDE. Có thể đặt các biến trên trong cấu hình Run của IDE. Kiểm tra backend tại http://localhost:8080/actuator/health.
 
-Khi được bật, Flyway chạy trước bước Hibernate kiểm tra schema. Cấu hình hiện tại trong `G5_BE/src/main/resources/application.yml` đang tắt Flyway; để tự chạy migration khi khởi động, đặt `spring.flyway.enabled: true`, `spring.flyway.baseline-on-migrate: true`, `spring.flyway.baseline-version: 1`.
+Flyway mặc định được bật và chạy trước bước Hibernate kiểm tra schema. Cấu hình trong `G5_BE/src/main/resources/application.yml` sử dụng `baseline-on-migrate: true`, `baseline-version: 1`; có thể đặt `FLYWAY_ENABLED=false` nếu schema đã được quản lý riêng và có đủ migration V1–V7.
 
 - Database rỗng: chạy V1 tạo schema và dữ liệu demo, V2 tạo bảng tư vấn và V3 chuyển bảng sang cấu trúc hiện tại.
 - Database đã có schema V1 nhưng chưa có lịch sử Flyway: đánh dấu baseline phiên bản 1 và chạy V2, V3. Dữ liệu hiện có được giữ lại.
 - Database đã chạy V2: V3 đổi các cột tư vấn sang `description`, `created_date`, `program_name`, chuyển mã ngành/khóa học cũ thành tên hiển thị và bỏ `kind`, `consent` theo cấu trúc mới.
 - V4 bổ sung `m_user.phone VARCHAR(20)` cho thông tin cá nhân; tài khoản cũ giữ nguyên và có điện thoại `NULL`.
+- V5 bổ sung 7 role dashboard, trạng thái tài khoản, nhật ký đăng nhập và các bảng nghiệp vụ đào tạo, học phí, thiết bị, theo dõi tư vấn. V5 giữ nguyên user/mật khẩu hiện có và không chèn dữ liệu nghiệp vụ mẫu.
+- V6 chuyển bộ role cũ do V1–V5 tạo sang ID cố định 1–7, gán tài khoản `USER` cũ về `HR` (7) và `SERVICE_MANAGER` về `MANAGER` (6). Giữ nguyên ID tài khoản, mật khẩu và dữ liệu nghiệp vụ; bộ role đã đúng theo bảng dưới đây được giữ nguyên. Role ngoài bộ chuẩn không được tự cấp quyền.
+- V7 bổ sung `m_user.credentials_version` cùng bảng mã xác nhận/giới hạn gửi mail để khôi phục mật khẩu. Giữ nguyên tài khoản, role, mật khẩu và dữ liệu nghiệp vụ; không tạo mã xác nhận hoặc tài khoản mới khi migration.
 - Những lần khởi động sau chỉ chạy migration chưa áp dụng. Không cần tự tạo bảng tư vấn hoặc sửa migration V1.
 
 ### 2. Website quản lý — cổng 8082
@@ -58,6 +61,50 @@ npm.cmd --prefix .\G5_FE2 run dev
 Mở http://localhost:8081/lien-he.html. Cần chạy qua server này để gửi form; mở file HTML trực tiếp hoặc chạy Python static server sẽ không có proxy API.
 
 Cả hai frontend chuyển tiếp `/api` tới `http://localhost:8080`. Nếu backend dùng địa chỉ khác, đặt `$env:API_TARGET = "http://localhost:<cong>"` trước khi chạy frontend. Cổng frontend được cố định: nếu cổng bận, Vite báo lỗi thay vì tự chuyển sang cổng khác.
+
+## Dashboard theo vai trò
+
+Sau khi đăng nhập, `G5_FE1` tự mở dashboard theo `m_user.role_id`, đồng thời kiểm tra `m_role.code` đúng với ID quy định. Tải lại trang giữ đúng dashboard; mở URL của role khác bị chặn ở cả giao diện và API. Mỗi dashboard có file React riêng:
+
+| role_id | Role | Giao diện | File trong `G5_FE1/src/dashboards` | Đường dẫn |
+| --- | --- | --- | --- | --- |
+| 1 | `ADMIN` | Tổng quan hệ thống | `AdminDashboard.jsx` | `/dashboard/admin` |
+| 2 | `LECTURER` | Giảng viên | `LecturerDashboard.jsx` | `/dashboard/lecturer` |
+| 3 | `STUDENT` | Học viên | `StudentDashboard.jsx` | `/dashboard/student` |
+| 4 | `ACCOUNTANT` | Tổng quan tài chính đào tạo | `AccountantDashboard.jsx` | `/dashboard/accountant` |
+| 5 | `IT_SUPPORT` | Tổng quan thiết bị và hỗ trợ | `ITSupportDashboard.jsx` | `/dashboard/it-support` |
+| 6 | `MANAGER` | Quản lý học viên | `ManagerDashboard.jsx` | `/dashboard/manager` |
+| 7 | `HR` | Tuyển sinh và tuyển dụng | `HRDashboard.jsx` | `/dashboard/hr` |
+
+Chỉ chấp nhận đúng cặp ID/mã trong bảng, phân biệt chữ hoa/thường. ID ngoài 1–7, thiếu role hoặc mã không khớp ID bị từ chối với HTTP `403` và thông báo lỗi vai trò; không đăng nhập hoặc tự chuyển sang dashboard khác. Không nhận các mã cũ như `USER`, `SERVICE_MANAGER`, `Lecture` hay tiền tố `ROLE_`. Phiên đang có cũng bị chặn nếu role trong database đổi thành không hợp lệ. Dashboard giảng viên/học viên chỉ hiển thị lịch, điểm, học phí, thiết bị thuộc tài khoản đó.
+
+Số liệu được lấy qua `GET /api/dashboard` hoặc `/api/dashboard/{slug}` từ database. Các bảng nghiệp vụ mới chưa có dữ liệu sẽ hiển thị số 0/danh sách trống; điểm chưa công bố hiển thị `—`. Cần gán role cho tài khoản và nhập dữ liệu nghiệp vụ thật để có đầy đủ số liệu. Xem [hướng dẫn gán role, nguồn dữ liệu và API dashboard](docs/DASHBOARDS.md).
+
+## Quản lý tài khoản và quên mật khẩu
+
+Quản trị viên (`role_id = 1`, `code = ADMIN`) mở **Tài khoản người dùng** trong menu hoặc nút **Quản lý tài khoản** ở dashboard. Trang `/admin/users` cho phép tìm theo họ tên, email, số điện thoại, lọc quyền hạn và phân trang, cùng đầy đủ chức năng tạo, xem chi tiết, sửa và xóa tài khoản. Khi tạo, nhập **họ và tên, email đăng nhập, số điện thoại, quyền hạn, mật khẩu và xác nhận mật khẩu**; số điện thoại không bắt buộc. Ô chọn quyền hạn lấy 7 role hợp lệ từ database; email trùng bị từ chối. Mật khẩu cần ít nhất 8 ký tự Unicode và tối đa 72 byte UTF-8, hai ô phải khớp chính xác. Tài khoản mới đăng nhập ngay bằng mật khẩu admin đã đặt, không cần cấu hình Gmail.
+
+Khi sửa, để trống cả hai ô mật khẩu để giữ mật khẩu hiện tại hoặc nhập cả hai để đổi. Admin đổi email, quyền hạn hoặc mật khẩu sẽ buộc tài khoản đó đăng nhập lại. Có thể **Vô hiệu hóa**, **Kích hoạt lại**, **Khóa tài khoản** hoặc **Mở khóa** sau khi xác nhận: dữ liệu được giữ nguyên, phiên và mã/token khôi phục cũ hết hiệu lực mỗi lần đổi trạng thái. Tài khoản chỉ được đăng nhập khi vừa được kích hoạt vừa không bị khóa và có role hợp lệ; bật lại không tự mở khóa, mở khóa không tự bật lại. Không thể tự hạ quyền/vô hiệu hóa/khóa/xóa tài khoản đang đăng nhập hoặc vô hiệu hóa/khóa/xóa quản trị viên hoạt động cuối cùng. Xóa tài khoản chưa có dữ liệu nghiệp vụ là xóa thực sự; tài khoản đang gắn với lịch sử tuyển dụng, lớp học, học phí, thiết bị hoặc tư vấn sẽ báo lỗi và giữ dữ liệu. Bổ sung này không cần migration mới; khởi động lại backend/frontend để nhận code.
+
+Sau thao tác quản trị thành công và khi quay về Dashboard, giao diện tải lại số liệu từ database. **Đang hoạt động** chỉ đếm tài khoản được kích hoạt và không bị khóa; các mục bị khóa và vô hiệu hóa đếm từng cờ trạng thái độc lập nên có thể cùng tính một tài khoản.
+
+Tại màn đăng nhập, bấm **Quên mật khẩu?**, nhập email đã đăng ký, nhận mã 6 chữ số, xác nhận mã rồi nhập mật khẩu mới và xác nhận mật khẩu. Mã có hiệu lực 10 phút; sau khi xác nhận, phần đặt mật khẩu có hiệu lực 5 phút. Gửi lại mã sau ít nhất 60 giây. Đặt lại thành công sẽ quay về đăng nhập và kết thúc các phiên cũ của tài khoản.
+
+Để gửi mã qua Gmail, cấu hình các biến sau trong terminal chạy backend hoặc phần Environment variables của IDE. Dùng [mật khẩu ứng dụng Google](https://support.google.com/accounts/answer/185833?hl=vi) sau khi bật Xác minh 2 bước:
+
+```powershell
+$env:SMTP_HOST = "smtp.gmail.com"
+$env:SMTP_PORT = "587"
+$env:SMTP_USER = "<email-Gmail-gui-ma>"
+$env:SMTP_PASSWORD = "<mat-khau-ung-dung-Google>"
+$env:SMTP_FROM = $env:SMTP_USER
+$env:SMTP_AUTH = "true"
+$env:SMTP_STARTTLS = "true"
+$env:SMTP_SSL = "false"
+mvn -f .\G5_BE\pom.xml spring-boot:run
+```
+
+Gmail hỗ trợ `smtp.gmail.com` với TLS trên cổng 587 theo [tài liệu Google](https://developers.google.com/workspace/gmail/imap/imap-smtp). Spring Boot chạy bằng Maven/IDE không tự nạp `.env`; Docker Compose nhận các biến SMTP từ `.env`. Thiếu cấu hình gửi mail sẽ báo `MAIL_NOT_CONFIGURED` và không gửi mã. Xem [hướng dẫn tài khoản, khôi phục mật khẩu và kiểm tra Gmail](docs/ACCOUNT_MANAGEMENT.md).
 
 ## Xem và cập nhật thông tin cá nhân
 
@@ -112,6 +159,7 @@ docker compose down
 
 ```powershell
 mvn -f .\G5_BE\pom.xml test
+npm.cmd --prefix .\G5_FE1 test
 npm.cmd --prefix .\G5_FE1 run build
 npm.cmd --prefix .\G5_FE2 run build
 ```

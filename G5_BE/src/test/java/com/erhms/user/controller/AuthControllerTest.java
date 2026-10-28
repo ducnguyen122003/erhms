@@ -27,7 +27,7 @@ class AuthControllerTest {
         var request = new MockHttpServletRequest();
         var session = (MockHttpSession) request.getSession(true);
         var input = new ProfileInput("Updated User", null);
-        var profile = new UserView(7L, "original@example.com", input.fullName(), "USER", 1L, null);
+        var profile = new UserView(7L, "original@example.com", input.fullName(), "HR", 7L, null);
         when(profiles.update(input)).thenAnswer(invocation -> {
             // Model logout invalidating the existing session while the database update is in flight.
             session.invalidate();

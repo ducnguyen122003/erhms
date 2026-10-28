@@ -24,7 +24,7 @@ import org.springframework.web.bind.annotation.RestController;
 
 @RestController
 @RequestMapping("/api/recruitment-requests")
-@PreAuthorize("hasAnyRole('USER', 'SERVICE_MANAGER')")
+@PreAuthorize("hasAnyRole('HR', 'MANAGER')")
 public class RecruitmentController {
 
     private final RecruitmentService service;
@@ -54,13 +54,13 @@ public class RecruitmentController {
 
     @PostMapping
     @ResponseStatus(HttpStatus.CREATED)
-    @PreAuthorize("hasRole('USER')")
+    @PreAuthorize("hasRole('HR')")
     public View create(@Valid @RequestBody Input input) {
         return service.create(input);
     }
 
     @PutMapping("/{id}")
-    @PreAuthorize("hasRole('USER')")
+    @PreAuthorize("hasRole('HR')")
     public View update(@PathVariable UUID id, @Valid @RequestBody Input input) {
         return service.update(id, input);
     }
