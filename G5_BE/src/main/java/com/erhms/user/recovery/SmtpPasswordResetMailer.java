@@ -3,6 +3,9 @@ package com.erhms.user.recovery;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.ObjectProvider;
+import com.erhms.admin.service.SystemSettingsService;
 import org.springframework.http.HttpStatus;
 import org.springframework.mail.SimpleMailMessage;
 import org.springframework.mail.javamail.JavaMailSender;
@@ -16,6 +19,10 @@ public class SmtpPasswordResetMailer implements PasswordResetMailer {
     private final JavaMailSender sender;
     private final String host, username, password, from;
     private final boolean authentication;
+    private ObjectProvider<SystemSettingsService> settings;
+
+    @Autowired
+    public void setSystemSettings(ObjectProvider<SystemSettingsService> settings) { this.settings=settings; }
 
     public SmtpPasswordResetMailer(JavaMailSender sender,
             @Value("${spring.mail.host:}") String host,
@@ -49,13 +56,18 @@ public class SmtpPasswordResetMailer implements PasswordResetMailer {
     @Override public void sendCode(String email, String code) {
         requireConfigured();
         var message = new SimpleMailMessage();
+        var configured=settings==null?null:settings.getIfAvailable();
+        var branding=configured==null?java.util.Map.<String,Object>of():configured.branding();
+        String centerName=String.valueOf(branding.getOrDefault("centerName","ERHMS"));
+        String replyTo=String.valueOf(branding.getOrDefault("notificationEmail",""));
+        if (!replyTo.isBlank()) message.setReplyTo(replyTo);
         message.setFrom(from);
         message.setTo(email);
-        message.setSubject("ERHMS - Mã xác nhận đặt lại mật khẩu");
+        message.setSubject(centerName + " - Mã xác nhận đặt lại mật khẩu");
         message.setText("Mã xác nhận của bạn là: " + code
                 + "\n\nMã gồm 6 chữ số, có hiệu lực trong 10 phút và chỉ sử dụng một lần."
                 + "\nKhông chia sẻ mã này với người khác. Nếu bạn không yêu cầu đặt lại mật khẩu, hãy bỏ qua email."
-                + "\n\nERHMS - Trung tâm đào tạo");
+                + "\n\n" + centerName);
         sender.send(message);
     }
 }

@@ -28,6 +28,7 @@ public class UserProfileService {
         var user = current.getForUpdate();
         user.fullName = input.fullName();
         user.phone = input.phone();
+        user.adminVersion++;
         users.saveAndFlush(user);
         return view(user);
     }

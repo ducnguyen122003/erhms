@@ -1,6 +1,7 @@
 package com.erhms.admin.controller;
 
 import com.erhms.admin.dto.AdminAccountInput;
+import com.erhms.admin.dto.AdminAccountEditInput;
 import com.erhms.admin.dto.AdminAccountLockInput;
 import com.erhms.admin.dto.AdminAccountPage;
 import com.erhms.admin.dto.AdminAccountStatusInput;
@@ -33,9 +34,10 @@ public class AdminAccountsController {
     @GetMapping("/users")
     public AdminAccountPage list(@RequestParam(defaultValue = "") String q,
                                  @RequestParam(required = false) Long roleId,
+                                 @RequestParam(defaultValue = "") String status,
                                  @RequestParam(defaultValue = "0") int page,
                                  @RequestParam(defaultValue = "10") int size) {
-        return accounts.list(q, roleId, page, size);
+        return accounts.list(q, roleId, status, page, size);
     }
 
     @GetMapping("/roles")
@@ -52,6 +54,9 @@ public class AdminAccountsController {
     public AdminAccountView update(@PathVariable Long id, @Valid @RequestBody AdminAccountInput input) {
         return accounts.update(id, input);
     }
+
+    @PutMapping("/users/{id}/details")
+    public AdminAccountView editDetails(@PathVariable Long id,@Valid @RequestBody AdminAccountEditInput input) { return accounts.editDetails(id,input); }
 
     @PatchMapping("/users/{id}/status")
     public AdminAccountView updateStatus(@PathVariable Long id, @Valid @RequestBody AdminAccountStatusInput input) {

@@ -1,8 +1,37 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {dashboardPath, dashboardRoles, resolveRole, roleError, rolesById, workspaceRoute} from '../src/roles.js';
+import {dashboardPath, dashboardRoles, firstAllowedPath, resolveRole, roleError, rolesById, workspaceRoute} from '../src/roles.js';
 
 const users = Object.entries(rolesById).map(([roleId, role]) => ({roleId: Number(roleId), role}));
+
+test('database screen grants control admin pages for the current role',()=>{
+ const student={roleId:3,role:'STUDENT'};
+ assert.equal(workspaceRoute('/admin/users',student,['USER_ACCOUNTS']),'users');
+ assert.equal(workspaceRoute('/admin/users/42/edit',student,['USER_ACCOUNTS']),'user-edit');
+ assert.equal(workspaceRoute('/admin/users/new',student,['USER_ACCOUNTS']),'user-create');
+ assert.equal(workspaceRoute('/admin/users/42/view',student,['USER_ACCOUNTS']),'user-detail');
+ for(const [path,code,section] of [['/admin/permissions','ROLE_PERMISSIONS','permissions'],['/admin/settings','SYSTEM_CONFIG','settings'],['/admin/audit-logs','SYSTEM_AUDIT_LOG','audit']]){
+  assert.equal(workspaceRoute(path,student,[code]),section);
+  assert.equal(workspaceRoute(path,{roleId:1,role:'ADMIN'},[]),'forbidden');
+ }
+});
+test('revocation overrides a known admin role and own-dashboard scope stays enforced',()=>{
+ const admin={roleId:1,role:'ADMIN'};
+ assert.equal(workspaceRoute('/admin/users',admin,['DASHBOARD']),'forbidden');
+ assert.equal(workspaceRoute('/dashboard/admin',admin,[]),'forbidden');
+ assert.equal(workspaceRoute('/dashboard/student',admin,['DASHBOARD']),'forbidden');
+ assert.equal(workspaceRoute('/profile',admin,[]),'forbidden');
+ assert.equal(workspaceRoute('/admin/users/42/view',admin,[]),'forbidden');
+});
+test('landing uses an accessible page and handles roles with no granted screens',()=>{
+ const student={roleId:3,role:'STUDENT'};
+ assert.equal(firstAllowedPath(student,['DASHBOARD']),'/dashboard/student');
+ assert.equal(firstAllowedPath(student,['SYSTEM_AUDIT_LOG']),'/admin/audit-logs');
+ assert.equal(firstAllowedPath(student,['PROFILE']),'/profile');
+ assert.equal(firstAllowedPath(student,[]),'/access-denied');
+ assert.equal(workspaceRoute('/admin/users/abc/edit',{roleId:1,role:'ADMIN'},['USER_ACCOUNTS']),'missing');
+ assert.equal(workspaceRoute('/admin/users/abc/view',{roleId:1,role:'ADMIN'},['USER_ACCOUNTS']),'missing');
+});
 
 function assertUnsupported(user) {
  assert.equal(resolveRole(user), null);

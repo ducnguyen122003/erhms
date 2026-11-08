@@ -1,6 +1,7 @@
 package com.erhms.admin.service;
 
 import com.erhms.admin.dto.AdminAccountInput;
+import com.erhms.admin.dto.AdminAccountEditInput;
 import com.erhms.admin.dto.AdminAccountLockInput;
 import com.erhms.admin.dto.AdminAccountPage;
 import com.erhms.admin.dto.AdminAccountStatusInput;
@@ -30,6 +31,9 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
 import java.util.Objects;
+import java.util.Map;
+import org.springframework.web.context.request.RequestContextHolder;
+import org.springframework.web.context.request.ServletRequestAttributes;
 
 @Service
 public class AdminAccountsService {
@@ -46,6 +50,20 @@ public class AdminAccountsService {
                 UNION ALL SELECT student_id FROM equipment_loans WHERE student_id = :id
                 UNION ALL SELECT reported_by FROM equipment_incidents WHERE reported_by = :id
                 UNION ALL SELECT assigned_to FROM consultation_followups WHERE assigned_to = :id
+                UNION ALL SELECT manager_id FROM training_courses WHERE manager_id = :id
+                UNION ALL SELECT lecturer_id FROM course_lecturers WHERE lecturer_id = :id
+                UNION ALL SELECT user_id FROM student_profiles WHERE user_id = :id OR manager_id = :id
+                UNION ALL SELECT manager_id FROM training_classes WHERE manager_id = :id
+                UNION ALL SELECT created_by FROM training_contracts WHERE created_by = :id OR manager_id = :id OR accountant_id = :id
+                UNION ALL SELECT actor_id FROM consultation_notes WHERE actor_id = :id
+                UNION ALL SELECT created_by FROM payment_instructions WHERE created_by = :id
+                UNION ALL SELECT confirmed_by FROM financial_transactions WHERE confirmed_by = :id
+                UNION ALL SELECT student_id FROM equipment_requests WHERE student_id = :id
+                UNION ALL SELECT handed_over_by FROM equipment_loans WHERE handed_over_by = :id
+                UNION ALL SELECT reported_by FROM asset_maintenance WHERE reported_by = :id OR owner_id = :id
+                UNION ALL SELECT created_by FROM deposit_settlements WHERE created_by = :id
+                UNION ALL SELECT recipient_id FROM user_notifications WHERE recipient_id = :id OR sender_id = :id
+                UNION ALL SELECT uploaded_by FROM workflow_files WHERE uploaded_by = :id
             ) related_accounts
             """;
     private final CurrentUser current;
@@ -53,18 +71,25 @@ public class AdminAccountsService {
     private final RoleRepository roles;
     private final PasswordEncoder passwords;
     private final EntityManager entities;
+    private final ScreenPermissionsService permissions;
 
     public AdminAccountsService(CurrentUser current, UserRepository users, RoleRepository roles,
-                                PasswordEncoder passwords, EntityManager entities) {
+                                PasswordEncoder passwords, EntityManager entities, ScreenPermissionsService permissions) {
         this.current = current;
         this.users = users;
         this.roles = roles;
         this.passwords = passwords;
         this.entities = entities;
+        this.permissions = permissions;
     }
 
     @Transactional(readOnly = true)
     public AdminAccountPage list(String query, Long roleId, int page, int size) {
+        return list(query,roleId,"",page,size);
+    }
+
+    @Transactional(readOnly = true)
+    public AdminAccountPage list(String query, Long roleId, String status, int page, int size) {
         requireAdmin(current.get());
         if (page < 0 || size < 1 || size > 100) {
             throw error(HttpStatus.BAD_REQUEST, "Trang không hợp lệ (page từ 0, size từ 1 đến 100)", null);
@@ -72,7 +97,11 @@ public class AdminAccountsService {
         if (roleId != null && DashboardRole.fromId(roleId).isEmpty()) {
             throw error(HttpStatus.BAD_REQUEST, "Vai trò không hợp lệ", "roleId");
         }
+        if (!List.of("","ACTIVE","DISABLED","LOCKED").contains(status)) throw error(HttpStatus.BAD_REQUEST,"Trạng thái không hợp lệ","status");
         String term = query == null ? "" : query.strip().toLowerCase(Locale.ROOT);
+        Long searchedId=null;
+        if (term.matches("(?:tk-)?[0-9]+")) { try { searchedId=Long.parseLong(term.replaceFirst("^tk-","")); } catch(NumberFormatException ignored) { } }
+        final Long accountId=searchedId;
         if (term.length() > 200) throw error(HttpStatus.BAD_REQUEST, "Từ khóa tìm kiếm tối đa 200 ký tự", "q");
         String pattern = "%" + term.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_") + "%";
         Specification<User> criteria = (root, ignored, builder) -> {
@@ -80,14 +109,21 @@ public class AdminAccountsService {
             if (!term.isEmpty()) filters.add(builder.or(
                     builder.like(builder.lower(root.get("fullName")), pattern, '\\'),
                     builder.like(builder.lower(root.get("email")), pattern, '\\'),
-                    builder.like(builder.lower(root.get("phone")), pattern, '\\')));
+                    builder.like(builder.lower(root.get("phone")), pattern, '\\'),
+                    accountId==null?builder.disjunction():builder.equal(root.get("id"),accountId)));
             if (roleId != null) filters.add(builder.equal(root.get("role").get("id"), roleId));
+            if (status.equals("ACTIVE")) { filters.add(builder.isTrue(root.get("accountEnabled"))); filters.add(builder.isFalse(root.get("accountLocked"))); }
+            if (status.equals("DISABLED")) filters.add(builder.isFalse(root.get("accountEnabled")));
+            if (status.equals("LOCKED")) filters.add(builder.isTrue(root.get("accountLocked")));
             return builder.and(filters.toArray(jakarta.persistence.criteria.Predicate[]::new));
         };
         var found = users.findAll(criteria, PageRequest.of(page, size, Sort.by("id").descending()));
         return new AdminAccountPage(found.stream().map(AdminAccountView::from).toList(), found.getTotalElements(),
-                found.getNumber(), found.getSize(), found.getTotalPages());
+                found.getNumber(), found.getSize(), found.getTotalPages(), Map.of("total",users.count(),
+                        "active",count("accountEnabled=true and u.accountLocked=false"),"disabled",count("accountEnabled=false"),"locked",count("accountLocked=true")));
     }
+
+    private long count(String condition) { return entities.createQuery("select count(u) from User u where u."+condition,Long.class).getSingleResult(); }
 
     @Transactional(readOnly = true)
     public List<AdminRoleView> roles() {
@@ -113,7 +149,11 @@ public class AdminAccountsService {
         var account = new User();
         apply(account, input, role);
         account.passwordHash = passwords.encode(input.password());
-        return save(account);
+        AdminAccountView saved=save(account);
+        if (RequestContextHolder.getRequestAttributes() instanceof ServletRequestAttributes attrs) {
+            attrs.getRequest().setAttribute("admin.targetId",saved.id().toString());
+        }
+        return saved;
     }
 
     @Transactional
@@ -122,7 +162,7 @@ public class AdminAccountsService {
         Role role = validRole(input.roleId());
         User account = Objects.equals(administrator.id, id) ? administrator : users.findForUpdateById(id)
                 .orElseThrow(() -> error(HttpStatus.NOT_FOUND, "Không tìm thấy tài khoản", null));
-        if (Objects.equals(administrator.id, account.id) && role.getId() != DashboardRole.ADMIN.id()) {
+        if (Objects.equals(administrator.id, account.id) && !Objects.equals(role.getId(),administrator.getRoleId())) {
             throw error(HttpStatus.CONFLICT, "Bạn không thể thay đổi quyền quản trị viên của chính mình", "roleId");
         }
         if (DashboardRole.resolve(account.getRoleId(), account.getRoleCode()).orElse(null) == DashboardRole.ADMIN
@@ -138,6 +178,31 @@ public class AdminAccountsService {
         }
         if (passwordChanged) account.passwordHash = passwords.encode(input.password());
         apply(account, input, role);
+        return save(account);
+    }
+
+    @Transactional
+    public AdminAccountView editDetails(Long id,AdminAccountEditInput edit) {
+        User actor=lockAndRequireAdmin();
+        User account=Objects.equals(actor.id,id)?actor:users.findForUpdateById(id)
+                .orElseThrow(()->error(HttpStatus.NOT_FOUND,"Không tìm thấy tài khoản",null));
+        if (account.adminVersion!=edit.version()) throw error(HttpStatus.CONFLICT,"Tài khoản vừa được thay đổi. Hãy tải lại trước khi lưu.",null);
+        AdminAccountInput input=edit.account(); Role role=validRole(input.roleId());
+        boolean enabled=edit.status().equals("ACTIVE")||edit.status().equals("LOCKED");
+        boolean locked=edit.status().equals("LOCKED")||edit.status().equals("DISABLED_LOCKED");
+        if (Objects.equals(actor.id,id) && (!enabled||locked||!Objects.equals(role.getId(),actor.getRoleId()))) {
+            throw error(HttpStatus.CONFLICT,"Không thể tự khóa, vô hiệu hóa hoặc đổi quyền hạn tài khoản đang đăng nhập.","status");
+        }
+        if (DashboardRole.resolve(account.getRoleId(),account.getRoleCode()).orElse(null)==DashboardRole.ADMIN
+                && account.accountEnabled&&!account.accountLocked && (!enabled||locked||role.getId()!=1)
+                && users.countUsableAdministrators()<=1) throw error(HttpStatus.CONFLICT,"Cần giữ ít nhất một quản trị viên đang hoạt động.","status");
+        ensureUniqueEmail(input.email(),id);
+        boolean passwordChanged=validatePassword(input,false);
+        if (!Objects.equals(account.email,input.email())||!Objects.equals(account.getRoleId(),role.getId())
+                ||account.accountEnabled!=enabled||account.accountLocked!=locked||passwordChanged) account.credentialsVersion++;
+        if (passwordChanged) account.passwordHash=passwords.encode(input.password());
+        apply(account,input,role); account.accountEnabled=enabled; account.accountLocked=locked;
+        if (RequestContextHolder.getRequestAttributes() instanceof ServletRequestAttributes attrs) attrs.getRequest().setAttribute("admin.changeNote",edit.changeNote());
         return save(account);
     }
 
@@ -244,10 +309,8 @@ public class AdminAccountsService {
         return administrator;
     }
 
-    private static void requireAdmin(User user) {
-        if (DashboardRole.resolve(user.getRoleId(), user.getRoleCode()).orElse(null) != DashboardRole.ADMIN) {
-            throw new AccessDeniedException("Chỉ quản trị viên được quản lý tài khoản người dùng");
-        }
+    private void requireAdmin(User user) {
+        permissions.require(user,"USER_ACCOUNTS");
     }
 
     private Role validRole(Long id) {
@@ -263,6 +326,7 @@ public class AdminAccountsService {
 
     private AdminAccountView save(User user) {
         try {
+            user.adminVersion++;
             return AdminAccountView.from(users.saveAndFlush(user));
         } catch (DataIntegrityViolationException exception) {
             throw error(HttpStatus.CONFLICT, "Email này đã được sử dụng hoặc dữ liệu tài khoản vừa thay đổi", "email");

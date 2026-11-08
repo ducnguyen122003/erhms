@@ -1,3 +1,5 @@
+import {canScreen,screenNavigation,screenRoute} from './screens/access.js';
+
 export const rolesById = Object.freeze({
  1: 'ADMIN', 2: 'LECTURER', 3: 'STUDENT', 4: 'ACCOUNTANT',
  5: 'IT_SUPPORT', 6: 'MANAGER', 7: 'HR'
@@ -32,14 +34,32 @@ export function dashboardPath(user) {
  return role ? '/dashboard/' + dashboardRoles[role].slug : '/dashboard';
 }
 
-export function workspaceRoute(path, user) {
+export function workspaceRoute(path, user, functions = null) {
  const canonical = resolveRole(user);
  if (!canonical) return 'unsupported';
+ const has = code => functions ? functions.includes(code) : ['DASHBOARD','PROFILE'].includes(code) || (canonical === 'ADMIN' && ['USER_ACCOUNTS','ROLE_PERMISSIONS','SYSTEM_CONFIG','SYSTEM_AUDIT_LOG'].includes(code)) || (['HR','MANAGER'].includes(canonical) && code === 'RECRUITMENT');
+ const route=screenRoute(path);
+ if(route)return canScreen(route.screen.code,user,functions||[])?'screen':'forbidden';
  if (['/', '/login', '/dashboard'].includes(path)) return 'redirect';
- if (path === dashboardPath(user)) return 'dashboard';
- if (path === '/profile') return 'profile';
- if (path === '/admin/users') return canonical === 'ADMIN' ? 'users' : 'forbidden';
- if (path === '/recruitment') return ['HR', 'MANAGER'].includes(canonical) ? 'recruitment' : 'forbidden';
+ if (path === dashboardPath(user)) return has('DASHBOARD') ? 'dashboard' : 'forbidden';
+ if (path === '/profile') return has('PROFILE') ? 'profile' : 'forbidden';
+ if (path === '/admin/users') return has('USER_ACCOUNTS') ? 'users' : 'forbidden';
+ if (path === '/admin/users/new') return has('USER_ACCOUNTS') ? 'user-create' : 'forbidden';
+ if (/^\/admin\/users\/[1-9][0-9]*\/view$/.test(path)) return has('USER_ACCOUNTS') ? 'user-detail' : 'forbidden';
+ if (/^\/admin\/users\/[1-9][0-9]*\/edit$/.test(path)) return has('USER_ACCOUNTS') ? 'user-edit' : 'forbidden';
+ if (path === '/admin/permissions') return has('ROLE_PERMISSIONS') ? 'permissions' : 'forbidden';
+ if (path === '/admin/settings') return has('SYSTEM_CONFIG') ? 'settings' : 'forbidden';
+ if (path === '/admin/audit-logs') return has('SYSTEM_AUDIT_LOG') ? 'audit' : 'forbidden';
+ if (path === '/recruitment') return ['HR', 'MANAGER'].includes(canonical) && has('RECRUITMENT') ? 'recruitment' : 'forbidden';
+ if (path === '/access-denied') return 'forbidden';
  if (path.startsWith('/dashboard/')) return 'forbidden';
  return 'missing';
+}
+
+export function firstAllowedPath(user, functions) {
+ if (functions.includes('DASHBOARD')) return dashboardPath(user);
+ for (const [code,path] of [['USER_ACCOUNTS','/admin/users'],['ROLE_PERMISSIONS','/admin/permissions'],['SYSTEM_CONFIG','/admin/settings'],['SYSTEM_AUDIT_LOG','/admin/audit-logs'],['PROFILE','/profile'],['RECRUITMENT','/recruitment']]) {
+  if (functions.includes(code)) return path;
+ }
+ return screenNavigation(user,functions)[0]?.path||'/access-denied';
 }

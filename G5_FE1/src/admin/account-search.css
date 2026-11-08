@@ -1,0 +1,39 @@
+.admin-accounts-list .admin-toolbar {
+ display: grid;
+ grid-template-columns: minmax(0, 2.4fr) repeat(2, minmax(0, 1fr));
+ gap: 12px;
+ align-items: center;
+}
+
+.admin-accounts-list .admin-search {
+ display: block;
+ width: 100%;
+ min-width: 0;
+}
+
+.admin-accounts-list .admin-search > svg {
+ top: 50%;
+ transform: translateY(-50%);
+ pointer-events: none;
+}
+
+.admin-accounts-list .admin-search > input,
+.admin-accounts-list .admin-toolbar > select {
+ width: 100%;
+ min-width: 0;
+ height: 42px;
+}
+
+.admin-accounts-list .admin-search > input {
+ padding-left: 38px;
+}
+
+@media (max-width: 760px) {
+ .admin-accounts-list .admin-toolbar {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+ }
+
+ .admin-accounts-list .admin-search {
+  grid-column: 1 / -1;
+ }
+}

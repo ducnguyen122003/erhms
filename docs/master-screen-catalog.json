@@ -1,0 +1,182 @@
+[
+  {
+    "code": "ListEquipmentGroup",
+    "fe": "MD-01",
+    "title": "Nhóm thiết bị",
+    "kind": "master_list",
+    "functionCode": "ListEquipmentGroup",
+    "roles": [
+      "IT_SUPPORT"
+    ],
+    "public": false,
+    "description": "Quản lý danh mục nhóm thiết bị dùng chung.",
+    "masterType": "equipmentGroups",
+    "masterSuffix": "EquipmentGroup",
+    "nameLength": 120
+  },
+  {
+    "code": "AddEquipmentGroup",
+    "fe": "MD-01",
+    "title": "Tạo nhóm thiết bị",
+    "kind": "master_add",
+    "functionCode": "AddEquipmentGroup",
+    "roles": [
+      "IT_SUPPORT"
+    ],
+    "public": false,
+    "description": "Quản lý danh mục nhóm thiết bị dùng chung.",
+    "masterType": "equipmentGroups",
+    "masterSuffix": "EquipmentGroup",
+    "nameLength": 120
+  },
+  {
+    "code": "EditEquipmentGroup",
+    "fe": "MD-01",
+    "title": "Cập nhật nhóm thiết bị",
+    "kind": "master_edit",
+    "functionCode": "EditEquipmentGroup",
+    "roles": [
+      "IT_SUPPORT"
+    ],
+    "public": false,
+    "description": "Quản lý danh mục nhóm thiết bị dùng chung.",
+    "masterType": "equipmentGroups",
+    "masterSuffix": "EquipmentGroup",
+    "nameLength": 120
+  },
+  {
+    "code": "ListStorageLocation",
+    "fe": "MD-02",
+    "title": "Vị trí kho",
+    "kind": "master_list",
+    "functionCode": "ListStorageLocation",
+    "roles": [
+      "IT_SUPPORT"
+    ],
+    "public": false,
+    "description": "Quản lý danh mục vị trí kho dùng chung.",
+    "masterType": "storageLocations",
+    "masterSuffix": "StorageLocation",
+    "nameLength": 160
+  },
+  {
+    "code": "AddStorageLocation",
+    "fe": "MD-02",
+    "title": "Tạo vị trí kho",
+    "kind": "master_add",
+    "functionCode": "AddStorageLocation",
+    "roles": [
+      "IT_SUPPORT"
+    ],
+    "public": false,
+    "description": "Quản lý danh mục vị trí kho dùng chung.",
+    "masterType": "storageLocations",
+    "masterSuffix": "StorageLocation",
+    "nameLength": 160
+  },
+  {
+    "code": "EditStorageLocation",
+    "fe": "MD-02",
+    "title": "Cập nhật vị trí kho",
+    "kind": "master_edit",
+    "functionCode": "EditStorageLocation",
+    "roles": [
+      "IT_SUPPORT"
+    ],
+    "public": false,
+    "description": "Quản lý danh mục vị trí kho dùng chung.",
+    "masterType": "storageLocations",
+    "masterSuffix": "StorageLocation",
+    "nameLength": 160
+  },
+  {
+    "code": "ListProfession",
+    "fe": "MD-03",
+    "title": "Ngành nghề",
+    "kind": "master_list",
+    "functionCode": "ListProfession",
+    "roles": [
+      "MANAGER"
+    ],
+    "public": false,
+    "description": "Quản lý danh mục ngành nghề dùng chung.",
+    "masterType": "professions",
+    "masterSuffix": "Profession",
+    "nameLength": 120
+  },
+  {
+    "code": "AddProfession",
+    "fe": "MD-03",
+    "title": "Tạo ngành nghề",
+    "kind": "master_add",
+    "functionCode": "AddProfession",
+    "roles": [
+      "MANAGER"
+    ],
+    "public": false,
+    "description": "Quản lý danh mục ngành nghề dùng chung.",
+    "masterType": "professions",
+    "masterSuffix": "Profession",
+    "nameLength": 120
+  },
+  {
+    "code": "EditProfession",
+    "fe": "MD-03",
+    "title": "Cập nhật ngành nghề",
+    "kind": "master_edit",
+    "functionCode": "EditProfession",
+    "roles": [
+      "MANAGER"
+    ],
+    "public": false,
+    "description": "Quản lý danh mục ngành nghề dùng chung.",
+    "masterType": "professions",
+    "masterSuffix": "Profession",
+    "nameLength": 120
+  },
+  {
+    "code": "ListClassroom",
+    "fe": "MD-04",
+    "title": "Phòng học",
+    "kind": "master_list",
+    "functionCode": "ListClassroom",
+    "roles": [
+      "ADMIN"
+    ],
+    "public": false,
+    "description": "Quản lý danh mục phòng học dùng chung.",
+    "masterType": "classrooms",
+    "masterSuffix": "Classroom",
+    "nameLength": 100
+  },
+  {
+    "code": "AddClassroom",
+    "fe": "MD-04",
+    "title": "Tạo phòng học",
+    "kind": "master_add",
+    "functionCode": "AddClassroom",
+    "roles": [
+      "ADMIN"
+    ],
+    "public": false,
+    "description": "Quản lý danh mục phòng học dùng chung.",
+    "masterType": "classrooms",
+    "masterSuffix": "Classroom",
+    "nameLength": 100
+  },
+  {
+    "code": "EditClassroom",
+    "fe": "MD-04",
+    "title": "Cập nhật phòng học",
+    "kind": "master_edit",
+    "functionCode": "EditClassroom",
+    "roles": [
+      "ADMIN"
+    ],
+    "public": false,
+    "description": "Quản lý danh mục phòng học dùng chung.",
+    "masterType": "classrooms",
+    "masterSuffix": "Classroom",
+    "nameLength": 100
+  }
+]

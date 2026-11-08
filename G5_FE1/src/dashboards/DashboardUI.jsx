@@ -3,6 +3,7 @@ import { ArrowUpRight, CalendarDays, Check, ChevronRight, CircleHelp, Clock3, Fi
 import './dashboard.css';
 
 const DetailsContext = createContext(() => {});
+export const DashboardNavigationContext = createContext(null);
 const numberFormat = new Intl.NumberFormat('vi-VN', { maximumFractionDigits: 1 });
 const currencyFormat = new Intl.NumberFormat('vi-VN', { style: 'currency', currency: 'VND', maximumFractionDigits: 0 });
 
@@ -50,7 +51,9 @@ function DetailDialog({ detail, onClose }) {
 
 export function DashboardPage({ children, className = '' }) {
   const [detail, setDetail] = useState(null);
-  return <DetailsContext.Provider value={setDetail}><div className={`dashboard-page ${className}`}>
+  const onNavigate=useContext(DashboardNavigationContext);
+  const showDetail=value=>{if(!onNavigate?.(value))setDetail(value);};
+  return <DetailsContext.Provider value={showDetail}><div className={`dashboard-page ${className}`}>
     {children}
     {detail && <DetailDialog detail={detail} onClose={() => setDetail(null)}/>}
   </div></DetailsContext.Provider>;
@@ -87,14 +90,14 @@ export function RecordPanel({ panel, actionLabel = 'Xem chi tiết' }) {
   const hasStatus = rows.some(row => row.status);
   return <section className="dash-panel" id={panelId(panel.key)} tabIndex={-1} aria-label={panel.title}>
     <div className="dash-panel-heading"><div><h2>{panel.title}</h2>{panel.description && <p>{panel.description}</p>}</div><span className="dash-panel-count">{rows.length} bản ghi</span></div>
-    {rows.length ? <><div className="dash-table-scroll"><table className="dash-table"><thead><tr>{columns.map((column, index) => <th key={index} scope="col">{column}</th>)}{hasStatus && <th scope="col">Trạng thái</th>}<th scope="col"><span className="dash-sr-only">Thao tác</span></th></tr></thead><tbody>{rows.map((row, index) => <tr key={`${row.id}-${index}`}>{(row.cells || []).map((cell, cellIndex) => <td key={cellIndex}>{cellIndex === 0 ? <><button className="dash-cell-link" onClick={() => showDetail({ title: panel.title, row, columns })}>{cell || 'Chưa có thông tin'}</button>{row.detail && <small>{row.detail}</small>}</> : cell || '—'}</td>)}{hasStatus && <td>{row.status ? <StatusBadge value={row.status} tone={row.statusTone}/> : '—'}</td>}<td className="dash-row-action"><button type="button" className="dash-record-action" onClick={() => showDetail({ title: panel.title, row, columns })} aria-label={`${actionLabel}: ${row.cells?.[0] || row.id}`}><span>Chi tiết</span><ArrowUpRight size={14}/></button></td></tr>)}</tbody></table></div><div className="dash-panel-bottom"><span>{rows.length} bản ghi gần nhất</span><span><ShieldCheck size={11}/>Dữ liệu trong phạm vi quyền truy cập</span></div></> : <EmptyPanel/>}
+    {rows.length ? <><div className="dash-table-scroll"><table className="dash-table"><thead><tr>{columns.map((column, index) => <th key={index} scope="col">{column}</th>)}{hasStatus && <th scope="col">Trạng thái</th>}<th scope="col"><span className="dash-sr-only">Thao tác</span></th></tr></thead><tbody>{rows.map((row, index) => <tr key={`${row.id}-${index}`}>{(row.cells || []).map((cell, cellIndex) => <td key={cellIndex}>{cellIndex === 0 ? <><button className="dash-cell-link" onClick={() => showDetail({ panelKey:panel.key, title: panel.title, row, columns })}>{cell || 'Chưa có thông tin'}</button>{row.detail && <small>{row.detail}</small>}</> : cell || '—'}</td>)}{hasStatus && <td>{row.status ? <StatusBadge value={row.status} tone={row.statusTone}/> : '—'}</td>}<td className="dash-row-action"><button type="button" className="dash-record-action" onClick={() => showDetail({ panelKey:panel.key, title: panel.title, row, columns })} aria-label={`${actionLabel}: ${row.cells?.[0] || row.id}`}><span>Chi tiết</span><ArrowUpRight size={14}/></button></td></tr>)}</tbody></table></div><div className="dash-panel-bottom"><span>{rows.length} bản ghi gần nhất</span><span><ShieldCheck size={11}/>Dữ liệu trong phạm vi quyền truy cập</span></div></> : <EmptyPanel/>}
   </section>;
 }
 
 export function RecordCards({ panel }) {
   const showDetail = useContext(DetailsContext);
   if (!panel) return null;
-  return <section className="dash-panel" id={panelId(panel.key)} tabIndex={-1} aria-label={panel.title}><div className="dash-panel-heading"><div><h2>{panel.title}</h2><p>{panel.description}</p></div></div>{panel.rows?.length ? <div className="dash-record-cards">{panel.rows.map((row, index) => <button type="button" className="dash-record-card" key={`${row.id}-${index}`} onClick={() => showDetail({ title: panel.title, row, columns: panel.columns || [] })}><span className="dash-record-card-code">{row.id}</span><strong>{row.cells?.[0] || 'Xem bản ghi'}</strong>{row.cells?.slice(1).map((cell, cellIndex) => <span key={cellIndex}>{panel.columns?.[cellIndex + 1]}: {cell || '—'}</span>)}{row.status && <StatusBadge value={row.status} tone={row.statusTone}/>}<span className="dash-card-view">Xem chi tiết<ArrowUpRight size={13}/></span></button>)}</div> : <EmptyPanel/>}</section>;
+  return <section className="dash-panel" id={panelId(panel.key)} tabIndex={-1} aria-label={panel.title}><div className="dash-panel-heading"><div><h2>{panel.title}</h2><p>{panel.description}</p></div></div>{panel.rows?.length ? <div className="dash-record-cards">{panel.rows.map((row, index) => <button type="button" className="dash-record-card" key={`${row.id}-${index}`} onClick={() => showDetail({ panelKey:panel.key, title: panel.title, row, columns: panel.columns || [] })}><span className="dash-record-card-code">{row.id}</span><strong>{row.cells?.[0] || 'Xem bản ghi'}</strong>{row.cells?.slice(1).map((cell, cellIndex) => <span key={cellIndex}>{panel.columns?.[cellIndex + 1]}: {cell || '—'}</span>)}{row.status && <StatusBadge value={row.status} tone={row.statusTone}/>}<span className="dash-card-view">Xem chi tiết<ArrowUpRight size={13}/></span></button>)}</div> : <EmptyPanel/>}</section>;
 }
 
 export function TaskPanel({ tasks = [], title = 'Việc cần hoàn tất', description = 'Những nội dung cần chú ý trong phạm vi công việc.' }) {
@@ -102,7 +105,7 @@ export function TaskPanel({ tasks = [], title = 'Việc cần hoàn tất', desc
   const icons = [FileText, CircleHelp, Clock3, ShieldCheck];
   return <section className="dash-panel dash-tasks" aria-label={title}><div className="dash-panel-heading"><div><h2>{title}</h2><p>{description}</p></div></div>{tasks.length ? <div className="dash-task-list">{tasks.map((task, index) => {
     const Icon = icons[index % icons.length];
-    return <button type="button" key={task.key || index} className="dash-task" onClick={() => showDetail({ title: task.title, columns: ['Nội dung', 'Số lượng'], row: { cells: [task.description, formatMetric(task.count)], detail: 'Số liệu được tổng hợp từ cơ sở dữ liệu theo quyền của tài khoản hiện tại.' } })}><span className={`dash-task-icon dash-tone-${task.tone || 'green'}`}><Icon size={16}/></span><span className="dash-task-copy"><strong>{task.title}</strong><small>{task.description}</small></span><span className={`dash-task-count dash-text-${task.tone || 'green'}`}>{formatMetric(task.count)}</span><ChevronRight size={14}/></button>;
+    return <button type="button" key={task.key || index} className="dash-task" onClick={() => showDetail({ taskKey:task.key, title: task.title, columns: ['Nội dung', 'Số lượng'], row: { cells: [task.description, formatMetric(task.count)], detail: 'Số liệu được tổng hợp từ cơ sở dữ liệu theo quyền của tài khoản hiện tại.' } })}><span className={`dash-task-icon dash-tone-${task.tone || 'green'}`}><Icon size={16}/></span><span className="dash-task-copy"><strong>{task.title}</strong><small>{task.description}</small></span><span className={`dash-task-count dash-text-${task.tone || 'green'}`}>{formatMetric(task.count)}</span><ChevronRight size={14}/></button>;
   })}</div> : <EmptyPanel message="Chưa có công việc cần chú ý."/>}</section>;
 }
 

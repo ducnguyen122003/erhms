@@ -2,6 +2,9 @@ package com.erhms;
 
 import com.erhms.user.recovery.PasswordResetException;
 import com.erhms.user.recovery.SmtpPasswordResetMailer;
+import com.erhms.admin.service.SystemSettingsService;
+import org.springframework.beans.factory.ObjectProvider;
+import static org.mockito.Mockito.*;
 import jakarta.mail.Message;
 import jakarta.mail.Session;
 import jakarta.mail.internet.InternetAddress;
@@ -37,6 +40,25 @@ import static org.junit.jupiter.api.Assertions.*;
 class SmtpPasswordResetMailerTest {
     private static final String FROM = "erhms-sender@example.test";
     private static final String RECIPIENT = "learner@example.test";
+
+    @Test
+    void savedCenterNameAndNotificationEmailApplyToOutgoingMail() throws Exception {
+        try(var smtp=new LocalSmtp()) {
+            var settings=mock(SystemSettingsService.class);
+            when(settings.branding()).thenReturn(java.util.Map.of("centerName","Trung tâm đã cấu hình","notificationEmail","support@example.test"));
+            @SuppressWarnings("unchecked") ObjectProvider<SystemSettingsService> provider=mock(ObjectProvider.class);
+            when(provider.getIfAvailable()).thenReturn(settings);
+            var mailer=new SmtpPasswordResetMailer(sender(smtp.port()),"127.0.0.1","","",FROM,false);
+            mailer.setSystemSettings(provider);
+            mailer.sendCode(RECIPIENT,"001234");
+            var captured=smtp.awaitMail();
+            var message=new MimeMessage(Session.getInstance(new Properties()),new ByteArrayInputStream(captured.message()));
+            assertTrue(message.getSubject().startsWith("Trung tâm đã cấu hình"));
+            assertEquals("support@example.test",((InternetAddress)message.getReplyTo()[0]).getAddress());
+            assertEquals(FROM,((InternetAddress)message.getFrom()[0]).getAddress());
+            assertTrue(((String)message.getContent()).contains("Trung tâm đã cấu hình"));
+        }
+    }
 
     @Test
     void sendsMimeMessageThroughLocalSmtpAndPreservesLeadingZeroCode() throws Exception {

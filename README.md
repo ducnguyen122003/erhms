@@ -64,6 +64,8 @@ Cả hai frontend chuyển tiếp `/api` tới `http://localhost:8080`. Nếu ba
 
 ## Dashboard theo vai trò
 
+Đã bổ sung các màn theo bộ SVG và ma trận Excel: tuyển sinh, hồ sơ học viên, hợp đồng, khóa/lớp/lịch, điểm danh/điểm, học phí/thanh toán/cọc, thiết bị/thu hồi/bồi thường, đóng hồ sơ, thông báo và báo cáo. Frontend nằm trong `G5_FE1`; trang công khai mới tại http://localhost:8082/public/HomePage. Khởi động lại backend để áp dụng migration **V9–V11**. Luồng sử dụng, quyền và API: [FULL_SCREEN_WORKSPACE.md](docs/FULL_SCREEN_WORKSPACE.md); danh mục 120 mã màn: [SCREEN_ROUTE_COVERAGE.md](docs/SCREEN_ROUTE_COVERAGE.md).
+
 Sau khi đăng nhập, `G5_FE1` tự mở dashboard theo `m_user.role_id`, đồng thời kiểm tra `m_role.code` đúng với ID quy định. Tải lại trang giữ đúng dashboard; mở URL của role khác bị chặn ở cả giao diện và API. Mỗi dashboard có file React riêng:
 
 | role_id | Role | Giao diện | File trong `G5_FE1/src/dashboards` | Đường dẫn |
@@ -82,9 +84,11 @@ Số liệu được lấy qua `GET /api/dashboard` hoặc `/api/dashboard/{slug
 
 ## Quản lý tài khoản và quên mật khẩu
 
+Các màn quản trị riêng: danh sách tài khoản, sửa/tạo tài khoản, vai trò và phân quyền, nhật ký hệ thống, cấu hình hệ thống. Quyền màn lưu trong `role_function` và được kiểm tra tại UI/API. Hướng dẫn: [ADMIN_WORKSPACE.md](docs/ADMIN_WORKSPACE.md); kiểm tra: [ADMIN_WORKSPACE_VERIFICATION.md](docs/ADMIN_WORKSPACE_VERIFICATION.md).
+
 Quản trị viên (`role_id = 1`, `code = ADMIN`) mở **Tài khoản người dùng** trong menu hoặc nút **Quản lý tài khoản** ở dashboard. Trang `/admin/users` cho phép tìm theo họ tên, email, số điện thoại, lọc quyền hạn và phân trang, cùng đầy đủ chức năng tạo, xem chi tiết, sửa và xóa tài khoản. Khi tạo, nhập **họ và tên, email đăng nhập, số điện thoại, quyền hạn, mật khẩu và xác nhận mật khẩu**; số điện thoại không bắt buộc. Ô chọn quyền hạn lấy 7 role hợp lệ từ database; email trùng bị từ chối. Mật khẩu cần ít nhất 8 ký tự Unicode và tối đa 72 byte UTF-8, hai ô phải khớp chính xác. Tài khoản mới đăng nhập ngay bằng mật khẩu admin đã đặt, không cần cấu hình Gmail.
 
-Khi sửa, để trống cả hai ô mật khẩu để giữ mật khẩu hiện tại hoặc nhập cả hai để đổi. Admin đổi email, quyền hạn hoặc mật khẩu sẽ buộc tài khoản đó đăng nhập lại. Có thể **Vô hiệu hóa**, **Kích hoạt lại**, **Khóa tài khoản** hoặc **Mở khóa** sau khi xác nhận: dữ liệu được giữ nguyên, phiên và mã/token khôi phục cũ hết hiệu lực mỗi lần đổi trạng thái. Tài khoản chỉ được đăng nhập khi vừa được kích hoạt vừa không bị khóa và có role hợp lệ; bật lại không tự mở khóa, mở khóa không tự bật lại. Không thể tự hạ quyền/vô hiệu hóa/khóa/xóa tài khoản đang đăng nhập hoặc vô hiệu hóa/khóa/xóa quản trị viên hoạt động cuối cùng. Xóa tài khoản chưa có dữ liệu nghiệp vụ là xóa thực sự; tài khoản đang gắn với lịch sử tuyển dụng, lớp học, học phí, thiết bị hoặc tư vấn sẽ báo lỗi và giữ dữ liệu. Bổ sung này không cần migration mới; khởi động lại backend/frontend để nhận code.
+Khi sửa, để trống cả hai ô mật khẩu để giữ mật khẩu hiện tại hoặc nhập cả hai để đổi. Admin đổi email, quyền hạn hoặc mật khẩu sẽ buộc tài khoản đó đăng nhập lại. Ở trang cập nhật, chọn **Trạng thái**, nhập ghi chú và bấm **Lưu tài khoản** để kích hoạt/vô hiệu hóa hoặc khóa/mở khóa: dữ liệu được giữ nguyên, phiên và mã/token khôi phục cũ hết hiệu lực mỗi lần đổi trạng thái. Tài khoản chỉ được đăng nhập khi vừa được kích hoạt vừa không bị khóa và có role hợp lệ; bật lại không tự mở khóa, mở khóa không tự bật lại. Không thể tự hạ quyền/vô hiệu hóa/khóa/xóa tài khoản đang đăng nhập hoặc vô hiệu hóa/khóa/xóa quản trị viên hoạt động cuối cùng. Xóa tài khoản chưa có dữ liệu nghiệp vụ là xóa thực sự; tài khoản đang gắn với lịch sử tuyển dụng, lớp học, học phí, thiết bị hoặc tư vấn sẽ báo lỗi và giữ dữ liệu. Khởi động lại backend để Flyway áp dụng migration V8, rồi tải lại frontend. Trang sửa dùng phiên bản dữ liệu để tránh ghi đè; nhật ký lưu thay đổi tài khoản, quyền và cấu hình.
 
 Sau thao tác quản trị thành công và khi quay về Dashboard, giao diện tải lại số liệu từ database. **Đang hoạt động** chỉ đếm tài khoản được kích hoạt và không bị khóa; các mục bị khóa và vô hiệu hóa đếm từng cờ trạng thái độc lập nên có thể cùng tính một tài khoản.
 
@@ -154,6 +158,10 @@ docker compose down
 ```
 
 `down` giữ dữ liệu volume. Không dùng `down -v` nếu muốn giữ dữ liệu.
+
+## Danh mục dùng chung BK-VTCMS
+
+IT Support quản lý nhóm thiết bị và vị trí kho; Manager quản lý ngành nghề; Admin quản lý phòng học. Các màn CRUD riêng có mã trong `m_function` và liên kết quyền qua `role_function`. Biểu mẫu thiết bị, yêu cầu thiết bị, khóa học, thời khóa biểu và tiếp nhận giao dịch dùng dữ liệu master; `m_bank` khởi tạo 10 ngân hàng. Hướng dẫn: [MASTER_DATA.md](docs/MASTER_DATA.md). Khởi động lại backend để áp dụng migration V11.
 
 ## Build và kiểm thử
 

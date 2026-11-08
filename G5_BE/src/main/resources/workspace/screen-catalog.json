@@ -1,0 +1,3540 @@
+[
+  {
+    "code": "Dashboard_Admin",
+    "fe": "FE-21",
+    "title": "Dashboard Admin",
+    "roles": [
+      "ADMIN"
+    ],
+    "proposedRoles": [],
+    "public": false,
+    "scope": "Tài khoản, role, cấu hình và nhật ký hệ thống; thông tin cá nhân của bản thân.",
+    "actions": "Chỉ dashboard của đúng role. Không dùng việc chọn dashboard để đổi quyền truy cập.",
+    "variant": "Dashboard riêng của vai trò",
+    "kind": "dashboard",
+    "functionCode": "DASHBOARD",
+    "description": "",
+    "sections": []
+  },
+  {
+    "code": "Dashboard_Lecturer",
+    "fe": "FE-21",
+    "title": "Dashboard Lecturer",
+    "roles": [
+      "LECTURER"
+    ],
+    "proposedRoles": [],
+    "public": false,
+    "scope": "Lớp, buổi dạy và học viên thuộc phân công; yêu cầu thiết bị trong phạm vi phụ trách.",
+    "actions": "Chỉ dashboard của đúng role. Không dùng việc chọn dashboard để đổi quyền truy cập.",
+    "variant": "Dashboard riêng của vai trò",
+    "kind": "dashboard",
+    "functionCode": "DASHBOARD",
+    "description": "",
+    "sections": []
+  },
+  {
+    "code": "Dashboard_Student",
+    "fe": "FE-21",
+    "title": "Dashboard Student",
+    "roles": [
+      "STUDENT"
+    ],
+    "proposedRoles": [],
+    "public": false,
+    "scope": "Hồ sơ, lịch, điểm, chuyên cần, hợp đồng thanh toán và thiết bị của chính mình.",
+    "actions": "Chỉ dashboard của đúng role. Không dùng việc chọn dashboard để đổi quyền truy cập.",
+    "variant": "Dashboard riêng của vai trò",
+    "kind": "dashboard",
+    "functionCode": "DASHBOARD",
+    "description": "",
+    "sections": []
+  },
+  {
+    "code": "Dashboard_Accountant",
+    "fe": "FE-21",
+    "title": "Dashboard Accountant",
+    "roles": [
+      "ACCOUNTANT"
+    ],
+    "proposedRoles": [],
+    "public": false,
+    "scope": "Hợp đồng, giao dịch, học phí, cọc và hồ sơ bồi thường / quyết toán theo phân công.",
+    "actions": "Chỉ dashboard của đúng role. Không dùng việc chọn dashboard để đổi quyền truy cập.",
+    "variant": "Dashboard riêng của vai trò",
+    "kind": "dashboard",
+    "functionCode": "DASHBOARD",
+    "description": "",
+    "sections": []
+  },
+  {
+    "code": "Dashboard_IT_Support",
+    "fe": "FE-21",
+    "title": "Dashboard IT Support",
+    "roles": [
+      "IT_SUPPORT"
+    ],
+    "proposedRoles": [],
+    "public": false,
+    "scope": "Tài sản, yêu cầu từ Lecturer, bàn giao, thu hồi, bảo trì và sự cố được bộ phận IT xử lý.",
+    "actions": "Chỉ dashboard của đúng role. Không dùng việc chọn dashboard để đổi quyền truy cập.",
+    "variant": "Dashboard riêng của vai trò",
+    "kind": "dashboard",
+    "functionCode": "DASHBOARD",
+    "description": "",
+    "sections": []
+  },
+  {
+    "code": "Dashboard_Student_Manager",
+    "fe": "FE-21",
+    "title": "Dashboard Quản lý sinh viên",
+    "roles": [
+      "MANAGER"
+    ],
+    "proposedRoles": [],
+    "public": false,
+    "scope": "Học viên, khóa / lớp, lịch, xếp lớp và hồ sơ hoàn tất được phân công quản lý.",
+    "actions": "Chỉ dashboard của đúng role. Không dùng việc chọn dashboard để đổi quyền truy cập.",
+    "variant": "Dashboard riêng của vai trò",
+    "kind": "dashboard",
+    "functionCode": "DASHBOARD",
+    "description": "",
+    "sections": []
+  },
+  {
+    "code": "Dashboard_Admissions",
+    "fe": "FE-21",
+    "title": "Dashboard Tuyển dụng",
+    "roles": [
+      "HR"
+    ],
+    "proposedRoles": [],
+    "public": false,
+    "scope": "Đăng ký tư vấn, hợp đồng và trạng thái học phí của hồ sơ được phân công phụ trách.",
+    "actions": "Chỉ dashboard của đúng role. Không dùng việc chọn dashboard để đổi quyền truy cập.",
+    "variant": "Dashboard riêng của vai trò",
+    "kind": "dashboard",
+    "functionCode": "DASHBOARD",
+    "description": "",
+    "sections": []
+  },
+  {
+    "code": "Login",
+    "fe": "FE-01",
+    "title": "Đăng nhập",
+    "roles": [
+      "ADMIN",
+      "LECTURER",
+      "STUDENT",
+      "ACCOUNTANT",
+      "IT_SUPPORT",
+      "MANAGER",
+      "HR"
+    ],
+    "proposedRoles": [],
+    "public": true,
+    "scope": "Đăng nhập / khôi phục cho tài khoản hợp lệ; đặt lại mật khẩu cần mã / liên kết hợp lệ.",
+    "actions": "Chỉ xác thực tài khoản. Đăng nhập thành công thì mở dashboard của đúng role được cấp.",
+    "variant": "Màn hình chính",
+    "kind": "auth",
+    "functionCode": "Login",
+    "description": "Đăng nhập bằng tài khoản được trung tâm cấp.",
+    "sections": []
+  },
+  {
+    "code": "ForgetPassword",
+    "fe": "FE-01",
+    "title": "Quên mật khẩu",
+    "roles": [
+      "ADMIN",
+      "LECTURER",
+      "STUDENT",
+      "ACCOUNTANT",
+      "IT_SUPPORT",
+      "MANAGER",
+      "HR"
+    ],
+    "proposedRoles": [],
+    "public": true,
+    "scope": "Đăng nhập / khôi phục cho tài khoản hợp lệ; đặt lại mật khẩu cần mã / liên kết hợp lệ.",
+    "actions": "Gửi hướng dẫn khôi phục cho tài khoản phù hợp; không cung cấp dữ liệu tài khoản khác.",
+    "variant": "Màn hình chính",
+    "kind": "auth",
+    "functionCode": "ForgetPassword",
+    "description": "Nhận hướng dẫn đặt lại mật khẩu qua email.",
+    "sections": []
+  },
+  {
+    "code": "ForgetPassword_Sent",
+    "fe": "FE-01",
+    "title": "Kiểm tra hộp thư của bạn",
+    "roles": [
+      "ADMIN",
+      "LECTURER",
+      "STUDENT",
+      "ACCOUNTANT",
+      "IT_SUPPORT",
+      "MANAGER",
+      "HR"
+    ],
+    "proposedRoles": [],
+    "public": true,
+    "scope": "Đăng nhập / khôi phục cho tài khoản hợp lệ; đặt lại mật khẩu cần mã / liên kết hợp lệ.",
+    "actions": "Màn thông báo chung sau khi gửi yêu cầu, không hiển thị thông tin xác định một tài khoản khác.",
+    "variant": "Trạng thái của Forget password",
+    "kind": "auth",
+    "functionCode": "ForgetPassword_Sent",
+    "description": "Hướng dẫn đặt lại mật khẩu đã được xử lý.",
+    "sections": []
+  },
+  {
+    "code": "ResetPassword",
+    "fe": "FE-01",
+    "title": "Đặt lại mật khẩu",
+    "roles": [
+      "ADMIN",
+      "LECTURER",
+      "STUDENT",
+      "ACCOUNTANT",
+      "IT_SUPPORT",
+      "MANAGER",
+      "HR"
+    ],
+    "proposedRoles": [],
+    "public": true,
+    "scope": "Đăng nhập / khôi phục cho tài khoản hợp lệ; đặt lại mật khẩu cần mã / liên kết hợp lệ.",
+    "actions": "Chỉ được đặt lại mật khẩu khi liên kết / mã khôi phục hợp lệ và còn hiệu lực.",
+    "variant": "Bước tiếp theo của Forget password",
+    "kind": "auth",
+    "functionCode": "ResetPassword",
+    "description": "Tạo mật khẩu mới từ liên kết khôi phục hợp lệ.",
+    "sections": []
+  },
+  {
+    "code": "ChangePassword",
+    "fe": "FE-01",
+    "title": "Đổi mật khẩu",
+    "roles": [
+      "ADMIN",
+      "LECTURER",
+      "STUDENT",
+      "ACCOUNTANT",
+      "IT_SUPPORT",
+      "MANAGER",
+      "HR"
+    ],
+    "proposedRoles": [],
+    "public": false,
+    "scope": "Dữ liệu của tài khoản đang đăng nhập; thông báo chỉ tới đúng người nhận / phạm vi được giao.",
+    "actions": "Chỉ đổi mật khẩu của tài khoản đang đăng nhập; cần xác minh mật khẩu hiện tại.",
+    "variant": "Màn hình chính",
+    "kind": "form",
+    "functionCode": "PROFILE",
+    "description": "Bảo vệ tài khoản bằng mật khẩu riêng của bạn.",
+    "notes": [
+      "Mật khẩu mới và xác nhận phải trùng nhau.",
+      "Chỉ thay đổi mật khẩu của tài khoản đang đăng nhập."
+    ],
+    "save": "Lưu mật khẩu mới",
+    "sections": [
+      {
+        "title": "Thông tin bảo mật",
+        "fields": [
+          {
+            "label": "Mật khẩu hiện tại *",
+            "type": "password"
+          },
+          {
+            "label": "Mật khẩu mới *",
+            "type": "password"
+          },
+          {
+            "label": "Xác nhận mật khẩu mới *",
+            "type": "password"
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "code": "ListUser",
+    "fe": "FE-02",
+    "title": "Tài khoản người dùng",
+    "roles": [
+      "ADMIN"
+    ],
+    "proposedRoles": [],
+    "public": false,
+    "scope": "Tài khoản, role, cấu hình và nhật ký hệ thống; thông tin cá nhân của bản thân.",
+    "actions": "Admin tra cứu tài khoản. Đây không phải danh sách học viên hoặc quyền can thiệp nghiệp vụ đào tạo.",
+    "variant": "Màn hình chính",
+    "kind": "list",
+    "functionCode": "USER_ACCOUNTS",
+    "description": "Quản lý tài khoản của các vai trò trong trung tâm.",
+    "headers": [
+      "NGƯỜI DÙNG / MÃ",
+      "EMAIL",
+      "VAI TRÒ",
+      "TRẠNG THÁI",
+      "THAO TÁC"
+    ],
+    "action": [
+      "Tạo / cấp tài khoản",
+      "EditUser"
+    ],
+    "target": "UserProfile_AdminView",
+    "edit": "EditUser",
+    "filter": [
+      "Tất cả vai trò",
+      "Tất cả trạng thái"
+    ],
+    "sections": []
+  },
+  {
+    "code": "UserProfile",
+    "fe": "FE-02",
+    "title": "Thông tin tài khoản",
+    "roles": [
+      "ADMIN",
+      "LECTURER",
+      "STUDENT",
+      "ACCOUNTANT",
+      "IT_SUPPORT",
+      "MANAGER",
+      "HR"
+    ],
+    "proposedRoles": [],
+    "public": false,
+    "scope": "Dữ liệu của tài khoản đang đăng nhập; thông báo chỉ tới đúng người nhận / phạm vi được giao.",
+    "actions": "Cả 7 role dùng chung. Chỉ cập nhật hồ sơ liên hệ của bản thân; không tự đổi role hoặc trạng thái tài khoản.",
+    "variant": "Màn hình chính",
+    "kind": "profile",
+    "functionCode": "PROFILE",
+    "description": "Xem và cập nhật thông tin liên hệ của tài khoản đang đăng nhập.",
+    "notes": [
+      "Email đăng nhập được giữ cố định.",
+      "Các thông tin đào tạo được xem tại hồ sơ học viên."
+    ],
+    "save": "Lưu thay đổi",
+    "sections": [
+      {
+        "title": "Thông tin liên hệ",
+        "fields": [
+          {
+            "label": "Họ và tên *",
+            "type": "text"
+          },
+          {
+            "label": "Email đăng nhập",
+            "type": "readonly"
+          },
+          {
+            "label": "Số điện thoại",
+            "type": "text"
+          },
+          {
+            "label": "Vai trò",
+            "type": "readonly"
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "code": "EditUser",
+    "fe": "FE-02",
+    "title": "Cập nhật tài khoản người dùng",
+    "roles": [
+      "ADMIN"
+    ],
+    "proposedRoles": [],
+    "public": false,
+    "scope": "Tài khoản, role, cấu hình và nhật ký hệ thống; thông tin cá nhân của bản thân.",
+    "actions": "Admin cấp / cập nhật tài khoản, vai trò và trạng thái theo phân công. Không thực hiện duyệt học phí hoặc thiết bị tại đây.",
+    "variant": "Màn hình chính",
+    "kind": "form",
+    "functionCode": "USER_ACCOUNTS",
+    "description": "Thiết lập vai trò và trạng thái truy cập theo phân công.",
+    "notes": [
+      "Chỉ cấp vai trò phù hợp nhiệm vụ được phân công.",
+      "Khóa tài khoản sẽ kết thúc quyền truy cập của người dùng."
+    ],
+    "back": "ListUser",
+    "save": "Lưu tài khoản",
+    "sections": [
+      {
+        "title": "Thông tin tài khoản",
+        "fields": [
+          {
+            "label": "Mã tài khoản",
+            "type": "readonly"
+          },
+          {
+            "label": "Họ và tên *",
+            "type": "text"
+          },
+          {
+            "label": "Email đăng nhập *",
+            "type": "text"
+          },
+          {
+            "label": "Số điện thoại",
+            "type": "text"
+          }
+        ]
+      },
+      {
+        "title": "Quyền truy cập",
+        "fields": [
+          {
+            "label": "Vai trò *",
+            "type": "select"
+          },
+          {
+            "label": "Trạng thái *",
+            "type": "select"
+          },
+          {
+            "label": "Ghi chú thay đổi",
+            "type": "textarea"
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "code": "RolePermission",
+    "fe": "FE-02",
+    "title": "Vai trò & phân quyền",
+    "roles": [
+      "ADMIN"
+    ],
+    "proposedRoles": [],
+    "public": false,
+    "scope": "Tài khoản, role, cấu hình và nhật ký hệ thống; thông tin cá nhân của bản thân.",
+    "actions": "Admin cấu hình quyền kỹ thuật. Quyền quản trị không tự tạo quyền xác nhận các nghiệp vụ của Kế toán, IT hoặc Quản lý sinh viên.",
+    "variant": "Tab phân quyền của quản trị tài khoản",
+    "kind": "permissions",
+    "functionCode": "ROLE_PERMISSIONS",
+    "description": "Thiết lập phạm vi thao tác cho 7 vai trò hệ thống.",
+    "back": "ListUser",
+    "sections": []
+  },
+  {
+    "code": "SystemConfiguration",
+    "fe": "FE-02",
+    "title": "Cấu hình hệ thống",
+    "roles": [
+      "ADMIN"
+    ],
+    "proposedRoles": [],
+    "public": false,
+    "scope": "Tài khoản, role, cấu hình và nhật ký hệ thống; thông tin cá nhân của bản thân.",
+    "actions": "Chỉ cấu hình tham số và kết nối. Không sửa nghĩa vụ tài chính hay kết quả học tập.",
+    "variant": "Màn hỗ trợ quản trị theo role đã xác nhận",
+    "kind": "form",
+    "functionCode": "SYSTEM_CONFIG",
+    "description": "Thiết lập kết nối và tham số vận hành của ERHMS.",
+    "notes": [
+      "Khóa truy cập được lưu dưới dạng bảo mật.",
+      "Thử kết nối trước khi lưu thay đổi."
+    ],
+    "save": "Lưu cấu hình",
+    "sections": [
+      {
+        "title": "Thông tin trung tâm",
+        "fields": [
+          {
+            "label": "Tên đơn vị *",
+            "type": "text"
+          },
+          {
+            "label": "Email thông báo *",
+            "type": "text"
+          },
+          {
+            "label": "Múi giờ",
+            "type": "readonly"
+          },
+          {
+            "label": "Ngôn ngữ mặc định",
+            "type": "select"
+          }
+        ]
+      },
+      {
+        "title": "Kết nối dịch vụ",
+        "fields": [
+          {
+            "label": "Gmail / Email",
+            "type": "readonly"
+          },
+          {
+            "label": "Banking",
+            "type": "readonly"
+          },
+          {
+            "label": "Mã tham chiếu thanh toán",
+            "type": "readonly"
+          },
+          {
+            "label": "Thời hạn liên kết đặt lại mật khẩu",
+            "type": "readonly"
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "code": "SystemAuditLog",
+    "fe": "FE-02",
+    "title": "Nhật ký hệ thống",
+    "roles": [
+      "ADMIN"
+    ],
+    "proposedRoles": [],
+    "public": false,
+    "scope": "Tài khoản, role, cấu hình và nhật ký hệ thống; thông tin cá nhân của bản thân.",
+    "actions": "Chỉ đọc nhật ký phù hợp quyền quản trị; không sửa hoặc xóa lịch sử xử lý qua màn này.",
+    "variant": "Màn hỗ trợ quản trị theo role đã xác nhận",
+    "kind": "list",
+    "functionCode": "SYSTEM_AUDIT_LOG",
+    "description": "Tra cứu thay đổi tài khoản, vai trò và cấu hình.",
+    "headers": [
+      "HOẠT ĐỘNG / ĐỐI TƯỢNG",
+      "NGƯỜI THỰC HIỆN",
+      "THỜI GIAN",
+      "KẾT QUẢ",
+      "THAO TÁC"
+    ],
+    "filter": [
+      "Tất cả hoạt động",
+      "24/10/2026"
+    ],
+    "sections": []
+  },
+  {
+    "code": "HomePage",
+    "fe": "FE-03",
+    "title": "Vững tay nghề. Rộng tương lai.",
+    "roles": [
+      "ADMIN",
+      "LECTURER",
+      "STUDENT",
+      "ACCOUNTANT",
+      "IT_SUPPORT",
+      "MANAGER",
+      "HR"
+    ],
+    "proposedRoles": [],
+    "public": true,
+    "scope": "Thông tin công khai; không yêu cầu đăng nhập. Contact chỉ thu thông tin tư vấn.",
+    "actions": "Mọi role và khách đều có thể mở. Không cung cấp dữ liệu nội bộ tại trang công khai.",
+    "variant": "Màn hình chính",
+    "kind": "public",
+    "functionCode": "HomePage",
+    "description": "Thông tin công khai của trung tâm đào tạo nghề.",
+    "sections": []
+  },
+  {
+    "code": "AboutUs",
+    "fe": "FE-03",
+    "title": "Cùng học nghề, cùng mở cơ hội.",
+    "roles": [
+      "ADMIN",
+      "LECTURER",
+      "STUDENT",
+      "ACCOUNTANT",
+      "IT_SUPPORT",
+      "MANAGER",
+      "HR"
+    ],
+    "proposedRoles": [],
+    "public": true,
+    "scope": "Thông tin công khai; không yêu cầu đăng nhập. Contact chỉ thu thông tin tư vấn.",
+    "actions": "Mọi role và khách đều có thể mở. Không cung cấp dữ liệu nội bộ tại trang công khai.",
+    "variant": "Màn hình chính",
+    "kind": "public",
+    "functionCode": "AboutUs",
+    "description": "Thông tin công khai của trung tâm đào tạo nghề.",
+    "sections": []
+  },
+  {
+    "code": "Professions",
+    "fe": "FE-03",
+    "title": "Chọn một hướng nghề phù hợp.",
+    "roles": [
+      "ADMIN",
+      "LECTURER",
+      "STUDENT",
+      "ACCOUNTANT",
+      "IT_SUPPORT",
+      "MANAGER",
+      "HR"
+    ],
+    "proposedRoles": [],
+    "public": true,
+    "scope": "Thông tin công khai; không yêu cầu đăng nhập. Contact chỉ thu thông tin tư vấn.",
+    "actions": "Mọi role và khách đều có thể mở. Không cung cấp dữ liệu nội bộ tại trang công khai.",
+    "variant": "Màn hình chính",
+    "kind": "public",
+    "functionCode": "Professions",
+    "description": "Thông tin công khai của trung tâm đào tạo nghề.",
+    "sections": []
+  },
+  {
+    "code": "Train",
+    "fe": "FE-03",
+    "title": "Khóa học ngắn hạn, kỹ năng thực tế.",
+    "roles": [
+      "ADMIN",
+      "LECTURER",
+      "STUDENT",
+      "ACCOUNTANT",
+      "IT_SUPPORT",
+      "MANAGER",
+      "HR"
+    ],
+    "proposedRoles": [],
+    "public": true,
+    "scope": "Thông tin công khai; không yêu cầu đăng nhập. Contact chỉ thu thông tin tư vấn.",
+    "actions": "Mọi role và khách đều có thể mở. Không cung cấp dữ liệu nội bộ tại trang công khai.",
+    "variant": "Màn hình chính",
+    "kind": "public",
+    "functionCode": "Train",
+    "description": "Thông tin công khai của trung tâm đào tạo nghề.",
+    "sections": []
+  },
+  {
+    "code": "DevelopmentRoadmap",
+    "fe": "FE-03",
+    "title": "Hành trình học nghề của bạn.",
+    "roles": [
+      "ADMIN",
+      "LECTURER",
+      "STUDENT",
+      "ACCOUNTANT",
+      "IT_SUPPORT",
+      "MANAGER",
+      "HR"
+    ],
+    "proposedRoles": [],
+    "public": true,
+    "scope": "Thông tin công khai; không yêu cầu đăng nhập. Contact chỉ thu thông tin tư vấn.",
+    "actions": "Mọi role và khách đều có thể mở. Không cung cấp dữ liệu nội bộ tại trang công khai.",
+    "variant": "Màn hình chính",
+    "kind": "public",
+    "functionCode": "DevelopmentRoadmap",
+    "description": "Thông tin công khai của trung tâm đào tạo nghề.",
+    "sections": []
+  },
+  {
+    "code": "PartnerEnterprise",
+    "fe": "FE-03",
+    "title": "Kết nối đào tạo với nhu cầu thực tế.",
+    "roles": [
+      "ADMIN",
+      "LECTURER",
+      "STUDENT",
+      "ACCOUNTANT",
+      "IT_SUPPORT",
+      "MANAGER",
+      "HR"
+    ],
+    "proposedRoles": [],
+    "public": true,
+    "scope": "Thông tin công khai; không yêu cầu đăng nhập. Contact chỉ thu thông tin tư vấn.",
+    "actions": "Mọi role và khách đều có thể mở. Không cung cấp dữ liệu nội bộ tại trang công khai.",
+    "variant": "Màn hình chính",
+    "kind": "public",
+    "functionCode": "PartnerEnterprise",
+    "description": "Thông tin công khai của trung tâm đào tạo nghề.",
+    "sections": []
+  },
+  {
+    "code": "Contact",
+    "fe": "FE-03",
+    "title": "Bắt đầu từ một cuộc trao đổi.",
+    "roles": [
+      "ADMIN",
+      "LECTURER",
+      "STUDENT",
+      "ACCOUNTANT",
+      "IT_SUPPORT",
+      "MANAGER",
+      "HR"
+    ],
+    "proposedRoles": [],
+    "public": true,
+    "scope": "Thông tin công khai; không yêu cầu đăng nhập. Contact chỉ thu thông tin tư vấn.",
+    "actions": "Mọi role và khách đều có thể mở. Không cung cấp dữ liệu nội bộ tại trang công khai.",
+    "variant": "Màn hình chính",
+    "kind": "public",
+    "functionCode": "Contact",
+    "description": "Thông tin công khai của trung tâm đào tạo nghề.",
+    "sections": []
+  },
+  {
+    "code": "PublicCourseDetail",
+    "fe": "FE-03",
+    "title": "Chi tiết khóa học",
+    "roles": [
+      "ADMIN",
+      "LECTURER",
+      "STUDENT",
+      "ACCOUNTANT",
+      "IT_SUPPORT",
+      "MANAGER",
+      "HR"
+    ],
+    "proposedRoles": [],
+    "public": true,
+    "scope": "Thông tin công khai; không yêu cầu đăng nhập. Contact chỉ thu thông tin tư vấn.",
+    "actions": "Mọi role và khách đều có thể mở. Không cung cấp dữ liệu nội bộ tại trang công khai.",
+    "variant": "Trạng thái chi tiết của Train",
+    "kind": "public",
+    "functionCode": "PublicCourseDetail",
+    "description": "Thông tin chương trình đào tạo ngắn hạn.",
+    "sections": []
+  },
+  {
+    "code": "Contact_Submitted",
+    "fe": "FE-03",
+    "title": "Đã nhận thông tin đăng ký",
+    "roles": [
+      "ADMIN",
+      "LECTURER",
+      "STUDENT",
+      "ACCOUNTANT",
+      "IT_SUPPORT",
+      "MANAGER",
+      "HR"
+    ],
+    "proposedRoles": [],
+    "public": true,
+    "scope": "Thông tin công khai; không yêu cầu đăng nhập. Contact chỉ thu thông tin tư vấn.",
+    "actions": "Mọi role và khách đều có thể mở. Không cung cấp dữ liệu nội bộ tại trang công khai.",
+    "variant": "Trạng thái gửi thành công của Contact",
+    "kind": "public",
+    "functionCode": "Contact_Submitted",
+    "description": "Trung tâm sẽ liên hệ theo thông tin bạn đã cung cấp.",
+    "sections": []
+  },
+  {
+    "code": "ListAdmissionApplication",
+    "fe": "FE-04",
+    "title": "Đăng ký tư vấn & tuyển sinh",
+    "roles": [
+      "HR"
+    ],
+    "proposedRoles": [],
+    "public": false,
+    "scope": "Đăng ký tư vấn, hợp đồng và trạng thái học phí của hồ sơ được phân công phụ trách.",
+    "actions": "Tiếp nhận, lọc và mở hồ sơ đăng ký.",
+    "variant": "Màn hình chính",
+    "kind": "list",
+    "functionCode": "ListAdmissionApplication",
+    "description": "Tiếp nhận thông tin từ website và theo dõi lịch liên hệ.",
+    "headers": [
+      "NGƯỜI ĐĂNG KÝ / MÃ",
+      "KHÓA HỌC QUAN TÂM",
+      "NGÀY GỬI",
+      "TRẠNG THÁI",
+      "THAO TÁC"
+    ],
+    "target": "ListAdmissionApplicationDetail",
+    "filter": [
+      "Tất cả trạng thái",
+      "Tất cả khóa học"
+    ],
+    "sections": []
+  },
+  {
+    "code": "ListAdmissionApplicationDetail",
+    "fe": "FE-04",
+    "title": "Chi tiết đăng ký tư vấn",
+    "roles": [
+      "HR"
+    ],
+    "proposedRoles": [],
+    "public": false,
+    "scope": "Đăng ký tư vấn, hợp đồng và trạng thái học phí của hồ sơ được phân công phụ trách.",
+    "actions": [
+      [
+        "Ghi nhận tư vấn",
+        "AdmissionConsultation"
+      ],
+      [
+        "Tạo hợp đồng",
+        "AddTrainingContract"
+      ]
+    ],
+    "variant": "Màn hình chính",
+    "kind": "detail",
+    "functionCode": "ListAdmissionApplicationDetail",
+    "description": "Ghi nhận tư vấn và quyết định tiếp nhận theo nhu cầu người đăng ký.",
+    "tabs": [
+      "Thông tin đăng ký",
+      "Lịch sử tư vấn",
+      "Tài liệu"
+    ],
+    "back": "ListAdmissionApplication",
+    "sections": []
+  },
+  {
+    "code": "AdmissionConsultation",
+    "fe": "FE-04",
+    "title": "Ghi nhận kết quả tư vấn",
+    "roles": [
+      "HR"
+    ],
+    "proposedRoles": [],
+    "public": false,
+    "scope": "Đăng ký tư vấn, hợp đồng và trạng thái học phí của hồ sơ được phân công phụ trách.",
+    "actions": "Lưu kết quả tư vấn và lịch hẹn.",
+    "variant": "Popup ghi nhận tư vấn mở từ chi tiết đăng ký",
+    "kind": "form",
+    "functionCode": "AdmissionConsultation",
+    "description": "Cập nhật lịch liên hệ và kết quả trao đổi.",
+    "notes": [
+      "Chỉ lập hợp đồng khi thông tin cần thiết đã đầy đủ.",
+      "Lưu lịch sử mỗi lần liên hệ."
+    ],
+    "back": "ListAdmissionApplicationDetail",
+    "save": "Lưu kết quả tư vấn",
+    "sections": [
+      {
+        "title": "Thông tin tư vấn",
+        "fields": [
+          {
+            "label": "Hồ sơ đăng ký",
+            "type": "readonly"
+          },
+          {
+            "label": "Hình thức liên hệ *",
+            "type": "select"
+          },
+          {
+            "label": "Kết quả tư vấn *",
+            "type": "select"
+          },
+          {
+            "label": "Lịch hẹn tiếp theo",
+            "type": "text"
+          },
+          {
+            "label": "Nội dung trao đổi *",
+            "type": "textarea"
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "code": "ListStudent",
+    "fe": "FE-05",
+    "title": "Hồ sơ học viên",
+    "roles": [
+      "MANAGER"
+    ],
+    "proposedRoles": [],
+    "public": false,
+    "scope": "Học viên, khóa / lớp, lịch, xếp lớp và hồ sơ hoàn tất được phân công quản lý.",
+    "actions": "Tra cứu hồ sơ học viên.",
+    "variant": "Màn hình chính",
+    "kind": "list",
+    "functionCode": "ListStudent",
+    "description": "Theo dõi hồ sơ đào tạo và tình trạng tham gia khóa học.",
+    "headers": [
+      "HỌC VIÊN / MÃ",
+      "LỚP / KHÓA",
+      "HỢP ĐỒNG",
+      "TRẠNG THÁI",
+      "THAO TÁC"
+    ],
+    "target": "StudentProfileDetail",
+    "filter": [
+      "Tất cả lớp",
+      "Tất cả trạng thái"
+    ],
+    "sections": []
+  },
+  {
+    "code": "StudentProfileDetail",
+    "fe": "FE-05",
+    "title": "Hồ sơ học viên",
+    "roles": [
+      "MANAGER"
+    ],
+    "proposedRoles": [],
+    "public": false,
+    "scope": "Học viên, khóa / lớp, lịch, xếp lớp và hồ sơ hoàn tất được phân công quản lý.",
+    "actions": [
+      [
+        "Sửa hồ sơ",
+        "EditStudentProfile"
+      ],
+      [
+        "Xem hợp đồng",
+        "TrainingContractDetail"
+      ]
+    ],
+    "variant": "Màn hình chính",
+    "kind": "detail",
+    "functionCode": "StudentProfileDetail",
+    "description": "Thông tin tuyển sinh, đào tạo, học phí và thiết bị của học viên.",
+    "tabs": [
+      "Tổng quan",
+      "Hợp đồng",
+      "Học tập",
+      "Thiết bị & tài chính"
+    ],
+    "back": "ListStudent",
+    "sections": []
+  },
+  {
+    "code": "EditStudentProfile",
+    "fe": "FE-05",
+    "title": "Cập nhật hồ sơ học viên",
+    "roles": [
+      "MANAGER"
+    ],
+    "proposedRoles": [],
+    "public": false,
+    "scope": "Học viên, khóa / lớp, lịch, xếp lớp và hồ sơ hoàn tất được phân công quản lý.",
+    "actions": "Quản lý sinh viên sửa dữ liệu hành chính theo hồ sơ xác nhận; không sửa điểm, giao dịch hoặc cấp phát từ biểu mẫu này.",
+    "variant": "Màn hình chính",
+    "kind": "form",
+    "functionCode": "EditStudentProfile",
+    "description": "Cập nhật thông tin hành chính và liên hệ của học viên.",
+    "notes": [
+      "Lớp, học phí và điểm được điều chỉnh tại các nghiệp vụ tương ứng.",
+      "Thay đổi cần có nguồn xác nhận phù hợp."
+    ],
+    "back": "StudentProfileDetail",
+    "save": "Lưu hồ sơ",
+    "sections": [
+      {
+        "title": "Thông tin học viên",
+        "fields": [
+          {
+            "label": "Mã học viên",
+            "type": "readonly"
+          },
+          {
+            "label": "Họ và tên *",
+            "type": "text"
+          },
+          {
+            "label": "Ngày sinh *",
+            "type": "text"
+          },
+          {
+            "label": "Số giấy tờ định danh",
+            "type": "text"
+          },
+          {
+            "label": "Số điện thoại *",
+            "type": "text"
+          },
+          {
+            "label": "Email",
+            "type": "text"
+          }
+        ]
+      },
+      {
+        "title": "Thông tin liên hệ",
+        "fields": [
+          {
+            "label": "Địa chỉ liên hệ *",
+            "type": "textarea"
+          },
+          {
+            "label": "Liên hệ khẩn cấp",
+            "type": "text"
+          },
+          {
+            "label": "Số điện thoại khẩn cấp",
+            "type": "text"
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "code": "ListNotification",
+    "fe": "FE-06/20",
+    "title": "Thông báo của bạn",
+    "roles": [
+      "ADMIN",
+      "LECTURER",
+      "STUDENT",
+      "ACCOUNTANT",
+      "IT_SUPPORT",
+      "MANAGER",
+      "HR"
+    ],
+    "proposedRoles": [],
+    "public": false,
+    "scope": "Dữ liệu của tài khoản đang đăng nhập; thông báo chỉ tới đúng người nhận / phạm vi được giao.",
+    "actions": "Dùng chung FE-06 / FE-20. Mỗi tài khoản chỉ thấy thông báo gửi đến mình hoặc phạm vi được phân công.",
+    "variant": "Màn hình chính",
+    "kind": "notifications",
+    "functionCode": "ListNotification",
+    "description": "Theo dõi thông báo lịch học và các nghiệp vụ liên quan.",
+    "sections": []
+  },
+  {
+    "code": "ViewNotification",
+    "fe": "FE-06",
+    "title": "Chi tiết thông báo",
+    "roles": [
+      "ADMIN",
+      "LECTURER",
+      "STUDENT",
+      "ACCOUNTANT",
+      "IT_SUPPORT",
+      "MANAGER",
+      "HR"
+    ],
+    "proposedRoles": [],
+    "public": false,
+    "scope": "Dữ liệu của tài khoản đang đăng nhập; thông báo chỉ tới đúng người nhận / phạm vi được giao.",
+    "actions": [
+      [
+        "Mở lịch giảng dạy",
+        "TimeTable_Lecturer"
+      ]
+    ],
+    "variant": "Màn hình chính",
+    "kind": "detail",
+    "functionCode": "ViewNotification",
+    "description": "Thông báo và liên kết đến công việc liên quan.",
+    "tabs": [
+      "Nội dung thông báo"
+    ],
+    "back": "ListNotification",
+    "sections": []
+  },
+  {
+    "code": "SendNotification",
+    "fe": "FE-06",
+    "title": "Gửi thông báo",
+    "roles": [
+      "MANAGER"
+    ],
+    "proposedRoles": [
+      "ADMIN",
+      "LECTURER",
+      "HR"
+    ],
+    "public": false,
+    "scope": "Học viên, khóa / lớp, lịch, xếp lớp và hồ sơ hoàn tất được phân công quản lý.",
+    "actions": "Quản lý sinh viên gửi thông báo trong phạm vi được giao. Quyền gửi cho Admin, Lecturer và Tuyển dụng là ĐX, chưa mặc định cấp.",
+    "variant": "Màn hình chính",
+    "kind": "form",
+    "functionCode": "SendNotification",
+    "description": "Gửi thông tin đến đúng nhóm học viên hoặc giảng viên được phụ trách.",
+    "notes": [
+      "Chỉ gửi đến phạm vi được cấp quyền.",
+      "Kiểm tra danh sách người nhận trước khi gửi."
+    ],
+    "back": "ListNotification",
+    "save": "Gửi thông báo",
+    "sections": [
+      {
+        "title": "Nội dung & người nhận",
+        "fields": [
+          {
+            "label": "Tiêu đề *",
+            "type": "text"
+          },
+          {
+            "label": "Nhóm người nhận *",
+            "type": "select"
+          },
+          {
+            "label": "Kênh gửi *",
+            "type": "select"
+          },
+          {
+            "label": "Thời điểm gửi",
+            "type": "select"
+          },
+          {
+            "label": "Nội dung thông báo *",
+            "type": "textarea"
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "code": "ListTrainingContract",
+    "fe": "FE-07",
+    "title": "Hợp đồng đào tạo",
+    "roles": [
+      "ACCOUNTANT",
+      "MANAGER",
+      "HR"
+    ],
+    "proposedRoles": [],
+    "public": false,
+    "scope": "Đăng ký tư vấn, hợp đồng và trạng thái học phí của hồ sơ được phân công phụ trách. Role xem chéo chỉ đọc dữ liệu liên quan nhiệm vụ; ẩn các nút thay đổi của role chủ trì.",
+    "actions": "Tuyển dụng quản lý hợp đồng; Quản lý sinh viên xem hợp đồng được bàn giao; Kế toán xem để đối chiếu thanh toán.",
+    "variant": "Màn hình chính",
+    "kind": "list",
+    "functionCode": "ListTrainingContract",
+    "description": "Quản lý hợp đồng, minh chứng ký và bàn giao hồ sơ đào tạo.",
+    "headers": [
+      "HỢP ĐỒNG / HỌC VIÊN",
+      "KHÓA ĐÀO TẠO",
+      "HỌC PHÍ",
+      "TRẠNG THÁI",
+      "THAO TÁC"
+    ],
+    "action": [
+      "Tạo hợp đồng",
+      "AddTrainingContract"
+    ],
+    "target": "TrainingContractDetail",
+    "edit": "EditTrainingContract",
+    "filter": [
+      "Tất cả trạng thái",
+      "Tất cả khóa học"
+    ],
+    "sections": []
+  },
+  {
+    "code": "AddTrainingContract",
+    "fe": "FE-07",
+    "title": "Tạo hợp đồng đào tạo",
+    "roles": [
+      "HR"
+    ],
+    "proposedRoles": [],
+    "public": false,
+    "scope": "Đăng ký tư vấn, hợp đồng và trạng thái học phí của hồ sơ được phân công phụ trách.",
+    "actions": "Tuyển dụng tạo hợp đồng từ hồ sơ đã tư vấn. Quản lý sinh viên và Kế toán không lập hợp đồng tại màn này.",
+    "variant": "Màn hình chính",
+    "kind": "form",
+    "functionCode": "AddTrainingContract",
+    "description": "Lập hợp đồng từ hồ sơ đã tư vấn và đủ thông tin.",
+    "notes": [
+      "Học phí và tiền cọc được ghi thành khoản riêng.",
+      "Kiểm tra điều khoản và thông tin người học trước khi trình ký."
+    ],
+    "back": "ListTrainingContract",
+    "save": "Lưu bản nháp",
+    "sections": [
+      {
+        "title": "Người học & chương trình",
+        "fields": [
+          {
+            "label": "Hồ sơ đăng ký *",
+            "type": "select"
+          },
+          {
+            "label": "Khóa học *",
+            "type": "select"
+          },
+          {
+            "label": "Thời lượng",
+            "type": "readonly"
+          },
+          {
+            "label": "Ngày bắt đầu dự kiến *",
+            "type": "text"
+          }
+        ]
+      },
+      {
+        "title": "Điều khoản tài chính",
+        "fields": [
+          {
+            "label": "Học phí hợp đồng *",
+            "type": "text"
+          },
+          {
+            "label": "Cọc thiết bị theo thỏa thuận",
+            "type": "text"
+          },
+          {
+            "label": "Hạn thanh toán *",
+            "type": "text"
+          },
+          {
+            "label": "Lịch thanh toán",
+            "type": "select"
+          }
+        ]
+      },
+      {
+        "title": "Điều khoản & xác nhận",
+        "fields": [
+          {
+            "label": "Điều khoản đào tạo *",
+            "type": "textarea"
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "code": "EditTrainingContract",
+    "fe": "FE-07",
+    "title": "Chỉnh sửa hợp đồng đào tạo",
+    "roles": [
+      "HR"
+    ],
+    "proposedRoles": [],
+    "public": false,
+    "scope": "Đăng ký tư vấn, hợp đồng và trạng thái học phí của hồ sơ được phân công phụ trách.",
+    "actions": "Chỉ Tuyển dụng và chỉ ở trạng thái được phép sửa; hợp đồng đã ký cần quy trình điều chỉnh tương ứng.",
+    "variant": "Màn hình chính",
+    "kind": "form",
+    "functionCode": "EditTrainingContract",
+    "description": "Chỉnh sửa hợp đồng đang ở trạng thái cho phép cập nhật.",
+    "notes": [
+      "Chỉ sửa bản nháp hoặc hồ sơ được yêu cầu chỉnh sửa.",
+      "Hợp đồng đã ký cần quy trình điều chỉnh và minh chứng tương ứng."
+    ],
+    "back": "TrainingContractDetail",
+    "save": "Lưu thay đổi",
+    "sections": [
+      {
+        "title": "Người học & chương trình",
+        "fields": [
+          {
+            "label": "Hồ sơ đăng ký *",
+            "type": "select"
+          },
+          {
+            "label": "Khóa học *",
+            "type": "select"
+          },
+          {
+            "label": "Thời lượng",
+            "type": "readonly"
+          },
+          {
+            "label": "Ngày bắt đầu dự kiến *",
+            "type": "text"
+          }
+        ]
+      },
+      {
+        "title": "Điều khoản tài chính",
+        "fields": [
+          {
+            "label": "Học phí hợp đồng *",
+            "type": "text"
+          },
+          {
+            "label": "Cọc thiết bị theo thỏa thuận",
+            "type": "text"
+          },
+          {
+            "label": "Hạn thanh toán *",
+            "type": "text"
+          },
+          {
+            "label": "Lịch thanh toán",
+            "type": "select"
+          }
+        ]
+      },
+      {
+        "title": "Điều khoản & xác nhận",
+        "fields": [
+          {
+            "label": "Điều khoản đào tạo *",
+            "type": "textarea"
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "code": "TrainingContractDetail",
+    "fe": "FE-07",
+    "title": "Chi tiết hợp đồng đào tạo",
+    "roles": [
+      "ACCOUNTANT",
+      "MANAGER",
+      "HR"
+    ],
+    "proposedRoles": [],
+    "public": false,
+    "scope": "Đăng ký tư vấn, hợp đồng và trạng thái học phí của hồ sơ được phân công phụ trách. Role xem chéo chỉ đọc dữ liệu liên quan nhiệm vụ; ẩn các nút thay đổi của role chủ trì.",
+    "actions": [
+      [
+        "Cập nhật minh chứng ký",
+        "ContractSignature"
+      ],
+      [
+        "Sửa bản nháp",
+        "EditTrainingContract"
+      ]
+    ],
+    "variant": "Màn hình chính",
+    "kind": "detail",
+    "functionCode": "TrainingContractDetail",
+    "description": "Rà soát nội dung, minh chứng ký và trạng thái bàn giao.",
+    "tabs": [
+      "Nội dung hợp đồng",
+      "Minh chứng ký",
+      "Thanh toán",
+      "Lịch sử bàn giao"
+    ],
+    "back": "ListTrainingContract",
+    "sections": []
+  },
+  {
+    "code": "ContractSignature",
+    "fe": "FE-07",
+    "title": "Ghi nhận ký & bàn giao hợp đồng",
+    "roles": [
+      "HR"
+    ],
+    "proposedRoles": [],
+    "public": false,
+    "scope": "Đăng ký tư vấn, hợp đồng và trạng thái học phí của hồ sơ được phân công phụ trách.",
+    "actions": "Tuyển dụng ghi nhận minh chứng ký và bàn giao. Bộ phận nhận xem kết quả trong TrainingContractDetail.",
+    "variant": "Tab ký và bàn giao của TrainingContractDetail",
+    "kind": "form",
+    "functionCode": "ContractSignature",
+    "description": "Đính kèm bản ký và xác nhận bàn giao hồ sơ đào tạo.",
+    "notes": [
+      "Đây là ghi nhận minh chứng ký trực tiếp.",
+      "Trạng thái thanh toán do kế toán xác nhận."
+    ],
+    "back": "TrainingContractDetail",
+    "save": "Xác nhận ký & bàn giao",
+    "sections": [
+      {
+        "title": "Thông tin ký hợp đồng",
+        "fields": [
+          {
+            "label": "Hợp đồng",
+            "type": "readonly"
+          },
+          {
+            "label": "Ngày ký *",
+            "type": "text"
+          },
+          {
+            "label": "Hình thức ký *",
+            "type": "select"
+          },
+          {
+            "label": "Minh chứng ký *",
+            "type": "upload"
+          }
+        ]
+      },
+      {
+        "title": "Bàn giao",
+        "fields": [
+          {
+            "label": "Bộ phận tiếp nhận",
+            "type": "readonly"
+          },
+          {
+            "label": "Ghi chú bàn giao",
+            "type": "textarea"
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "code": "ListCourse",
+    "fe": "FE-08",
+    "title": "Danh mục khóa học",
+    "roles": [
+      "MANAGER",
+      "HR"
+    ],
+    "proposedRoles": [],
+    "public": false,
+    "scope": "Học viên, khóa / lớp, lịch, xếp lớp và hồ sơ hoàn tất được phân công quản lý. Role xem chéo chỉ đọc dữ liệu liên quan nhiệm vụ; ẩn các nút thay đổi của role chủ trì.",
+    "actions": "Quản lý sinh viên quản lý khóa học. Tuyển dụng chỉ xem để tư vấn; ẩn nút thêm và sửa đối với Tuyển dụng.",
+    "variant": "Màn hình chính",
+    "kind": "list",
+    "functionCode": "ListCourse",
+    "description": "Quản lý các chương trình đào tạo nghề ngắn hạn.",
+    "headers": [
+      "KHÓA HỌC / MÃ",
+      "NGÀNH NGHỀ",
+      "THỜI LƯỢNG",
+      "TRẠNG THÁI",
+      "THAO TÁC"
+    ],
+    "action": [
+      "Thêm khóa học",
+      "AddCourse"
+    ],
+    "target": "CourseDetail",
+    "edit": "EditCourse",
+    "filter": [
+      "Tất cả ngành nghề",
+      "Tất cả trạng thái"
+    ],
+    "sections": []
+  },
+  {
+    "code": "AddCourse",
+    "fe": "FE-08",
+    "title": "Thêm khóa học",
+    "roles": [
+      "MANAGER"
+    ],
+    "proposedRoles": [],
+    "public": false,
+    "scope": "Học viên, khóa / lớp, lịch, xếp lớp và hồ sơ hoàn tất được phân công quản lý.",
+    "actions": "Tạo khóa học.",
+    "variant": "Màn hình chính",
+    "kind": "form",
+    "functionCode": "AddCourse",
+    "description": "Tạo chương trình đào tạo để tuyển sinh và tổ chức lớp.",
+    "notes": [
+      "Thời lượng phù hợp phạm vi đào tạo ngắn hạn 3–6 tháng.",
+      "Công khai khóa học sau khi nội dung được rà soát."
+    ],
+    "back": "ListCourse",
+    "save": "Lưu khóa học",
+    "sections": [
+      {
+        "title": "Thông tin khóa học",
+        "fields": [
+          {
+            "label": "Tên khóa học *",
+            "type": "text"
+          },
+          {
+            "label": "Mã khóa học *",
+            "type": "text"
+          },
+          {
+            "label": "Ngành nghề *",
+            "type": "select"
+          },
+          {
+            "label": "Thời lượng *",
+            "type": "select"
+          },
+          {
+            "label": "Số buổi học *",
+            "type": "text"
+          },
+          {
+            "label": "Học phí tham khảo *",
+            "type": "text"
+          }
+        ]
+      },
+      {
+        "title": "Nội dung đào tạo",
+        "fields": [
+          {
+            "label": "Mục tiêu khóa học *",
+            "type": "textarea"
+          },
+          {
+            "label": "Điều kiện đầu vào",
+            "type": "textarea"
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "code": "EditCourse",
+    "fe": "FE-08",
+    "title": "Chỉnh sửa khóa học",
+    "roles": [
+      "MANAGER"
+    ],
+    "proposedRoles": [],
+    "public": false,
+    "scope": "Học viên, khóa / lớp, lịch, xếp lớp và hồ sơ hoàn tất được phân công quản lý.",
+    "actions": "Cập nhật khóa học.",
+    "variant": "Màn hình chính",
+    "kind": "form",
+    "functionCode": "EditCourse",
+    "description": "Cập nhật thông tin chương trình trong phạm vi được phép.",
+    "notes": [
+      "Lưu ý các hợp đồng và lớp đã sử dụng chương trình.",
+      "Mọi thay đổi cần được kiểm tra tác động trước khi lưu."
+    ],
+    "back": "CourseDetail",
+    "save": "Lưu thay đổi",
+    "sections": [
+      {
+        "title": "Thông tin khóa học",
+        "fields": [
+          {
+            "label": "Tên khóa học *",
+            "type": "text"
+          },
+          {
+            "label": "Mã khóa học *",
+            "type": "text"
+          },
+          {
+            "label": "Ngành nghề *",
+            "type": "select"
+          },
+          {
+            "label": "Thời lượng *",
+            "type": "select"
+          },
+          {
+            "label": "Số buổi học *",
+            "type": "text"
+          },
+          {
+            "label": "Học phí tham khảo *",
+            "type": "text"
+          }
+        ]
+      },
+      {
+        "title": "Nội dung đào tạo",
+        "fields": [
+          {
+            "label": "Mục tiêu khóa học *",
+            "type": "textarea"
+          },
+          {
+            "label": "Điều kiện đầu vào",
+            "type": "textarea"
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "code": "CourseDetail",
+    "fe": "FE-08",
+    "title": "Chi tiết khóa học",
+    "roles": [
+      "LECTURER",
+      "MANAGER",
+      "HR"
+    ],
+    "proposedRoles": [],
+    "public": false,
+    "scope": "Học viên, khóa / lớp, lịch, xếp lớp và hồ sơ hoàn tất được phân công quản lý. Role xem chéo chỉ đọc dữ liệu liên quan nhiệm vụ; ẩn các nút thay đổi của role chủ trì.",
+    "actions": [
+      [
+        "Chỉnh sửa khóa học",
+        "EditCourse"
+      ],
+      [
+        "Xem các lớp",
+        "ListClass"
+      ]
+    ],
+    "variant": "Màn hình chính",
+    "kind": "detail",
+    "functionCode": "CourseDetail",
+    "description": "Thông tin chương trình và các lớp triển khai.",
+    "tabs": [
+      "Tổng quan",
+      "Nội dung đào tạo",
+      "Lớp học",
+      "Thiết bị yêu cầu"
+    ],
+    "back": "ListCourse",
+    "sections": []
+  },
+  {
+    "code": "ListClass",
+    "fe": "FE-09",
+    "title": "Lớp học & giảng viên",
+    "roles": [
+      "MANAGER"
+    ],
+    "proposedRoles": [],
+    "public": false,
+    "scope": "Học viên, khóa / lớp, lịch, xếp lớp và hồ sơ hoàn tất được phân công quản lý.",
+    "actions": "Quản lý sinh viên xem danh sách lớp trung tâm. Lecturer dùng ListClass_Lecturer với phạm vi lớp được giao.",
+    "variant": "Màn hình chính",
+    "kind": "list",
+    "functionCode": "ListClass",
+    "description": "Theo dõi lớp do hệ thống tạo và kết quả phân công giảng dạy.",
+    "headers": [
+      "LỚP / KHÓA",
+      "GIẢNG VIÊN",
+      "SĨ SỐ",
+      "TRẠNG THÁI",
+      "THAO TÁC"
+    ],
+    "action": [
+      "Kiểm tra xếp lớp tự động",
+      "AutoAssignmentReview"
+    ],
+    "target": "ClassDetail",
+    "edit": "EditClass",
+    "filter": [
+      "Tất cả khóa học",
+      "Tất cả trạng thái"
+    ],
+    "sections": []
+  },
+  {
+    "code": "ClassDetail",
+    "fe": "FE-09",
+    "title": "Chi tiết lớp học",
+    "roles": [
+      "MANAGER"
+    ],
+    "proposedRoles": [],
+    "public": false,
+    "scope": "Học viên, khóa / lớp, lịch, xếp lớp và hồ sơ hoàn tất được phân công quản lý.",
+    "actions": [
+      [
+        "Điều chỉnh lớp",
+        "EditClass"
+      ],
+      [
+        "Xem thời khóa biểu",
+        "TimeTable_Manager"
+      ]
+    ],
+    "variant": "Màn hình chính",
+    "kind": "detail",
+    "functionCode": "ClassDetail",
+    "description": "Danh sách học viên và phân công giảng viên của lớp.",
+    "tabs": [
+      "Thông tin lớp",
+      "Danh sách học viên",
+      "Giảng viên",
+      "Lịch học"
+    ],
+    "back": "ListClass",
+    "sections": []
+  },
+  {
+    "code": "EditClass",
+    "fe": "FE-09",
+    "title": "Điều chỉnh lớp & phân công",
+    "roles": [
+      "MANAGER"
+    ],
+    "proposedRoles": [],
+    "public": false,
+    "scope": "Học viên, khóa / lớp, lịch, xếp lớp và hồ sơ hoàn tất được phân công quản lý.",
+    "actions": "Quản lý sinh viên điều chỉnh phương án theo quyền; kiểm tra lịch, sức chứa và lưu lý do thay đổi.",
+    "variant": "Màn hình chính",
+    "kind": "form",
+    "functionCode": "EditClass",
+    "description": "Điều chỉnh kết quả tự động sau khi kiểm tra điều kiện lớp.",
+    "notes": [
+      "Kiểm tra lịch giảng viên, phòng và sĩ số.",
+      "Lưu người thực hiện và lý do điều chỉnh."
+    ],
+    "back": "ClassDetail",
+    "save": "Lưu điều chỉnh",
+    "sections": [
+      {
+        "title": "Thông tin lớp",
+        "fields": [
+          {
+            "label": "Mã lớp",
+            "type": "readonly"
+          },
+          {
+            "label": "Khóa học",
+            "type": "readonly"
+          },
+          {
+            "label": "Giảng viên *",
+            "type": "select"
+          },
+          {
+            "label": "Sĩ số tối đa *",
+            "type": "text"
+          },
+          {
+            "label": "Ngày bắt đầu *",
+            "type": "text"
+          },
+          {
+            "label": "Ngày kết thúc dự kiến",
+            "type": "text"
+          }
+        ]
+      },
+      {
+        "title": "Lý do điều chỉnh",
+        "fields": [
+          {
+            "label": "Lý do *",
+            "type": "textarea"
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "code": "AutoAssignmentReview",
+    "fe": "FE-09",
+    "title": "Kiểm tra kết quả xếp lớp tự động",
+    "roles": [
+      "MANAGER"
+    ],
+    "proposedRoles": [],
+    "public": false,
+    "scope": "Học viên, khóa / lớp, lịch, xếp lớp và hồ sơ hoàn tất được phân công quản lý.",
+    "actions": "Hệ thống tự tạo lớp / xếp học viên / phân công sau xác nhận học phí. Quản lý sinh viên kiểm tra kết quả, không thay Kế toán xác nhận thu tiền.",
+    "variant": "Tab kết quả tự động trong FE-09",
+    "kind": "list",
+    "functionCode": "AutoAssignmentReview",
+    "description": "Kết quả được khởi tạo sau khi kế toán xác nhận học phí.",
+    "headers": [
+      "HỌC VIÊN / HỢP ĐỒNG",
+      "LỚP ĐỀ XUẤT",
+      "GIẢNG VIÊN",
+      "KẾT QUẢ",
+      "THAO TÁC"
+    ],
+    "target": "AutoAssignmentDetail",
+    "filter": [
+      "Tất cả khóa học",
+      "Tất cả kết quả"
+    ],
+    "sections": []
+  },
+  {
+    "code": "AutoAssignmentDetail",
+    "fe": "FE-09",
+    "title": "Rà soát phương án xếp lớp",
+    "roles": [
+      "MANAGER"
+    ],
+    "proposedRoles": [],
+    "public": false,
+    "scope": "Học viên, khóa / lớp, lịch, xếp lớp và hồ sơ hoàn tất được phân công quản lý.",
+    "actions": [
+      [
+        "Xác nhận đã kiểm tra",
+        "ListClass"
+      ],
+      [
+        "Điều chỉnh phương án",
+        "EditClass"
+      ]
+    ],
+    "variant": "Chi tiết của tab kết quả tự động",
+    "kind": "detail",
+    "functionCode": "AutoAssignmentDetail",
+    "description": "Kiểm tra phương án trước khi xác nhận rà soát hoặc điều chỉnh.",
+    "tabs": [
+      "Kết quả đề xuất",
+      "Điều kiện kiểm tra",
+      "Lịch sử"
+    ],
+    "back": "AutoAssignmentReview",
+    "sections": []
+  },
+  {
+    "code": "TimeTable_Manager",
+    "fe": "FE-10",
+    "title": "Thời khóa biểu đào tạo",
+    "roles": [
+      "MANAGER"
+    ],
+    "proposedRoles": [],
+    "public": false,
+    "scope": "Học viên, khóa / lớp, lịch, xếp lớp và hồ sơ hoàn tất được phân công quản lý.",
+    "actions": "Quản lý sinh viên xem toàn bộ lịch thuộc phạm vi quản lý và điều chỉnh lịch theo quyền.",
+    "variant": "Biến thể theo vai trò của TimeTable",
+    "kind": "timetable",
+    "functionCode": "TimeTable_Manager",
+    "description": "Theo dõi và xử lý dữ liệu mới nhất trong phạm vi được phân công.",
+    "sections": []
+  },
+  {
+    "code": "TimeTable_Lecturer",
+    "fe": "FE-10",
+    "title": "Lịch giảng dạy của tôi",
+    "roles": [
+      "LECTURER"
+    ],
+    "proposedRoles": [],
+    "public": false,
+    "scope": "Lớp, buổi dạy và học viên thuộc phân công; yêu cầu thiết bị trong phạm vi phụ trách.",
+    "actions": "Lecturer chỉ xem lịch giảng dạy của bản thân / lớp được giao; không sửa lịch đào tạo.",
+    "variant": "Biến thể theo vai trò của TimeTable",
+    "kind": "timetable",
+    "functionCode": "TimeTable_Lecturer",
+    "description": "Theo dõi và xử lý dữ liệu mới nhất trong phạm vi được phân công.",
+    "sections": []
+  },
+  {
+    "code": "TimeTable_Student",
+    "fe": "FE-10",
+    "title": "Lịch học của tôi",
+    "roles": [
+      "STUDENT"
+    ],
+    "proposedRoles": [],
+    "public": false,
+    "scope": "Hồ sơ, lịch, điểm, chuyên cần, hợp đồng thanh toán và thiết bị của chính mình.",
+    "actions": "Student chỉ xem lịch của lớp mình đang theo học; không điều chỉnh lịch.",
+    "variant": "Biến thể theo vai trò của TimeTable",
+    "kind": "timetable",
+    "functionCode": "TimeTable_Student",
+    "description": "Theo dõi và xử lý dữ liệu mới nhất trong phạm vi được phân công.",
+    "sections": []
+  },
+  {
+    "code": "TimeTable_EditSession",
+    "fe": "FE-10",
+    "title": "Điều chỉnh buổi học",
+    "roles": [
+      "MANAGER"
+    ],
+    "proposedRoles": [],
+    "public": false,
+    "scope": "Học viên, khóa / lớp, lịch, xếp lớp và hồ sơ hoàn tất được phân công quản lý.",
+    "actions": "Quản lý sinh viên chỉnh buổi học; chặn lưu khi trùng lớp, phòng hoặc giảng viên.",
+    "variant": "Popup sửa buổi học từ TimeTable",
+    "kind": "form",
+    "functionCode": "TimeTable_EditSession",
+    "description": "Kiểm tra phòng và giảng viên trước khi lưu lịch.",
+    "notes": [
+      "Chặn lưu khi trùng lịch giảng viên, lớp hoặc phòng.",
+      "Thông báo lịch mới sau khi lưu thành công."
+    ],
+    "back": "TimeTable_Manager",
+    "save": "Kiểm tra & lưu lịch",
+    "sections": [
+      {
+        "title": "Buổi học",
+        "fields": [
+          {
+            "label": "Lớp *",
+            "type": "select"
+          },
+          {
+            "label": "Nội dung *",
+            "type": "text"
+          },
+          {
+            "label": "Ngày học *",
+            "type": "text"
+          },
+          {
+            "label": "Giờ học *",
+            "type": "text"
+          },
+          {
+            "label": "Phòng học *",
+            "type": "select"
+          },
+          {
+            "label": "Giảng viên *",
+            "type": "select"
+          }
+        ]
+      },
+      {
+        "title": "Ghi chú thay đổi",
+        "fields": [
+          {
+            "label": "Lý do điều chỉnh *",
+            "type": "textarea"
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "code": "TimeTable_Conflict",
+    "fe": "FE-10",
+    "title": "Xử lý xung đột lịch học",
+    "roles": [
+      "MANAGER"
+    ],
+    "proposedRoles": [],
+    "public": false,
+    "scope": "Học viên, khóa / lớp, lịch, xếp lớp và hồ sơ hoàn tất được phân công quản lý.",
+    "actions": [
+      [
+        "Chọn phương án khác",
+        "TimeTable_EditSession"
+      ]
+    ],
+    "variant": "Trạng thái xung đột của TimeTable",
+    "kind": "detail",
+    "functionCode": "TimeTable_Conflict",
+    "description": "Chọn phương án phù hợp khi lớp, phòng hoặc giảng viên bị trùng.",
+    "tabs": [
+      "Xung đột",
+      "Phương án điều chỉnh"
+    ],
+    "back": "TimeTable_Manager",
+    "sections": []
+  },
+  {
+    "code": "ListAttendance",
+    "fe": "FE-11",
+    "title": "Danh sách buổi điểm danh",
+    "roles": [
+      "LECTURER",
+      "MANAGER"
+    ],
+    "proposedRoles": [],
+    "public": false,
+    "scope": "Lớp, buổi dạy và học viên thuộc phân công; yêu cầu thiết bị trong phạm vi phụ trách. Role xem chéo chỉ đọc dữ liệu liên quan nhiệm vụ; ẩn các nút thay đổi của role chủ trì.",
+    "actions": "Lecturer xem buổi thuộc lớp được phân công. Quản lý sinh viên chỉ xem để theo dõi đào tạo; Student dùng StudentAttendance.",
+    "variant": "Màn hình chính",
+    "kind": "list",
+    "functionCode": "ListAttendance",
+    "description": "Theo dõi điểm danh các buổi thuộc lớp được phân công.",
+    "headers": [
+      "BUỔI HỌC / LỚP",
+      "THỜI GIAN",
+      "CÓ MẶT / TỔNG",
+      "TRẠNG THÁI",
+      "THAO TÁC"
+    ],
+    "target": "ClassAttendance",
+    "filter": [
+      "Lớp được phân công",
+      "Tuần hiện tại"
+    ],
+    "sections": []
+  },
+  {
+    "code": "ClassAttendance",
+    "fe": "FE-11",
+    "title": "Điểm danh theo buổi học",
+    "roles": [
+      "LECTURER",
+      "MANAGER"
+    ],
+    "proposedRoles": [],
+    "public": false,
+    "scope": "Lớp, buổi dạy và học viên thuộc phân công; yêu cầu thiết bị trong phạm vi phụ trách. Role xem chéo chỉ đọc dữ liệu liên quan nhiệm vụ; ẩn các nút thay đổi của role chủ trì.",
+    "actions": "Lecturer ghi nhận / chốt điểm danh lớp được phân công. Quản lý sinh viên chỉ xem; không có nút lưu hoặc chốt thay giảng viên.",
+    "variant": "Màn hình chính",
+    "kind": "attendance",
+    "functionCode": "ClassAttendance",
+    "description": "Theo dõi và xử lý dữ liệu mới nhất trong phạm vi được phân công.",
+    "back": "ListAttendance",
+    "sections": []
+  },
+  {
+    "code": "Attendance_Correction",
+    "fe": "FE-11",
+    "title": "Điều chỉnh điểm danh",
+    "roles": [
+      "LECTURER"
+    ],
+    "proposedRoles": [],
+    "public": false,
+    "scope": "Lớp, buổi dạy và học viên thuộc phân công; yêu cầu thiết bị trong phạm vi phụ trách.",
+    "actions": "Lecturer sửa trong phạm vi và thời hạn được cấp quyền, ghi lý do và giữ lịch sử. Không mặc định cho phép sửa sau khi khóa dữ liệu.",
+    "variant": "Popup sửa điểm danh từ ClassAttendance",
+    "kind": "form",
+    "functionCode": "Attendance_Correction",
+    "description": "Ghi lý do sửa trạng thái của học viên trong buổi học.",
+    "notes": [
+      "Chỉ sửa trong phạm vi và thời hạn được cấp quyền.",
+      "Lưu lịch sử trạng thái trước và sau thay đổi."
+    ],
+    "back": "ClassAttendance",
+    "save": "Lưu điều chỉnh",
+    "sections": [
+      {
+        "title": "Thông tin điều chỉnh",
+        "fields": [
+          {
+            "label": "Học viên",
+            "type": "readonly"
+          },
+          {
+            "label": "Buổi học",
+            "type": "readonly"
+          },
+          {
+            "label": "Trạng thái trước",
+            "type": "readonly"
+          },
+          {
+            "label": "Trạng thái sau *",
+            "type": "select"
+          },
+          {
+            "label": "Lý do điều chỉnh *",
+            "type": "textarea"
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "code": "StudentAttendance",
+    "fe": "FE-11",
+    "title": "Chuyên cần của tôi",
+    "roles": [
+      "STUDENT"
+    ],
+    "proposedRoles": [],
+    "public": false,
+    "scope": "Hồ sơ, lịch, điểm, chuyên cần, hợp đồng thanh toán và thiết bị của chính mình.",
+    "actions": "Student chỉ đọc điểm danh của bản thân; không có chức năng gửi đơn xin nghỉ học.",
+    "variant": "Biến thể đọc của ListAttendance cho Student",
+    "kind": "student_attendance",
+    "functionCode": "StudentAttendance",
+    "description": "Chỉ hiển thị kết quả điểm danh của học viên đang đăng nhập.",
+    "sections": []
+  },
+  {
+    "code": "ClassGradebook",
+    "fe": "FE-12",
+    "title": "Bảng điểm lớp học",
+    "roles": [
+      "LECTURER",
+      "MANAGER"
+    ],
+    "proposedRoles": [],
+    "public": false,
+    "scope": "Lớp, buổi dạy và học viên thuộc phân công; yêu cầu thiết bị trong phạm vi phụ trách. Role xem chéo chỉ đọc dữ liệu liên quan nhiệm vụ; ẩn các nút thay đổi của role chủ trì.",
+    "actions": "Lecturer nhập và công bố điểm của lớp được giao. Quản lý sinh viên chỉ xem để tổng hợp / hoàn tất đào tạo; ẩn nút nhập, lưu và công bố.",
+    "variant": "Màn hình chính",
+    "kind": "gradebook",
+    "functionCode": "ClassGradebook",
+    "description": "Theo dõi và xử lý dữ liệu mới nhất trong phạm vi được phân công.",
+    "sections": []
+  },
+  {
+    "code": "StudentResults",
+    "fe": "FE-12",
+    "title": "Kết quả học tập của tôi",
+    "roles": [
+      "STUDENT"
+    ],
+    "proposedRoles": [],
+    "public": false,
+    "scope": "Hồ sơ, lịch, điểm, chuyên cần, hợp đồng thanh toán và thiết bị của chính mình.",
+    "actions": "Student chỉ đọc các đầu điểm của bản thân đã được công bố; không xem bảng điểm cả lớp.",
+    "variant": "Biến thể đọc của ClassGradebook cho Student",
+    "kind": "results",
+    "functionCode": "StudentResults",
+    "description": "Các đầu điểm đã được giảng viên công bố.",
+    "sections": []
+  },
+  {
+    "code": "ListEquipmentRequest",
+    "fe": "FE-13",
+    "title": "Yêu cầu cấp thiết bị",
+    "roles": [
+      "LECTURER"
+    ],
+    "proposedRoles": [],
+    "public": false,
+    "scope": "Lớp, buổi dạy và học viên thuộc phân công; yêu cầu thiết bị trong phạm vi phụ trách.",
+    "actions": "Lecturer chỉ xem yêu cầu do mình tạo / thuộc lớp được phân công. IT dùng ListEquipmentRequest_IT.",
+    "variant": "Màn hình chính",
+    "kind": "list",
+    "functionCode": "ListEquipmentRequest",
+    "description": "Tạo và theo dõi yêu cầu cho học viên thuộc lớp được phân công.",
+    "headers": [
+      "YÊU CẦU / LOẠI",
+      "LỚP / NGƯỜI NHẬN",
+      "SỐ LƯỢNG",
+      "TRẠNG THÁI",
+      "THAO TÁC"
+    ],
+    "action": [
+      "Tạo yêu cầu",
+      "AddEquipmentRequest"
+    ],
+    "target": "EquipmentRequestDetail_Lecturer",
+    "filter": [
+      "Lớp được phân công",
+      "Tất cả trạng thái"
+    ],
+    "sections": []
+  },
+  {
+    "code": "AddEquipmentRequest",
+    "fe": "FE-13",
+    "title": "Tạo yêu cầu cấp thiết bị",
+    "roles": [
+      "LECTURER"
+    ],
+    "proposedRoles": [],
+    "public": false,
+    "scope": "Lớp, buổi dạy và học viên thuộc phân công; yêu cầu thiết bị trong phạm vi phụ trách.",
+    "actions": "Chỉ Lecturer tạo yêu cầu cho học viên trong lớp phụ trách. Student, Tuyển dụng và Quản lý sinh viên không tạo yêu cầu ban đầu.",
+    "variant": "Màn hình chính",
+    "kind": "form",
+    "functionCode": "AddEquipmentRequest",
+    "description": "Giảng viên tạo yêu cầu cho học viên trong lớp được giao.",
+    "notes": [
+      "Danh sách học viên được giới hạn trong lớp phụ trách.",
+      "IT kiểm tra tồn kho và điều kiện bàn giao sau khi tiếp nhận."
+    ],
+    "back": "ListEquipmentRequest",
+    "save": "Gửi yêu cầu đến IT",
+    "sections": [
+      {
+        "title": "Thông tin yêu cầu",
+        "fields": [
+          {
+            "label": "Lớp *",
+            "type": "select"
+          },
+          {
+            "label": "Loại yêu cầu *",
+            "type": "select"
+          },
+          {
+            "label": "Học viên nhận *",
+            "type": "select"
+          },
+          {
+            "label": "Nhóm thiết bị *",
+            "type": "select"
+          },
+          {
+            "label": "Số lượng *",
+            "type": "text"
+          },
+          {
+            "label": "Ngày cần thiết bị *",
+            "type": "text"
+          }
+        ]
+      },
+      {
+        "title": "Mục đích sử dụng",
+        "fields": [
+          {
+            "label": "Nội dung *",
+            "type": "textarea"
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "code": "EquipmentRequestDetail_Lecturer",
+    "fe": "FE-13",
+    "title": "Chi tiết yêu cầu thiết bị",
+    "roles": [
+      "LECTURER"
+    ],
+    "proposedRoles": [],
+    "public": false,
+    "scope": "Lớp, buổi dạy và học viên thuộc phân công; yêu cầu thiết bị trong phạm vi phụ trách.",
+    "actions": [
+      [
+        "Xem lịch sử xử lý",
+        "ListEquipmentRequest"
+      ]
+    ],
+    "variant": "Biến thể theo vai trò của EquipmentRequestDetail",
+    "kind": "detail",
+    "functionCode": "EquipmentRequestDetail_Lecturer",
+    "description": "Theo dõi yêu cầu từ giảng viên đến kiểm tra kho và bàn giao.",
+    "tabs": [
+      "Thông tin yêu cầu",
+      "Thiết bị dự kiến",
+      "Lịch sử xử lý"
+    ],
+    "back": "ListEquipmentRequest",
+    "sections": []
+  },
+  {
+    "code": "EquipmentRequestDetail_IT",
+    "fe": "FE-13",
+    "title": "Chi tiết yêu cầu thiết bị",
+    "roles": [
+      "IT_SUPPORT"
+    ],
+    "proposedRoles": [],
+    "public": false,
+    "scope": "Tài sản, yêu cầu từ Lecturer, bàn giao, thu hồi, bảo trì và sự cố được bộ phận IT xử lý.",
+    "actions": [
+      [
+        "Chuẩn bị bàn giao",
+        "AssetHandover"
+      ]
+    ],
+    "variant": "Biến thể theo vai trò của EquipmentRequestDetail",
+    "kind": "detail",
+    "functionCode": "EquipmentRequestDetail_IT",
+    "description": "Theo dõi yêu cầu từ giảng viên đến kiểm tra kho và bàn giao.",
+    "tabs": [
+      "Thông tin yêu cầu",
+      "Thiết bị dự kiến",
+      "Lịch sử xử lý"
+    ],
+    "back": "ListEquipmentRequest_IT",
+    "sections": []
+  },
+  {
+    "code": "ListEquipmentRequest_IT",
+    "fe": "FE-13",
+    "title": "Tiếp nhận yêu cầu thiết bị",
+    "roles": [
+      "IT_SUPPORT"
+    ],
+    "proposedRoles": [],
+    "public": false,
+    "scope": "Tài sản, yêu cầu từ Lecturer, bàn giao, thu hồi, bảo trì và sự cố được bộ phận IT xử lý.",
+    "actions": "IT xem yêu cầu được chuyển đến bộ phận IT; không tạo thay yêu cầu cấp ban đầu của Lecturer.",
+    "variant": "Biến thể của ListEquipmentRequest cho IT",
+    "kind": "list",
+    "functionCode": "ListEquipmentRequest_IT",
+    "description": "Yêu cầu do giảng viên gửi đến bộ phận IT.",
+    "headers": [
+      "YÊU CẦU / NGƯỜI TẠO",
+      "LỚP",
+      "SỐ LƯỢNG",
+      "TRẠNG THÁI",
+      "THAO TÁC"
+    ],
+    "target": "EquipmentRequestDetail_IT",
+    "filter": [
+      "Tất cả giảng viên",
+      "Tất cả trạng thái"
+    ],
+    "sections": []
+  },
+  {
+    "code": "AssetHandover",
+    "fe": "FE-13",
+    "title": "Chuẩn bị & bàn giao thiết bị",
+    "roles": [
+      "IT_SUPPORT"
+    ],
+    "proposedRoles": [],
+    "public": false,
+    "scope": "Tài sản, yêu cầu từ Lecturer, bàn giao, thu hồi, bảo trì và sự cố được bộ phận IT xử lý.",
+    "actions": "IT kiểm tra tài sản, điều kiện cọc và lịch hẹn; lưu việc học viên kiểm tra, ký nhận.",
+    "variant": "Bước bàn giao trong EquipmentRequestDetail",
+    "kind": "handover",
+    "functionCode": "AssetHandover",
+    "description": "Kiểm tra từng thiết bị và ghi nhận học viên ký nhận.",
+    "back": "EquipmentRequestDetail_IT",
+    "sections": []
+  },
+  {
+    "code": "AssetHandover_Receipt",
+    "fe": "FE-13",
+    "title": "Biên bản bàn giao thiết bị",
+    "roles": [
+      "ACCOUNTANT",
+      "IT_SUPPORT",
+      "MANAGER"
+    ],
+    "proposedRoles": [],
+    "public": false,
+    "scope": "Tài sản, yêu cầu từ Lecturer, bàn giao, thu hồi, bảo trì và sự cố được bộ phận IT xử lý. Role xem chéo chỉ đọc dữ liệu liên quan nhiệm vụ; ẩn các nút thay đổi của role chủ trì.",
+    "actions": "IT ghi nhận biên bản và minh chứng. Kế toán / Quản lý sinh viên chỉ xem biên bản liên quan hồ sơ mình xử lý. Student dùng StudentAssetReceipt.",
+    "variant": "Biên bản / xác nhận trong EquipmentRequestDetail",
+    "kind": "receipt",
+    "functionCode": "AssetHandover_Receipt",
+    "description": "Lưu hiện trạng, phụ kiện và minh chứng nhận thiết bị.",
+    "back": "AssetHandover",
+    "sections": []
+  },
+  {
+    "code": "ListTuitionManagement",
+    "fe": "FE-14",
+    "title": "Học phí theo hợp đồng",
+    "roles": [
+      "ACCOUNTANT"
+    ],
+    "proposedRoles": [],
+    "public": false,
+    "scope": "Hợp đồng, giao dịch, học phí, cọc và hồ sơ bồi thường / quyết toán theo phân công.",
+    "actions": "Kế toán theo dõi nghĩa vụ học phí gắn với hợp đồng. Tuyển dụng / Quản lý sinh viên dùng màn PaymentStatus_Admissions để xem trạng thái.",
+    "variant": "Màn hình chính",
+    "kind": "list",
+    "functionCode": "ListTuitionManagement",
+    "description": "Theo dõi nghĩa vụ học phí và số tiền còn phải thu.",
+    "headers": [
+      "HỢP ĐỒNG / HỌC VIÊN",
+      "HỌC PHÍ",
+      "ĐÃ XÁC NHẬN",
+      "CÒN PHẢI THU",
+      "THAO TÁC"
+    ],
+    "target": "TuitionDetail",
+    "filter": [
+      "Tất cả khóa học",
+      "Tình trạng học phí"
+    ],
+    "sections": []
+  },
+  {
+    "code": "TuitionDetail",
+    "fe": "FE-14",
+    "title": "Chi tiết nghĩa vụ học phí",
+    "roles": [
+      "ACCOUNTANT"
+    ],
+    "proposedRoles": [],
+    "public": false,
+    "scope": "Hợp đồng, giao dịch, học phí, cọc và hồ sơ bồi thường / quyết toán theo phân công.",
+    "actions": "Kế toán đối chiếu nghĩa vụ theo hợp đồng; không có hóa đơn học phí. Student dùng TuitionDetail_Student.",
+    "variant": "Màn hình chính",
+    "kind": "tuition",
+    "functionCode": "TuitionDetail",
+    "description": "Theo dõi và xử lý dữ liệu mới nhất trong phạm vi được phân công.",
+    "back": "ListTuitionManagement",
+    "sections": []
+  },
+  {
+    "code": "TuitionDetail_Student",
+    "fe": "FE-14",
+    "title": "Thông tin thanh toán của tôi",
+    "roles": [
+      "STUDENT"
+    ],
+    "proposedRoles": [],
+    "public": false,
+    "scope": "Hồ sơ, lịch, điểm, chuyên cần, hợp đồng thanh toán và thiết bị của chính mình.",
+    "actions": "Student chỉ đọc học phí, cọc và giao dịch của hợp đồng thuộc bản thân; không xác nhận đã thu.",
+    "variant": "Biến thể đọc của TuitionDetail",
+    "kind": "tuition",
+    "functionCode": "TuitionDetail_Student",
+    "description": "Học phí và cọc theo hợp đồng đào tạo của bạn.",
+    "back": "StudentProfileDetail_Student",
+    "sections": []
+  },
+  {
+    "code": "PaymentStatus_Admissions",
+    "fe": "FE-14",
+    "title": "Theo dõi trạng thái học phí",
+    "roles": [
+      "MANAGER",
+      "HR"
+    ],
+    "proposedRoles": [],
+    "public": false,
+    "scope": "Đăng ký tư vấn, hợp đồng và trạng thái học phí của hồ sơ được phân công phụ trách. Role xem chéo chỉ đọc dữ liệu liên quan nhiệm vụ; ẩn các nút thay đổi của role chủ trì.",
+    "actions": "Tuyển dụng và Quản lý sinh viên chỉ xem trạng thái học phí phục vụ tư vấn / xếp lớp; không xác nhận, sửa hoặc xóa giao dịch.",
+    "variant": "Biến thể chỉ xem của FE-14 cho Tuyển dụng",
+    "kind": "list",
+    "functionCode": "PaymentStatus_Admissions",
+    "description": "Xem kết quả xác nhận của kế toán để phối hợp với người học.",
+    "headers": [
+      "HỢP ĐỒNG / NGƯỜI HỌC",
+      "HỌC PHÍ",
+      "ĐÃ XÁC NHẬN",
+      "TRẠNG THÁI",
+      "THAO TÁC"
+    ],
+    "target": "TrainingContractDetail",
+    "filter": [
+      "Tất cả trạng thái",
+      "Tất cả khóa học"
+    ],
+    "sections": []
+  },
+  {
+    "code": "ListPayment",
+    "fe": "FE-15",
+    "title": "Giao dịch ngân hàng & thanh toán",
+    "roles": [
+      "ACCOUNTANT"
+    ],
+    "proposedRoles": [],
+    "public": false,
+    "scope": "Hợp đồng, giao dịch, học phí, cọc và hồ sơ bồi thường / quyết toán theo phân công.",
+    "actions": "Kế toán xem, lọc và mở giao dịch để đối soát. Các role khác không được xem danh sách giao dịch ngân hàng toàn trung tâm.",
+    "variant": "Màn hình chính",
+    "kind": "list",
+    "functionCode": "ListPayment",
+    "description": "Đối soát giao dịch với hợp đồng và mục đích thanh toán.",
+    "headers": [
+      "GIAO DỊCH / THAM CHIẾU",
+      "NGƯỜI CHUYỂN",
+      "SỐ TIỀN",
+      "TRẠNG THÁI",
+      "THAO TÁC"
+    ],
+    "target": "PaymentDetail",
+    "filter": [
+      "Tất cả loại khoản thu",
+      "Tất cả trạng thái"
+    ],
+    "sections": []
+  },
+  {
+    "code": "PaymentDetail",
+    "fe": "FE-15",
+    "title": "Đối soát & xác nhận giao dịch",
+    "roles": [
+      "ACCOUNTANT"
+    ],
+    "proposedRoles": [],
+    "public": false,
+    "scope": "Hợp đồng, giao dịch, học phí, cọc và hồ sơ bồi thường / quyết toán theo phân công.",
+    "actions": "Chỉ Kế toán đối soát và xác nhận thu theo hợp đồng. Việc xác nhận hợp lệ kích hoạt xử lý xếp lớp tự động.",
+    "variant": "Màn hình chính",
+    "kind": "payment",
+    "functionCode": "PaymentDetail",
+    "description": "Kiểm tra thông tin ngân hàng với nghĩa vụ theo hợp đồng.",
+    "back": "ListPayment",
+    "sections": []
+  },
+  {
+    "code": "PaymentDetail_Mismatch",
+    "fe": "FE-15",
+    "title": "Xử lý giao dịch sai lệch",
+    "roles": [
+      "ACCOUNTANT"
+    ],
+    "proposedRoles": [],
+    "public": false,
+    "scope": "Hợp đồng, giao dịch, học phí, cọc và hồ sơ bồi thường / quyết toán theo phân công.",
+    "actions": "Kế toán ghi nhận / làm rõ sai lệch; không xác nhận khi thông tin chưa đáp ứng điều kiện đối soát.",
+    "variant": "Trạng thái sai lệch trong PaymentDetail",
+    "kind": "payment",
+    "functionCode": "PaymentDetail_Mismatch",
+    "description": "Giao dịch chỉ được xác nhận sau khi đối chiếu đầy đủ.",
+    "back": "ListPayment",
+    "sections": []
+  },
+  {
+    "code": "PaymentDetail_Duplicate",
+    "fe": "FE-15",
+    "title": "Giao dịch đã được ghi nhận",
+    "roles": [
+      "ACCOUNTANT"
+    ],
+    "proposedRoles": [],
+    "public": false,
+    "scope": "Hợp đồng, giao dịch, học phí, cọc và hồ sơ bồi thường / quyết toán theo phân công.",
+    "actions": "Kế toán xem bản ghi gốc; không tạo lần thu thứ hai cho tín hiệu ngân hàng trùng.",
+    "variant": "Trạng thái chống ghi nhận trùng của PaymentDetail",
+    "kind": "payment",
+    "functionCode": "PaymentDetail_Duplicate",
+    "description": "Tín hiệu ngân hàng trùng được đối chiếu với giao dịch gốc.",
+    "back": "ListPayment",
+    "sections": []
+  },
+  {
+    "code": "PaymentInstruction",
+    "fe": "FE-15",
+    "title": "Hướng dẫn thanh toán",
+    "roles": [
+      "STUDENT",
+      "ACCOUNTANT",
+      "HR"
+    ],
+    "proposedRoles": [],
+    "public": false,
+    "scope": "Hợp đồng, giao dịch, học phí, cọc và hồ sơ bồi thường / quyết toán theo phân công. Role xem chéo chỉ đọc dữ liệu liên quan nhiệm vụ; ẩn các nút thay đổi của role chủ trì.",
+    "actions": "Kế toán tạo và lưu / gửi hướng dẫn. Tuyển dụng chỉ xem / chuyển tiếp hồ sơ phụ trách; Student chỉ xem hướng dẫn của hợp đồng bản thân.",
+    "variant": "Thao tác tạo hướng dẫn trong TuitionDetail / PaymentDetail",
+    "kind": "payment_instruction",
+    "functionCode": "PaymentInstruction",
+    "description": "Tạo thông tin chuyển khoản đúng mục đích và hợp đồng.",
+    "back": "TuitionDetail",
+    "sections": []
+  },
+  {
+    "code": "DepositList",
+    "fe": "FE-15",
+    "title": "Thu & hoàn tiền cọc thiết bị",
+    "roles": [
+      "ACCOUNTANT"
+    ],
+    "proposedRoles": [],
+    "public": false,
+    "scope": "Hợp đồng, giao dịch, học phí, cọc và hồ sơ bồi thường / quyết toán theo phân công.",
+    "actions": "Chỉ Kế toán quản lý thu / hoàn cọc. IT xem trạng thái điều kiện cọc trong luồng bàn giao, không mở sổ cọc toàn trung tâm.",
+    "variant": "Tab tiền cọc trong FE-15",
+    "kind": "list",
+    "functionCode": "DepositList",
+    "description": "Quản lý cọc độc lập với học phí và theo từng học viên.",
+    "headers": [
+      "HỌC VIÊN / HỢP ĐỒNG",
+      "CỌC ĐÃ THU",
+      "BỒI THƯỜNG DUYỆT",
+      "TRẠNG THÁI",
+      "THAO TÁC"
+    ],
+    "target": "DepositRefund",
+    "filter": [
+      "Tất cả trạng thái",
+      "Tất cả lớp"
+    ],
+    "sections": []
+  },
+  {
+    "code": "DepositRefund",
+    "fe": "FE-15",
+    "title": "Quyết toán & hoàn tiền cọc",
+    "roles": [
+      "ACCOUNTANT"
+    ],
+    "proposedRoles": [],
+    "public": false,
+    "scope": "Hợp đồng, giao dịch, học phí, cọc và hồ sơ bồi thường / quyết toán theo phân công.",
+    "actions": "Chỉ Kế toán ghi nhận hoàn / khấu trừ được duyệt; cần kết quả thu hồi, xác nhận khoản bồi thường và minh chứng giao dịch.",
+    "variant": "Thao tác hoàn cọc / khấu trừ được duyệt trong FE-15",
+    "kind": "refund",
+    "functionCode": "DepositRefund",
+    "description": "Kiểm tra kết quả thu hồi và khoản bồi thường được phê duyệt.",
+    "back": "DepositList",
+    "sections": []
+  },
+  {
+    "code": "ListAsset",
+    "fe": "FE-16",
+    "title": "Danh mục thiết bị",
+    "roles": [
+      "IT_SUPPORT"
+    ],
+    "proposedRoles": [],
+    "public": false,
+    "scope": "Tài sản, yêu cầu từ Lecturer, bàn giao, thu hồi, bảo trì và sự cố được bộ phận IT xử lý.",
+    "actions": "IT quản lý kho và từng tài sản. Student chỉ xem StudentAssets; Lecturer tra cứu qua yêu cầu và lớp phụ trách.",
+    "variant": "Màn hình chính",
+    "kind": "list",
+    "functionCode": "ListAsset",
+    "description": "Quản lý từng tài sản và trạng thái sẵn sàng cấp phát.",
+    "headers": [
+      "THIẾT BỊ / MÃ",
+      "NHÓM THIẾT BỊ",
+      "NGƯỜI ĐANG GIỮ",
+      "TRẠNG THÁI",
+      "THAO TÁC"
+    ],
+    "action": [
+      "Thêm thiết bị",
+      "AddAsset"
+    ],
+    "target": "AssetDetail",
+    "edit": "EditAsset",
+    "filter": [
+      "Tất cả nhóm thiết bị",
+      "Tất cả trạng thái"
+    ],
+    "sections": []
+  },
+  {
+    "code": "AddAsset",
+    "fe": "FE-16",
+    "title": "Thêm thiết bị",
+    "roles": [
+      "IT_SUPPORT"
+    ],
+    "proposedRoles": [],
+    "public": false,
+    "scope": "Tài sản, yêu cầu từ Lecturer, bàn giao, thu hồi, bảo trì và sự cố được bộ phận IT xử lý.",
+    "actions": "Tạo tài sản.",
+    "variant": "Màn hình chính",
+    "kind": "form",
+    "functionCode": "AddAsset",
+    "description": "Tạo mã riêng để theo dõi cấp phát và lịch sử sử dụng.",
+    "notes": [
+      "Mỗi thiết bị có mã tài sản và lịch sử riêng.",
+      "Chỉ cấp phát khi thiết bị ở trạng thái sẵn sàng."
+    ],
+    "back": "ListAsset",
+    "save": "Lưu thiết bị",
+    "sections": [
+      {
+        "title": "Thông tin tài sản",
+        "fields": [
+          {
+            "label": "Mã thiết bị *",
+            "type": "text"
+          },
+          {
+            "label": "Tên thiết bị *",
+            "type": "text"
+          },
+          {
+            "label": "Nhóm thiết bị *",
+            "type": "select"
+          },
+          {
+            "label": "Ngày nhập *",
+            "type": "text"
+          },
+          {
+            "label": "Giá trị ghi nhận",
+            "type": "text"
+          }
+        ]
+      },
+      {
+        "title": "Hiện trạng & lưu kho",
+        "fields": [
+          {
+            "label": "Tình trạng *",
+            "type": "select"
+          },
+          {
+            "label": "Vị trí lưu kho *",
+            "type": "text"
+          },
+          {
+            "label": "Phụ kiện đi kèm",
+            "type": "textarea"
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "code": "EditAsset",
+    "fe": "FE-16",
+    "title": "Cập nhật thiết bị",
+    "roles": [
+      "IT_SUPPORT"
+    ],
+    "proposedRoles": [],
+    "public": false,
+    "scope": "Tài sản, yêu cầu từ Lecturer, bàn giao, thu hồi, bảo trì và sự cố được bộ phận IT xử lý.",
+    "actions": "Cập nhật thông tin tài sản.",
+    "variant": "Màn hình chính",
+    "kind": "form",
+    "functionCode": "EditAsset",
+    "description": "Cập nhật thông tin tài sản và hiện trạng được phép sửa.",
+    "notes": [
+      "Thay đổi cấp phát được thực hiện qua bàn giao / thu hồi.",
+      "Giữ lịch sử bảo trì và tình trạng thiết bị."
+    ],
+    "back": "AssetDetail",
+    "save": "Lưu thay đổi",
+    "sections": [
+      {
+        "title": "Thông tin tài sản",
+        "fields": [
+          {
+            "label": "Mã thiết bị *",
+            "type": "text"
+          },
+          {
+            "label": "Tên thiết bị *",
+            "type": "text"
+          },
+          {
+            "label": "Nhóm thiết bị *",
+            "type": "select"
+          },
+          {
+            "label": "Ngày nhập *",
+            "type": "text"
+          },
+          {
+            "label": "Giá trị ghi nhận",
+            "type": "text"
+          }
+        ]
+      },
+      {
+        "title": "Hiện trạng & lưu kho",
+        "fields": [
+          {
+            "label": "Tình trạng *",
+            "type": "select"
+          },
+          {
+            "label": "Vị trí lưu kho *",
+            "type": "text"
+          },
+          {
+            "label": "Phụ kiện đi kèm",
+            "type": "textarea"
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "code": "AssetDetail",
+    "fe": "FE-16",
+    "title": "Chi tiết thiết bị",
+    "roles": [
+      "IT_SUPPORT"
+    ],
+    "proposedRoles": [
+      "LECTURER"
+    ],
+    "public": false,
+    "scope": "Tài sản, yêu cầu từ Lecturer, bàn giao, thu hồi, bảo trì và sự cố được bộ phận IT xử lý.",
+    "actions": [
+      [
+        "Xem lịch sử cấp phát",
+        "HistoryAssetAssignment"
+      ],
+      [
+        "Lập phiếu bảo trì",
+        "AssetMaintenance"
+      ]
+    ],
+    "variant": "Màn hình chính",
+    "kind": "detail",
+    "functionCode": "AssetDetail",
+    "description": "Theo dõi tình trạng, người giữ và lịch sử vòng đời thiết bị.",
+    "tabs": [
+      "Thông tin thiết bị",
+      "Cấp phát",
+      "Bảo trì",
+      "Lịch sử"
+    ],
+    "back": "ListAsset",
+    "sections": []
+  },
+  {
+    "code": "HistoryAssetAssignment",
+    "fe": "FE-16",
+    "title": "Lịch sử cấp phát thiết bị",
+    "roles": [
+      "IT_SUPPORT"
+    ],
+    "proposedRoles": [
+      "ACCOUNTANT"
+    ],
+    "public": false,
+    "scope": "Tài sản, yêu cầu từ Lecturer, bàn giao, thu hồi, bảo trì và sự cố được bộ phận IT xử lý.",
+    "actions": "IT xem lịch sử cấp phát. ĐX cho Kế toán chỉ xem các lượt liên quan hồ sơ cần quyết toán / bồi thường.",
+    "variant": "Màn hình chính",
+    "kind": "list",
+    "functionCode": "HistoryAssetAssignment",
+    "description": "Dòng thời gian thiết bị được giao cho từng học viên.",
+    "headers": [
+      "BIÊN BẢN / THIẾT BỊ",
+      "HỌC VIÊN",
+      "NGÀY GIAO",
+      "TRẠNG THÁI",
+      "THAO TÁC"
+    ],
+    "target": "AssetHandover_Receipt",
+    "back": "AssetDetail",
+    "filter": [
+      "TS-ĐCN-024",
+      "Tất cả trạng thái"
+    ],
+    "sections": []
+  },
+  {
+    "code": "AssetMaintenance",
+    "fe": "FE-16",
+    "title": "Lập phiếu bảo trì / sửa chữa",
+    "roles": [
+      "IT_SUPPORT"
+    ],
+    "proposedRoles": [],
+    "public": false,
+    "scope": "Tài sản, yêu cầu từ Lecturer, bàn giao, thu hồi, bảo trì và sự cố được bộ phận IT xử lý.",
+    "actions": "IT được chủ động lập phiếu bảo trì khi phát hiện vấn đề; không cần có yêu cầu trước từ Student hoặc Lecturer.",
+    "variant": "Thao tác bảo trì trong AssetDetail",
+    "kind": "form",
+    "functionCode": "AssetMaintenance",
+    "description": "IT chủ động ghi nhận vấn đề hoặc xử lý theo thông tin từ giảng viên.",
+    "notes": [
+      "Thiết bị bảo trì được đánh dấu chưa sẵn sàng cấp phát.",
+      "Nếu có hỏng mất liên quan trách nhiệm, tạo hồ sơ sự cố."
+    ],
+    "back": "AssetDetail",
+    "save": "Tạo phiếu bảo trì",
+    "sections": [
+      {
+        "title": "Thông tin phiếu",
+        "fields": [
+          {
+            "label": "Thiết bị *",
+            "type": "select"
+          },
+          {
+            "label": "Nguồn ghi nhận *",
+            "type": "select"
+          },
+          {
+            "label": "Loại xử lý *",
+            "type": "select"
+          },
+          {
+            "label": "Ngày phát hiện *",
+            "type": "text"
+          },
+          {
+            "label": "Hiện tượng *",
+            "type": "textarea"
+          }
+        ]
+      },
+      {
+        "title": "Kế hoạch xử lý",
+        "fields": [
+          {
+            "label": "Người phụ trách *",
+            "type": "select"
+          },
+          {
+            "label": "Dự kiến hoàn tất",
+            "type": "text"
+          },
+          {
+            "label": "Ghi chú",
+            "type": "textarea"
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "code": "StudentAssets",
+    "fe": "FE-16",
+    "title": "Thiết bị được cấp của tôi",
+    "roles": [
+      "STUDENT"
+    ],
+    "proposedRoles": [],
+    "public": false,
+    "scope": "Hồ sơ, lịch, điểm, chuyên cần, hợp đồng thanh toán và thiết bị của chính mình.",
+    "actions": [
+      [
+        "Xem biên bản",
+        "StudentAssetReceipt"
+      ]
+    ],
+    "variant": "Biến thể chỉ xem của AssetDetail cho Student",
+    "kind": "detail",
+    "functionCode": "StudentAssets",
+    "description": "Xem biên bản bàn giao và tình trạng thiết bị đang giữ.",
+    "tabs": [
+      "Thiết bị đang giữ",
+      "Biên bản bàn giao",
+      "Lịch sử trả"
+    ],
+    "sections": []
+  },
+  {
+    "code": "StudentAssetReceipt",
+    "fe": "FE-16",
+    "title": "Biên bản nhận thiết bị của tôi",
+    "roles": [
+      "STUDENT"
+    ],
+    "proposedRoles": [],
+    "public": false,
+    "scope": "Hồ sơ, lịch, điểm, chuyên cần, hợp đồng thanh toán và thiết bị của chính mình.",
+    "actions": "Student chỉ xem / tải biên bản đã ký của bản thân; không tạo hoặc sửa biên bản bàn giao của IT.",
+    "variant": "Biến thể chỉ xem biên bản cho Student",
+    "kind": "receipt",
+    "functionCode": "StudentAssetReceipt",
+    "description": "Thông tin bàn giao và minh chứng đã ký nhận.",
+    "back": "StudentAssets",
+    "sections": []
+  },
+  {
+    "code": "ListAssetRecovery",
+    "fe": "FE-17",
+    "title": "Trả & thu hồi thiết bị",
+    "roles": [
+      "ACCOUNTANT",
+      "IT_SUPPORT",
+      "MANAGER"
+    ],
+    "proposedRoles": [],
+    "public": false,
+    "scope": "Tài sản, yêu cầu từ Lecturer, bàn giao, thu hồi, bảo trì và sự cố được bộ phận IT xử lý. Role xem chéo chỉ đọc dữ liệu liên quan nhiệm vụ; ẩn các nút thay đổi của role chủ trì.",
+    "actions": "IT xử lý thu hồi. Kế toán và Quản lý sinh viên chỉ xem hồ sơ liên quan quyết toán / hoàn tất; không xác nhận nhận thiết bị thay IT.",
+    "variant": "Màn hình chính",
+    "kind": "list",
+    "functionCode": "ListAssetRecovery",
+    "description": "Phiếu được khởi tạo khi học viên đủ điều kiện hoàn thành hoặc nghỉ học.",
+    "headers": [
+      "PHIẾU / HỌC VIÊN",
+      "THIẾT BỊ",
+      "LÝ DO THU HỒI",
+      "TRẠNG THÁI",
+      "THAO TÁC"
+    ],
+    "target": "ListAssetDetail",
+    "filter": [
+      "Tất cả lý do",
+      "Tất cả trạng thái"
+    ],
+    "sections": []
+  },
+  {
+    "code": "ListAssetDetail",
+    "fe": "FE-17",
+    "title": "Kiểm tra & xác nhận trả thiết bị",
+    "roles": [
+      "ACCOUNTANT",
+      "IT_SUPPORT",
+      "MANAGER"
+    ],
+    "proposedRoles": [],
+    "public": false,
+    "scope": "Tài sản, yêu cầu từ Lecturer, bàn giao, thu hồi, bảo trì và sự cố được bộ phận IT xử lý. Role xem chéo chỉ đọc dữ liệu liên quan nhiệm vụ; ẩn các nút thay đổi của role chủ trì.",
+    "actions": "IT kiểm tra thực nhận và xác nhận trả. Kế toán / Quản lý sinh viên chỉ xem kết quả, hiện trạng và minh chứng trong hồ sơ được giao.",
+    "variant": "Màn hình chính",
+    "kind": "recovery",
+    "functionCode": "ListAssetDetail",
+    "description": "Theo dõi và xử lý dữ liệu mới nhất trong phạm vi được phân công.",
+    "back": "ListAssetRecovery",
+    "sections": []
+  },
+  {
+    "code": "Recovery_Withdrawal",
+    "fe": "FE-17",
+    "title": "Theo dõi thu hồi khi nghỉ học",
+    "roles": [
+      "ACCOUNTANT",
+      "IT_SUPPORT",
+      "MANAGER"
+    ],
+    "proposedRoles": [],
+    "public": false,
+    "scope": "Tài sản, yêu cầu từ Lecturer, bàn giao, thu hồi, bảo trì và sự cố được bộ phận IT xử lý. Role xem chéo chỉ đọc dữ liệu liên quan nhiệm vụ; ẩn các nút thay đổi của role chủ trì.",
+    "actions": [
+      [
+        "Ghi nhận kiểm tra trả",
+        "ListAssetDetail"
+      ]
+    ],
+    "variant": "Trạng thái nghỉ học của ListAssetDetail",
+    "kind": "detail",
+    "functionCode": "Recovery_Withdrawal",
+    "description": "Giữ hồ sơ mở khi học viên chưa trả đủ thiết bị.",
+    "tabs": [
+      "Thông tin thu hồi",
+      "Lịch liên hệ",
+      "Kết quả kiểm tra"
+    ],
+    "back": "ListAssetRecovery",
+    "sections": []
+  },
+  {
+    "code": "ListAssetIncident",
+    "fe": "FE-18",
+    "title": "Hỏng mất & bồi thường thiết bị",
+    "roles": [
+      "ACCOUNTANT",
+      "IT_SUPPORT"
+    ],
+    "proposedRoles": [
+      "MANAGER"
+    ],
+    "public": false,
+    "scope": "Tài sản, yêu cầu từ Lecturer, bàn giao, thu hồi, bảo trì và sự cố được bộ phận IT xử lý. Role xem chéo chỉ đọc dữ liệu liên quan nhiệm vụ; ẩn các nút thay đổi của role chủ trì.",
+    "actions": "IT quản lý sự cố; Kế toán chỉ xem hồ sơ cần quyết toán. ĐX cho Quản lý sinh viên chỉ xem sự cố liên quan hồ sơ đào tạo mình quản lý.",
+    "variant": "Màn hình chính",
+    "kind": "list",
+    "functionCode": "ListAssetIncident",
+    "description": "IT ghi nhận hiện trạng; kế toán xử lý nghĩa vụ tài chính liên quan.",
+    "headers": [
+      "SỰ CỐ / THIẾT BỊ",
+      "HỌC VIÊN",
+      "PHÂN LOẠI",
+      "TRẠNG THÁI",
+      "THAO TÁC"
+    ],
+    "target": "AssetIncidentDetail",
+    "filter": [
+      "Tất cả phân loại",
+      "Tất cả trạng thái"
+    ],
+    "sections": []
+  },
+  {
+    "code": "AssetIncidentDetail",
+    "fe": "FE-18",
+    "title": "Đánh giá sự cố thiết bị",
+    "roles": [
+      "ACCOUNTANT",
+      "IT_SUPPORT"
+    ],
+    "proposedRoles": [
+      "MANAGER"
+    ],
+    "public": false,
+    "scope": "Tài sản, yêu cầu từ Lecturer, bàn giao, thu hồi, bảo trì và sự cố được bộ phận IT xử lý. Role xem chéo chỉ đọc dữ liệu liên quan nhiệm vụ; ẩn các nút thay đổi của role chủ trì.",
+    "actions": "IT ghi nhận hiện trạng, nguyên nhân và đề xuất trách nhiệm / mức xử lý. Kế toán chỉ xem căn cứ kỹ thuật; quyết toán ở biến thể của Kế toán. Quyền xem của Quản lý sinh viên là ĐX.",
+    "variant": "Màn hình chính",
+    "kind": "incident",
+    "functionCode": "AssetIncidentDetail",
+    "description": "Ghi nhận bằng chứng, nguyên nhân và đề xuất xử lý.",
+    "back": "ListAssetIncident",
+    "sections": []
+  },
+  {
+    "code": "AssetIncidentDetail_Accountant",
+    "fe": "FE-18",
+    "title": "Quyết toán bồi thường thiết bị",
+    "roles": [
+      "ACCOUNTANT"
+    ],
+    "proposedRoles": [],
+    "public": false,
+    "scope": "Hợp đồng, giao dịch, học phí, cọc và hồ sơ bồi thường / quyết toán theo phân công.",
+    "actions": "Kế toán xử lý khoản tài chính được phê duyệt; không thay IT chỉnh sửa hiện trạng và đánh giá kỹ thuật.",
+    "variant": "Biến thể theo vai trò của AssetIncidentDetail",
+    "kind": "incident",
+    "functionCode": "AssetIncidentDetail_Accountant",
+    "description": "Xử lý khoản được phê duyệt và theo dõi kết quả thanh toán.",
+    "back": "DepositList",
+    "sections": []
+  },
+  {
+    "code": "ListTrainingClosure",
+    "fe": "FE-19",
+    "title": "Hoàn tất đào tạo & đóng hồ sơ",
+    "roles": [
+      "ACCOUNTANT",
+      "IT_SUPPORT",
+      "MANAGER"
+    ],
+    "proposedRoles": [],
+    "public": false,
+    "scope": "Học viên, khóa / lớp, lịch, xếp lớp và hồ sơ hoàn tất được phân công quản lý. Role xem chéo chỉ đọc dữ liệu liên quan nhiệm vụ; ẩn các nút thay đổi của role chủ trì.",
+    "actions": "Quản lý sinh viên rà soát hồ sơ. IT chỉ xem phần thiết bị; Kế toán chỉ xem phần tài chính trong hồ sơ liên quan nhiệm vụ.",
+    "variant": "Màn hình chính",
+    "kind": "list",
+    "functionCode": "ListTrainingClosure",
+    "description": "Rà soát kết quả học tập, thiết bị và tài chính trước khi đóng hồ sơ.",
+    "headers": [
+      "HỌC VIÊN / LỚP",
+      "HỌC TẬP",
+      "THIẾT BỊ",
+      "TÀI CHÍNH",
+      "THAO TÁC"
+    ],
+    "target": "TrainingClosureDetail",
+    "filter": [
+      "Tất cả loại kết thúc",
+      "Tất cả trạng thái"
+    ],
+    "sections": []
+  },
+  {
+    "code": "TrainingClosureDetail",
+    "fe": "FE-19",
+    "title": "Kiểm tra điều kiện đóng hồ sơ",
+    "roles": [
+      "ACCOUNTANT",
+      "IT_SUPPORT",
+      "MANAGER"
+    ],
+    "proposedRoles": [],
+    "public": false,
+    "scope": "Học viên, khóa / lớp, lịch, xếp lớp và hồ sơ hoàn tất được phân công quản lý. Role xem chéo chỉ đọc dữ liệu liên quan nhiệm vụ; ẩn các nút thay đổi của role chủ trì.",
+    "actions": "Quản lý sinh viên tổng hợp điều kiện. IT / Kế toán chỉ xem phần trách nhiệm và xác nhận tại luồng chuyên môn; không đóng hồ sơ.",
+    "variant": "Màn hình chính",
+    "kind": "closure",
+    "functionCode": "TrainingClosureDetail",
+    "description": "Theo dõi và xử lý dữ liệu mới nhất trong phạm vi được phân công.",
+    "back": "ListTrainingClosure",
+    "sections": []
+  },
+  {
+    "code": "TrainingClosureDetail_Ready",
+    "fe": "FE-19",
+    "title": "Hồ sơ đủ điều kiện hoàn tất",
+    "roles": [
+      "ACCOUNTANT",
+      "IT_SUPPORT",
+      "MANAGER"
+    ],
+    "proposedRoles": [],
+    "public": false,
+    "scope": "Học viên, khóa / lớp, lịch, xếp lớp và hồ sơ hoàn tất được phân công quản lý. Role xem chéo chỉ đọc dữ liệu liên quan nhiệm vụ; ẩn các nút thay đổi của role chủ trì.",
+    "actions": "Chỉ Quản lý sinh viên xác nhận đóng khi đủ điều kiện học tập, thiết bị và tài chính. IT / Kế toán chỉ xem phần nhiệm vụ đã xác nhận.",
+    "variant": "Trạng thái đủ điều kiện của TrainingClosureDetail",
+    "kind": "closure",
+    "functionCode": "TrainingClosureDetail_Ready",
+    "description": "Theo dõi và xử lý dữ liệu mới nhất trong phạm vi được phân công.",
+    "back": "ListTrainingClosure",
+    "sections": []
+  },
+  {
+    "code": "TrainingClosureDetail_Withdrawal",
+    "fe": "FE-19",
+    "title": "Kết thúc hồ sơ do nghỉ học",
+    "roles": [
+      "ACCOUNTANT",
+      "IT_SUPPORT",
+      "MANAGER"
+    ],
+    "proposedRoles": [],
+    "public": false,
+    "scope": "Học viên, khóa / lớp, lịch, xếp lớp và hồ sơ hoàn tất được phân công quản lý. Role xem chéo chỉ đọc dữ liệu liên quan nhiệm vụ; ẩn các nút thay đổi của role chủ trì.",
+    "actions": "Quản lý sinh viên điều phối kết thúc do nghỉ học, không ghi nhận hoàn thành khóa. IT / Kế toán theo dõi thu hồi và quyết toán liên quan.",
+    "variant": "Trạng thái nghỉ giữa chừng của TrainingClosureDetail",
+    "kind": "closure",
+    "functionCode": "TrainingClosureDetail_Withdrawal",
+    "description": "Theo dõi và xử lý dữ liệu mới nhất trong phạm vi được phân công.",
+    "back": "ListTrainingClosure",
+    "sections": []
+  },
+  {
+    "code": "RecordWithdrawal",
+    "fe": "FE-19",
+    "title": "Ghi nhận học viên nghỉ giữa chừng",
+    "roles": [
+      "MANAGER"
+    ],
+    "proposedRoles": [],
+    "public": false,
+    "scope": "Học viên, khóa / lớp, lịch, xếp lớp và hồ sơ hoàn tất được phân công quản lý.",
+    "actions": "Chỉ Quản lý sinh viên ghi nhận nghỉ giữa chừng theo hồ sơ xác nhận. Student không có màn tự gửi đơn nghỉ học.",
+    "variant": "Thao tác ghi nhận nghỉ học trong FE-19",
+    "kind": "form",
+    "functionCode": "RecordWithdrawal",
+    "description": "Ghi rõ quyết định và kích hoạt các bước thu hồi, quyết toán.",
+    "notes": [
+      "Hệ thống khởi tạo theo dõi thu hồi thiết bị khi có tài sản đang giữ.",
+      "Chỉ kết thúc thủ tục khi IT và kế toán xác nhận kết quả."
+    ],
+    "back": "TrainingClosureDetail_Withdrawal",
+    "save": "Ghi nhận nghỉ học",
+    "sections": [
+      {
+        "title": "Thông tin nghỉ học",
+        "fields": [
+          {
+            "label": "Học viên *",
+            "type": "select"
+          },
+          {
+            "label": "Lớp",
+            "type": "readonly"
+          },
+          {
+            "label": "Ngày hiệu lực *",
+            "type": "text"
+          },
+          {
+            "label": "Lý do nghỉ *",
+            "type": "textarea"
+          },
+          {
+            "label": "Minh chứng / biên bản",
+            "type": "upload"
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "code": "Reports_Admin",
+    "fe": "FE-21",
+    "title": "Báo cáo quản trị hệ thống",
+    "roles": [
+      "ADMIN"
+    ],
+    "proposedRoles": [],
+    "public": false,
+    "scope": "Tài khoản, role, cấu hình và nhật ký hệ thống; thông tin cá nhân của bản thân.",
+    "actions": "Chỉ báo cáo theo phạm vi role; không có quyền xem dữ liệu chi tiết ngoài phân công.",
+    "variant": "Biến thể theo vai trò của Reports",
+    "kind": "report",
+    "functionCode": "Reports_Admin",
+    "description": "Lọc theo kỳ và phạm vi dữ liệu được cấp quyền.",
+    "sections": []
+  },
+  {
+    "code": "Reports_Lecturer",
+    "fe": "FE-21",
+    "title": "Báo cáo lớp được phân công",
+    "roles": [
+      "LECTURER"
+    ],
+    "proposedRoles": [],
+    "public": false,
+    "scope": "Lớp, buổi dạy và học viên thuộc phân công; yêu cầu thiết bị trong phạm vi phụ trách.",
+    "actions": "Chỉ báo cáo theo phạm vi role; không có quyền xem dữ liệu chi tiết ngoài phân công.",
+    "variant": "Biến thể theo vai trò của Reports",
+    "kind": "report",
+    "functionCode": "Reports_Lecturer",
+    "description": "Lọc theo kỳ và phạm vi dữ liệu được cấp quyền.",
+    "sections": []
+  },
+  {
+    "code": "Reports_Accountant",
+    "fe": "FE-21",
+    "title": "Báo cáo học phí & thanh toán",
+    "roles": [
+      "ACCOUNTANT"
+    ],
+    "proposedRoles": [],
+    "public": false,
+    "scope": "Hợp đồng, giao dịch, học phí, cọc và hồ sơ bồi thường / quyết toán theo phân công.",
+    "actions": "Chỉ báo cáo theo phạm vi role; không có quyền xem dữ liệu chi tiết ngoài phân công.",
+    "variant": "Biến thể theo vai trò của Reports",
+    "kind": "report",
+    "functionCode": "Reports_Accountant",
+    "description": "Lọc theo kỳ và phạm vi dữ liệu được cấp quyền.",
+    "sections": []
+  },
+  {
+    "code": "Reports_IT_Support",
+    "fe": "FE-21",
+    "title": "Báo cáo thiết bị & thu hồi",
+    "roles": [
+      "IT_SUPPORT"
+    ],
+    "proposedRoles": [],
+    "public": false,
+    "scope": "Tài sản, yêu cầu từ Lecturer, bàn giao, thu hồi, bảo trì và sự cố được bộ phận IT xử lý.",
+    "actions": "Chỉ báo cáo theo phạm vi role; không có quyền xem dữ liệu chi tiết ngoài phân công.",
+    "variant": "Biến thể theo vai trò của Reports",
+    "kind": "report",
+    "functionCode": "Reports_IT_Support",
+    "description": "Lọc theo kỳ và phạm vi dữ liệu được cấp quyền.",
+    "sections": []
+  },
+  {
+    "code": "Reports_Student_Manager",
+    "fe": "FE-21",
+    "title": "Báo cáo đào tạo & học viên",
+    "roles": [
+      "MANAGER"
+    ],
+    "proposedRoles": [],
+    "public": false,
+    "scope": "Học viên, khóa / lớp, lịch, xếp lớp và hồ sơ hoàn tất được phân công quản lý.",
+    "actions": "Chỉ báo cáo theo phạm vi role; không có quyền xem dữ liệu chi tiết ngoài phân công.",
+    "variant": "Biến thể theo vai trò của Reports",
+    "kind": "report",
+    "functionCode": "Reports_Student_Manager",
+    "description": "Lọc theo kỳ và phạm vi dữ liệu được cấp quyền.",
+    "sections": []
+  },
+  {
+    "code": "Reports_Admissions",
+    "fe": "FE-21",
+    "title": "Báo cáo tiếp nhận & tư vấn",
+    "roles": [
+      "HR"
+    ],
+    "proposedRoles": [],
+    "public": false,
+    "scope": "Đăng ký tư vấn, hợp đồng và trạng thái học phí của hồ sơ được phân công phụ trách.",
+    "actions": "Chỉ báo cáo theo phạm vi role; không có quyền xem dữ liệu chi tiết ngoài phân công.",
+    "variant": "Biến thể theo vai trò của Reports",
+    "kind": "report",
+    "functionCode": "Reports_Admissions",
+    "description": "Lọc theo kỳ và phạm vi dữ liệu được cấp quyền.",
+    "sections": []
+  },
+  {
+    "code": "ListClass_Lecturer",
+    "fe": "FE-09",
+    "title": "Các lớp được phân công",
+    "roles": [
+      "LECTURER"
+    ],
+    "proposedRoles": [],
+    "public": false,
+    "scope": "Lớp, buổi dạy và học viên thuộc phân công; yêu cầu thiết bị trong phạm vi phụ trách.",
+    "actions": "Lecturer chỉ xem các lớp được phân công, không xem hoặc sửa phân công của giảng viên khác.",
+    "variant": "Biến thể của ListClass cho Lecturer",
+    "kind": "list",
+    "functionCode": "ListClass_Lecturer",
+    "description": "Chỉ các lớp giảng viên đang phụ trách được hiển thị.",
+    "headers": [
+      "LỚP / KHÓA HỌC",
+      "SĨ SỐ",
+      "TIẾN ĐỘ",
+      "TRẠNG THÁI",
+      "THAO TÁC"
+    ],
+    "target": "ClassDetail_Lecturer",
+    "filter": [
+      "Khóa học được phân công",
+      "Tất cả trạng thái"
+    ],
+    "sections": []
+  },
+  {
+    "code": "ClassDetail_Lecturer",
+    "fe": "FE-09",
+    "title": "Lớp được phân công",
+    "roles": [
+      "LECTURER"
+    ],
+    "proposedRoles": [],
+    "public": false,
+    "scope": "Lớp, buổi dạy và học viên thuộc phân công; yêu cầu thiết bị trong phạm vi phụ trách.",
+    "actions": [
+      [
+        "Điểm danh buổi học",
+        "ClassAttendance"
+      ],
+      [
+        "Mở bảng điểm",
+        "ClassGradebook"
+      ],
+      [
+        "Yêu cầu thiết bị",
+        "AddEquipmentRequest"
+      ]
+    ],
+    "variant": "Biến thể của ClassDetail cho Lecturer",
+    "kind": "detail",
+    "functionCode": "ClassDetail_Lecturer",
+    "description": "Danh sách học viên và thông tin lớp thuộc phân công của bạn.",
+    "tabs": [
+      "Thông tin lớp",
+      "Danh sách học viên",
+      "Lịch giảng dạy"
+    ],
+    "back": "ListClass_Lecturer",
+    "sections": []
+  },
+  {
+    "code": "StudentProfileDetail_Student",
+    "fe": "FE-05",
+    "title": "Hồ sơ học viên của tôi",
+    "roles": [
+      "STUDENT"
+    ],
+    "proposedRoles": [],
+    "public": false,
+    "scope": "Hồ sơ, lịch, điểm, chuyên cần, hợp đồng thanh toán và thiết bị của chính mình.",
+    "actions": [
+      [
+        "Cập nhật liên hệ",
+        "UserProfile"
+      ],
+      [
+        "Xem học phí",
+        "TuitionDetail_Student"
+      ]
+    ],
+    "variant": "Biến thể chỉ xem của StudentProfileDetail cho Student",
+    "kind": "detail",
+    "functionCode": "StudentProfileDetail_Student",
+    "description": "Thông tin đào tạo thuộc hồ sơ của bạn.",
+    "tabs": [
+      "Thông tin cá nhân",
+      "Khóa học",
+      "Hợp đồng",
+      "Thông tin liên hệ"
+    ],
+    "sections": []
+  },
+  {
+    "code": "UserProfile_AdminView",
+    "fe": "FE-02",
+    "title": "Chi tiết tài khoản người dùng",
+    "roles": [
+      "ADMIN"
+    ],
+    "proposedRoles": [],
+    "public": false,
+    "scope": "Tài khoản, role, cấu hình và nhật ký hệ thống; thông tin cá nhân của bản thân.",
+    "actions": [
+      [
+        "Chỉnh sửa tài khoản",
+        "EditUser"
+      ]
+    ],
+    "variant": "Biến thể của UserProfile cho Admin xem tài khoản",
+    "kind": "detail",
+    "functionCode": "USER_ACCOUNTS",
+    "description": "Xem thông tin và phạm vi quyền của tài khoản được chọn.",
+    "tabs": [
+      "Thông tin tài khoản",
+      "Vai trò",
+      "Lịch sử truy cập"
+    ],
+    "back": "ListUser",
+    "sections": []
+  },
+  {
+    "code": "ListEquipmentGroup",
+    "fe": "MD-01",
+    "title": "Nhóm thiết bị",
+    "kind": "master_list",
+    "functionCode": "ListEquipmentGroup",
+    "roles": [
+      "IT_SUPPORT"
+    ],
+    "public": false,
+    "description": "Quản lý danh mục nhóm thiết bị dùng chung.",
+    "masterType": "equipmentGroups",
+    "masterSuffix": "EquipmentGroup",
+    "nameLength": 120
+  },
+  {
+    "code": "AddEquipmentGroup",
+    "fe": "MD-01",
+    "title": "Tạo nhóm thiết bị",
+    "kind": "master_add",
+    "functionCode": "AddEquipmentGroup",
+    "roles": [
+      "IT_SUPPORT"
+    ],
+    "public": false,
+    "description": "Quản lý danh mục nhóm thiết bị dùng chung.",
+    "masterType": "equipmentGroups",
+    "masterSuffix": "EquipmentGroup",
+    "nameLength": 120
+  },
+  {
+    "code": "EditEquipmentGroup",
+    "fe": "MD-01",
+    "title": "Cập nhật nhóm thiết bị",
+    "kind": "master_edit",
+    "functionCode": "EditEquipmentGroup",
+    "roles": [
+      "IT_SUPPORT"
+    ],
+    "public": false,
+    "description": "Quản lý danh mục nhóm thiết bị dùng chung.",
+    "masterType": "equipmentGroups",
+    "masterSuffix": "EquipmentGroup",
+    "nameLength": 120
+  },
+  {
+    "code": "ListStorageLocation",
+    "fe": "MD-02",
+    "title": "Vị trí kho",
+    "kind": "master_list",
+    "functionCode": "ListStorageLocation",
+    "roles": [
+      "IT_SUPPORT"
+    ],
+    "public": false,
+    "description": "Quản lý danh mục vị trí kho dùng chung.",
+    "masterType": "storageLocations",
+    "masterSuffix": "StorageLocation",
+    "nameLength": 160
+  },
+  {
+    "code": "AddStorageLocation",
+    "fe": "MD-02",
+    "title": "Tạo vị trí kho",
+    "kind": "master_add",
+    "functionCode": "AddStorageLocation",
+    "roles": [
+      "IT_SUPPORT"
+    ],
+    "public": false,
+    "description": "Quản lý danh mục vị trí kho dùng chung.",
+    "masterType": "storageLocations",
+    "masterSuffix": "StorageLocation",
+    "nameLength": 160
+  },
+  {
+    "code": "EditStorageLocation",
+    "fe": "MD-02",
+    "title": "Cập nhật vị trí kho",
+    "kind": "master_edit",
+    "functionCode": "EditStorageLocation",
+    "roles": [
+      "IT_SUPPORT"
+    ],
+    "public": false,
+    "description": "Quản lý danh mục vị trí kho dùng chung.",
+    "masterType": "storageLocations",
+    "masterSuffix": "StorageLocation",
+    "nameLength": 160
+  },
+  {
+    "code": "ListProfession",
+    "fe": "MD-03",
+    "title": "Ngành nghề",
+    "kind": "master_list",
+    "functionCode": "ListProfession",
+    "roles": [
+      "MANAGER"
+    ],
+    "public": false,
+    "description": "Quản lý danh mục ngành nghề dùng chung.",
+    "masterType": "professions",
+    "masterSuffix": "Profession",
+    "nameLength": 120
+  },
+  {
+    "code": "AddProfession",
+    "fe": "MD-03",
+    "title": "Tạo ngành nghề",
+    "kind": "master_add",
+    "functionCode": "AddProfession",
+    "roles": [
+      "MANAGER"
+    ],
+    "public": false,
+    "description": "Quản lý danh mục ngành nghề dùng chung.",
+    "masterType": "professions",
+    "masterSuffix": "Profession",
+    "nameLength": 120
+  },
+  {
+    "code": "EditProfession",
+    "fe": "MD-03",
+    "title": "Cập nhật ngành nghề",
+    "kind": "master_edit",
+    "functionCode": "EditProfession",
+    "roles": [
+      "MANAGER"
+    ],
+    "public": false,
+    "description": "Quản lý danh mục ngành nghề dùng chung.",
+    "masterType": "professions",
+    "masterSuffix": "Profession",
+    "nameLength": 120
+  },
+  {
+    "code": "ListClassroom",
+    "fe": "MD-04",
+    "title": "Phòng học",
+    "kind": "master_list",
+    "functionCode": "ListClassroom",
+    "roles": [
+      "ADMIN"
+    ],
+    "public": false,
+    "description": "Quản lý danh mục phòng học dùng chung.",
+    "masterType": "classrooms",
+    "masterSuffix": "Classroom",
+    "nameLength": 100
+  },
+  {
+    "code": "AddClassroom",
+    "fe": "MD-04",
+    "title": "Tạo phòng học",
+    "kind": "master_add",
+    "functionCode": "AddClassroom",
+    "roles": [
+      "ADMIN"
+    ],
+    "public": false,
+    "description": "Quản lý danh mục phòng học dùng chung.",
+    "masterType": "classrooms",
+    "masterSuffix": "Classroom",
+    "nameLength": 100
+  },
+  {
+    "code": "EditClassroom",
+    "fe": "MD-04",
+    "title": "Cập nhật phòng học",
+    "kind": "master_edit",
+    "functionCode": "EditClassroom",
+    "roles": [
+      "ADMIN"
+    ],
+    "public": false,
+    "description": "Quản lý danh mục phòng học dùng chung.",
+    "masterType": "classrooms",
+    "masterSuffix": "Classroom",
+    "nameLength": 100
+  }
+]

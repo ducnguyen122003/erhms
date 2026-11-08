@@ -2,17 +2,15 @@
 
 ## Tạo, xem, sửa, vô hiệu hóa, khóa và xóa tài khoản
 
-Đăng nhập bằng tài khoản có `role_id = 1`, `m_role.code = ADMIN`. Mở **Tài khoản người dùng** trên menu hoặc bấm **Quản lý tài khoản** ở dashboard.
+Mặc định đăng nhập bằng `role_id = 1`, `m_role.code = ADMIN`. Chọn **Tài khoản** trên menu hoặc **Quản lý tài khoản** ở dashboard. Từ V8, quyền màn được lưu trong `role_function`; một role khác cũng truy cập được nếu được cấp quyền tương ứng. Hướng dẫn các màn mới, phân quyền, nhật ký và cấu hình: [ADMIN_WORKSPACE.md](ADMIN_WORKSPACE.md).
 
 - Nhập họ tên, email hoặc số điện thoại vào ô tìm kiếm. Có thể lọc quyền hạn và chuyển trang.
 - Bấm **Tạo tài khoản**, nhập họ và tên, email đăng nhập, số điện thoại nếu có, chọn quyền hạn và nhập **Mật khẩu**, **Xác nhận mật khẩu**. Họ tên, email, quyền hạn và hai ô mật khẩu bắt buộc.
 - Ô quyền hạn lấy từ database, chỉ chấp nhận `1/ADMIN`, `2/LECTURER`, `3/STUDENT`, `4/ACCOUNTANT`, `5/IT_SUPPORT`, `6/MANAGER`, `7/HR` đúng mã và chữ hoa.
-- Mở chi tiết để xem thông tin mới nhất từ database. Chi tiết và danh sách không hiển thị mật khẩu hoặc hash.
-- Bấm **Chỉnh sửa** tại tài khoản cần sửa rồi lưu. Để cả hai ô mật khẩu trống nếu muốn giữ mật khẩu hiện tại; nhập cả mật khẩu mới và xác nhận nếu muốn đổi. Email không được trùng tài khoản khác; lỗi hiển thị tại biểu mẫu.
-- Bấm **Vô hiệu hóa** tại tài khoản đang bật, kiểm tra tên/email trong hộp thoại rồi xác nhận. Tài khoản ngừng đăng nhập và truy cập API bảo vệ; thông tin, mật khẩu và dữ liệu nghiệp vụ được giữ nguyên. Không thể vô hiệu hóa chính tài khoản đang đăng nhập hoặc quản trị viên hoạt động cuối cùng.
-- Bấm **Kích hoạt lại** tại tài khoản đã vô hiệu hóa rồi xác nhận để cho phép đăng nhập lại. Bật lại không xóa cờ khóa riêng `accountLocked`; tài khoản vẫn bị khóa nếu cờ này đang bật. Người dùng phải đăng nhập lại, các phiên và mã/token khôi phục cũ không được dùng lại.
-- Bấm **Khóa** rồi xác nhận **Khóa tài khoản** để chặn đăng nhập và truy cập API bảo vệ mà vẫn giữ nguyên thông tin, mật khẩu và dữ liệu nghiệp vụ. Không thể khóa chính tài khoản đang đăng nhập hoặc quản trị viên hoạt động cuối cùng.
-- Bấm **Mở khóa** rồi xác nhận để gỡ cờ khóa. Mở khóa không tự kích hoạt tài khoản đang vô hiệu hóa; chỉ đăng nhập được khi tài khoản vừa được kích hoạt, vừa không bị khóa và có role hợp lệ. Các phiên và mã/token khôi phục trước lần đổi trạng thái không được dùng lại.
+- Chọn **Xem** để mở màn chi tiết chỉ đọc với ba tab thông tin tài khoản, vai trò và lịch sử thao tác. Không có ô nhập hay nút lưu; dùng **Chỉnh sửa tài khoản** để chuyển sang màn sửa riêng. Có thể chọn trực tiếp **Chỉnh sửa** ở danh sách. Mật khẩu/hash không được trả về giao diện.
+- Ở màn cập nhật, sửa thông tin rồi bấm **Lưu tài khoản**. Mở mục **Đổi mật khẩu (tùy chọn)** khi cần; để cả hai ô trống để giữ nguyên mật khẩu. Email không được trùng tài khoản khác; lỗi hiển thị tại biểu mẫu.
+- Chọn **Trạng thái** gồm Hoạt động, Vô hiệu hóa, Bị khóa hoặc Vô hiệu hóa và bị khóa; nhập ghi chú thay đổi rồi bấm **Lưu tài khoản**. Thông tin và trạng thái được lưu cùng lúc, ghi chú được ghi vào nhật ký.
+- Khóa/vô hiệu hóa chặn đăng nhập và thu hồi phiên, mã/token khôi phục cũ; dữ liệu nghiệp vụ được giữ nguyên. Không được tự khóa/vô hiệu hóa/đổi role hoặc làm mất Admin cuối cùng. Hai cờ độc lập: nếu muốn chỉ bỏ một cờ, chọn đúng trạng thái còn lại.
 - Bấm **Xóa** rồi xác nhận để xóa tài khoản chưa có dữ liệu nghiệp vụ liên quan. Không thể xóa chính tài khoản đang đăng nhập hoặc quản trị viên hoạt động cuối cùng. Tài khoản có lịch sử tuyển dụng, lớp học, học phí, thiết bị hoặc tư vấn liên quan sẽ báo lỗi và được giữ nguyên để bảo toàn dữ liệu.
 
 Mật khẩu cần ít nhất 8 ký tự Unicode và tối đa 72 byte UTF-8; phần xác nhận phải khớp chính xác, kể cả khoảng trắng và chữ hoa/thường. Backend chỉ lưu BCrypt hash. Tài khoản mới có thể đăng nhập ngay bằng email và mật khẩu admin đã nhập; tạo tài khoản và đăng nhập không cần cấu hình Gmail. **Quên mật khẩu?** vẫn dùng để khôi phục khi người dùng quên mật khẩu.
@@ -133,7 +131,7 @@ Gmail gửi thư trong cấu hình SMTP và email người nhận có thể khá
 
 ## Kiểm tra sau khi cấu hình
 
-Khởi động lại backend để nhận code và biến môi trường; migration V7 chỉ chạy nếu chưa được áp dụng. Bổ sung CRUD, mật khẩu khi tạo tài khoản, bật/vô hiệu hóa và khóa/mở khóa không cần migration mới. Đăng nhập admin, tạo tài khoản với một hộp thư bạn kiểm soát và mật khẩu hợp lệ, rồi kiểm tra đăng nhập trực tiếp bằng tài khoản đó. Vô hiệu hóa hoặc khóa tài khoản để kiểm tra đăng nhập/phiên cũ bị chặn, kiểm tra các số liệu khi quay về dashboard, sau đó bật lại/mở khóa và đăng nhập bằng cùng mật khẩu. Thử cả trường hợp tài khoản vừa vô hiệu hóa vừa bị khóa: mở khóa vẫn phải giữ trạng thái vô hiệu hóa và ngược lại. Sau khi cấu hình Gmail, thực hiện đầy đủ luồng quên mật khẩu. Xác nhận thư thực sự có trong hộp thư, mật khẩu mới đăng nhập được và mật khẩu cũ không còn dùng được.
+Khởi động lại backend để nhận cấu hình và áp dụng migration V8 cho các màn quản trị mới; các migration trước chỉ chạy nếu chưa được áp dụng. Sau đó tải lại frontend. Đăng nhập admin, tạo tài khoản với một hộp thư bạn kiểm soát và mật khẩu hợp lệ, rồi kiểm tra đăng nhập trực tiếp bằng tài khoản đó. Vô hiệu hóa hoặc khóa tài khoản để kiểm tra đăng nhập/phiên cũ bị chặn, kiểm tra các số liệu khi quay về dashboard, sau đó bật lại/mở khóa và đăng nhập bằng cùng mật khẩu. Thử cả trường hợp tài khoản vừa vô hiệu hóa vừa bị khóa: mở khóa vẫn phải giữ trạng thái vô hiệu hóa và ngược lại. Sau khi cấu hình Gmail, thực hiện đầy đủ luồng quên mật khẩu. Xác nhận thư thực sự có trong hộp thư, mật khẩu mới đăng nhập được và mật khẩu cũ không còn dùng được.
 
 Nếu không nhận thư, xem thư rác và trạng thái SMTP trong log backend, kiểm tra host/port, Xác minh 2 bước và mật khẩu ứng dụng. Mail được gửi sau khi transaction lưu mã hoàn tất; lỗi kết nối/gửi SMTP có thể xảy ra sau phản hồi yêu cầu. Không bật log nội dung thư, mã hoặc mật khẩu để xử lý sự cố.
 

@@ -19,6 +19,18 @@ import java.util.Map;
 
 @RestControllerAdvice
 public class ApiExceptionHandler {
+    @ExceptionHandler(org.springframework.dao.DataIntegrityViolationException.class)
+    ResponseEntity<?> integrity(org.springframework.dao.DataIntegrityViolationException exception) {
+        return ResponseEntity.status(409).body(Map.of("message","Dữ liệu bị trùng hoặc đang được liên kết với hồ sơ khác. Hãy tải lại để kiểm tra."));
+    }
+    @ExceptionHandler(org.springframework.web.multipart.MaxUploadSizeExceededException.class)
+    ResponseEntity<?> uploadTooLarge(org.springframework.web.multipart.MaxUploadSizeExceededException exception) {
+        return ResponseEntity.badRequest().body(Map.of("message","Tệp minh chứng vượt kích thước cho phép.","fields",Map.of("evidence","Tệp không được vượt quá 2 MB")));
+    }
+    @ExceptionHandler(com.erhms.workspace.WorkflowException.class)
+    ResponseEntity<?> workflow(com.erhms.workspace.WorkflowException exception) {
+        return ResponseEntity.status(exception.status).body(Map.of("message",exception.getMessage(),"code",exception.code,"fields",exception.fields));
+    }
     @ExceptionHandler(PasswordResetException.class)
     ResponseEntity<?> passwordReset(PasswordResetException exception) {
         var body = new LinkedHashMap<String, Object>();

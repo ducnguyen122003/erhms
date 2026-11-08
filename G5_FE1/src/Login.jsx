@@ -141,7 +141,7 @@ export default function Login({onLogin}) {
   <section className="login-story">
    <Brand/>
    <div><span className="eyebrow light">KẾT NỐI CON NGƯỜI · PHÁT TRIỂN KỸ NĂNG</span><h1>Mỗi hành trình. <br/>Một cơ hội. <br/><em>Cùng phát triển.</em></h1><p>Không gian làm việc chung cho tuyển sinh, đào tạo, tài chính và quản lý thiết bị của trung tâm.</p><div className="story-path"><span>01 / Tuyển sinh</span><ArrowRight/><span>02 / Đào tạo</span><ArrowRight/><span>03 / Nghề nghiệp</span></div></div>
-   <small>ERHMS / Hệ thống quản lý đào tạo</small>
+   <small>BK-VTCMS / Hệ thống quản lý đào tạo</small>
   </section>
   <main className="login-form"><div className="login-card">
    <span className="eyebrow">KHÔNG GIAN LÀM VIỆC</span>

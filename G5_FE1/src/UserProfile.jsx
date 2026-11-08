@@ -7,7 +7,7 @@ const valuesOf=user=>({fullName:user.fullName||'',email:user.email||'',phone:use
 const roleNames=Object.fromEntries(Object.keys(dashboardRoles).map(role=>[role,dashboardRoles[role].label]));
 const emptyPasswords=()=>({oldPassword:'',newPassword:'',confirmPassword:''});
 
-export default function UserProfile({user,onUserUpdate,onLogout,onBack}){
+export default function UserProfile({user,onUserUpdate,onLogout,onBack,onChangePassword,passwordOnly=false}){
  const [form,setForm]=useState(()=>valuesOf(user)),[loading,setLoading]=useState(true),[saving,setSaving]=useState(false);
  const [error,setError]=useState(''),[fields,setFields]=useState({}),[notice,setNotice]=useState(''),[reload,setReload]=useState(0);
  const [passwords,setPasswords]=useState(emptyPasswords),[changingPassword,setChangingPassword]=useState(false);
@@ -80,11 +80,11 @@ export default function UserProfile({user,onUserUpdate,onLogout,onBack}){
  const passwordField=(key,label,autoComplete)=><label htmlFor={'password-'+key}>{label}<input id={'password-'+key} name={key} type="password" value={passwords[key]} onChange={e=>updatePassword(key,e.target.value)} required autoComplete={autoComplete} aria-invalid={Boolean(passwordFields[key])} aria-describedby={passwordFields[key]?'password-'+key+'-error':undefined}/>{passwordFields[key]&&<small id={'password-'+key+'-error'} className="field-error">{passwordFields[key]}</small>}</label>;
  return <section className="user-profile" aria-labelledby="profile-heading">
   <button type="button" className="profile-back text-button" onClick={onBack} disabled={saving||changingPassword}><ArrowLeft size={16}/>Quay lại</button>
-  <div className="page-heading"><div><span className="eyebrow">TÀI KHOẢN / THÔNG TIN CÁ NHÂN</span><h1 id="profile-heading" ref={heading} tabIndex={-1}>Thông tin cá nhân</h1><p className="muted">Xem và cập nhật thông tin liên hệ của bạn.</p></div></div>
+  <div className="page-heading"><div><span className="eyebrow">TÀI KHOẢN / THÔNG TIN CÁ NHÂN</span><h1 id="profile-heading" ref={heading} tabIndex={-1}>{passwordOnly?'Đổi mật khẩu':'Thông tin cá nhân'}</h1><p className="muted">{passwordOnly?'Xác minh mật khẩu hiện tại và thiết lập mật khẩu mới.':'Xem và cập nhật thông tin liên hệ của bạn.'}</p></div></div>
   <div className="profile-layout">
    <aside className="profile-summary"><span className="profile-portrait"><UserRound size={34}/></span><h2>{user.fullName}</h2><p>{roleNames[resolveRole(user)]||'Vai trò không hợp lệ'}</p><span>Mã người dùng: {user.id}</span></aside>
    <div className="profile-forms">
-   <section className="profile-panel" aria-labelledby="profile-contact-heading">
+   {!passwordOnly&&<section className="profile-panel" aria-labelledby="profile-contact-heading">
     <h2 id="profile-contact-heading">Thông tin liên hệ</h2>
     {loading&&<p role="status" className="muted">Đang tải thông tin cá nhân…</p>}
     {error&&<div className="error" role="alert">{error}<button type="button" className="text-button" onClick={()=>setReload(value=>value+1)} disabled={busy}>Tải lại thông tin</button></div>}
@@ -98,9 +98,10 @@ export default function UserProfile({user,onUserUpdate,onLogout,onBack}){
       <div className="profile-actions"><button type="submit"><Save size={17}/>{saving?'Đang lưu…':'Lưu thay đổi'}</button></div>
      </fieldset>
     </form>
-   </section>
+   </section>}
    <section className="profile-panel" aria-labelledby="profile-password-heading">
     <h2 id="profile-password-heading">Đổi mật khẩu</h2>
+    {onChangePassword&&<button type="button" className="text-button" disabled={busy} onClick={onChangePassword}>Mở màn đổi mật khẩu<KeyRound size={14}/></button>}
     {passwordError&&<div className="error" role="alert">{passwordError}</div>}
     {passwordNotice&&<div className="success" role="status"><Check size={17}/>{passwordNotice}</div>}
     <form ref={passwordFormRef} onSubmit={changePassword} noValidate aria-busy={busy}>

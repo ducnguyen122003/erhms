@@ -5,16 +5,20 @@ import {api, logout, refreshCsrf} from './api';
 import RoleWorkspace from './RoleWorkspace';
 import Login from './Login';
 import './style.css';
+import PublicRouter from './screens/PublicRouter';
 
 function App() {
+ const [publicPath,setPublicPath]=useState(window.location.pathname);
  const [user, setUser] = useState(null), [loading, setLoading] = useState(true), [bootError, setBootError] = useState(null);
  async function boot() {
+  if(window.location.pathname.startsWith('/public/')){setLoading(false);return;}
   setLoading(true); setBootError(null);
   try {await refreshCsrf(); setUser(await api('/api/auth/me'));}
   catch (cause) {if (cause.status !== 401) setBootError(cause);}
   finally {setLoading(false);}
  }
  useEffect(() => {boot();}, []);
+ useEffect(()=>{const update=()=>setPublicPath(window.location.pathname);window.addEventListener('popstate',update);return()=>window.removeEventListener('popstate',update);},[]);
  function clearSession() {window.history.replaceState({}, '', '/login'); setUser(null); setBootError(null);}
  async function switchAccount() {
   setLoading(true);
@@ -22,7 +26,8 @@ function App() {
   catch (cause) {if (cause.status === 401) clearSession(); else setBootError(cause);}
   finally {setLoading(false);}
  }
- if (loading) return <div className="loading" role="status">Đang kết nối ERHMS…</div>;
+ if(publicPath.startsWith('/public/'))return <PublicRouter path={publicPath}/>;
+ if (loading) return <div className="loading" role="status">Đang kết nối BK-VTCMS…</div>;
  if (bootError) return <div className="loading"><h2>{bootError.status === 403 ? bootError.code === 'INVALID_ROLE' ? 'Vai trò không hợp lệ' : 'Không có quyền truy cập' : 'Chưa kết nối được hệ thống'}</h2><p role="alert">{bootError.message}</p><button onClick={boot}><RefreshCw size={16}/>Thử lại</button>{bootError.status === 403 && <button className="text-button" onClick={switchAccount}>Đăng nhập tài khoản khác</button>}</div>;
  return user ? <RoleWorkspace key={user.id + ':' + user.roleId + ':' + user.role} user={user} onUserUpdate={updated => setUser(current => current && current.id === updated.id ? updated : current)} onLogout={clearSession}/> : <Login onLogin={setUser}/>;
 }

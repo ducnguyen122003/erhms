@@ -43,6 +43,9 @@ public class User {
     @Column(name = "credentials_version", nullable = false)
     public long credentialsVersion = 0;
 
+    @Column(name = "admin_version", nullable = false)
+    public long adminVersion = 0;
+
     @ManyToOne(fetch = FetchType.LAZY, optional = false)
     @JoinColumn(name = "role_id", nullable = false, foreignKey = @ForeignKey(name = "fk_m_user_role"))
     public Role role;

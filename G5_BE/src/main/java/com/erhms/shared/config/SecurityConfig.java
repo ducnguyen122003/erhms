@@ -5,6 +5,9 @@ import com.erhms.role.DashboardRole;
 import com.erhms.role.InvalidRoleException;
 import com.erhms.user.repository.UserRepository;
 import com.erhms.user.security.UserPrincipal;
+import com.erhms.admin.security.OperationAuditFilter;
+import com.erhms.admin.service.SystemAuditService;
+import org.springframework.security.web.context.SecurityContextHolderFilter;
 import jakarta.servlet.http.HttpServletResponse;
 import java.io.IOException;
 import org.springframework.context.annotation.Bean;
@@ -41,15 +44,17 @@ public class SecurityConfig {
     }
 
     @Bean
-    SecurityFilterChain filterChain(HttpSecurity http, DashboardRepository dashboards, UserRepository users) throws Exception {
+    SecurityFilterChain filterChain(HttpSecurity http, DashboardRepository dashboards, UserRepository users, SystemAuditService audit) throws Exception {
         http.authorizeHttpRequests(authorize -> authorize
-                        .requestMatchers("/api/auth/csrf", "/actuator/health", "/error").permitAll()
+                        .requestMatchers("/api/auth/csrf", "/api/system/branding", "/actuator/health", "/error").permitAll()
                         .requestMatchers(HttpMethod.POST, "/api/public/consultations").permitAll()
+                        .requestMatchers(HttpMethod.GET,"/api/public/training-courses","/api/public/training-courses/*").permitAll()
                         .requestMatchers(HttpMethod.POST, "/api/auth/password-reset/request", "/api/auth/password-reset/verify",
                                 "/api/auth/password-reset/complete").permitAll()
-                        .requestMatchers("/api/admin/**").hasRole("ADMIN")
+                        .requestMatchers("/api/admin/**").authenticated()
                         .anyRequest().authenticated())
                 .requestCache(cache -> cache.disable())
+                .addFilterAfter(new OperationAuditFilter(audit,users),SecurityContextHolderFilter.class)
                 .formLogin(form -> form.loginProcessingUrl("/api/auth/login")
                         .successHandler((request, response, authentication) -> {
                             var principal = authentication.getPrincipal() instanceof UserPrincipal user ? user : null;

@@ -122,6 +122,7 @@ public class PasswordResetService {
         }
         if (!matchesAccount(challenge, account, input.email())) throw invalidToken();
         account.passwordHash = encoder.encode(input.newPassword());
+        account.adminVersion++;
         account.credentialsVersion++;
         users.saveAndFlush(account);
         jdbc.update("""

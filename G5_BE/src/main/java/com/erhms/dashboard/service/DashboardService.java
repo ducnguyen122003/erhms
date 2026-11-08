@@ -28,8 +28,9 @@ public class DashboardService {
     private static final String OUTSTANDING = "GREATEST(c.tuition_due-" + PAID_TUITION + ",0)";
     private final DashboardRepository db;
     private final CurrentUser current;
+    private final com.erhms.workspace.ScopedDashboards scoped;
 
-    public DashboardService(DashboardRepository db, CurrentUser current) { this.db = db; this.current = current; }
+    public DashboardService(DashboardRepository db, CurrentUser current,com.erhms.workspace.ScopedDashboards scoped) { this.db = db; this.current = current;this.scoped=scoped; }
 
     public DashboardView get(String slug) {
         var user = current.get();
@@ -45,10 +46,10 @@ public class DashboardService {
             case ADMIN -> admin(time);
             case LECTURER -> lecturer(user.id, time);
             case STUDENT -> student(user.id, time);
-            case ACCOUNTANT -> accountant(time);
+            case ACCOUNTANT -> scoped.accountant(user);
             case IT_SUPPORT -> support(time);
-            case MANAGER -> manager(time);
-            case HR -> hr(time);
+            case MANAGER -> scoped.manager(user);
+            case HR -> scoped.hr(user);
         };
     }
 
@@ -60,22 +61,18 @@ public class DashboardService {
         long roles = db.rows("SELECT role_id,code FROM m_role").stream().map(row -> DashboardRole.resolve(((Number)row.get("role_id")).longValue(),s(row,"code")))
                 .flatMap(Optional::stream).distinct().count();
         long logins = n("SELECT COUNT(*) FROM user_login_events WHERE occurred_at>=? AND occurred_at<?",t.day(),t.nextDay());
-        long events = n("SELECT COUNT(*) FROM request_events WHERE occurred_at>=? AND occurred_at<?",t.day(),t.nextDay());
-        var activity = panel("activity", "Nhật ký hoạt động gần đây", "Các lần đăng nhập và thao tác tuyển dụng đã được ghi nhận.",
+        long events = n("SELECT COUNT(*) FROM system_audit_log WHERE action_code NOT IN ('LOGIN','LOGOUT') AND occurred_at>=? AND occurred_at<?",t.day(),t.nextDay());
+        var activity = panel("activity", "Nhật ký hoạt động gần đây", "Các thao tác tài khoản, phân quyền, cấu hình và nghiệp vụ đã được ghi nhận.",
                 List.of("Hoạt động / đối tượng", "Người thực hiện", "Thời gian"),
                 """
-                SELECT * FROM (
-                    SELECT e.id, e.action AS title, r.title AS detail, u.full_name, e.occurred_at
-                    FROM request_events e JOIN m_user u ON u.user_id=e.actor_id
-                    JOIN recruitment_requests r ON r.id=e.request_id
-                    UNION ALL
-                    SELECT l.id, 'LOGIN' AS title, u.email AS detail, u.full_name, l.occurred_at
-                    FROM user_login_events l JOIN m_user u ON u.user_id=l.user_id
-                ) activity ORDER BY occurred_at DESC, id FETCH FIRST 6 ROWS ONLY
-                """, row -> row(row, List.of(action(s(row,"title")),s(row,"full_name"),date(row,"occurred_at")), "Đã ghi nhận","green",s(row,"detail")));
+                SELECT l.id,l.action_label AS title,COALESCE(CASE WHEN l.action_code='LOGIN' THEN u.email ELSE l.target_id END,l.request_path) AS detail,
+                       l.actor_name AS full_name,l.occurred_at,l.result
+                FROM system_audit_log l LEFT JOIN m_user u ON u.user_id=l.actor_id
+                ORDER BY l.occurred_at DESC,l.id FETCH FIRST 6 ROWS ONLY
+                """, row -> row(row, List.of(s(row,"title"),s(row,"full_name"),date(row,"occurred_at")),s(row,"result").equals("SUCCESS")?"Thành công":"Cần kiểm tra",s(row,"result").equals("SUCCESS")?"green":"amber",s(row,"detail")));
         return view(DashboardRole.ADMIN,t,
                 List.of(m("accounts","Tổng tài khoản",accounts,"","Trong toàn hệ thống"),m("enabled","Đang hoạt động",enabled,"","Tài khoản được phép đăng nhập"),m("roles","Vai trò hệ thống",roles,"","Các vai trò dashboard được cấu hình"),m("locked","Tài khoản bị khóa",locked,"","Cần kiểm tra trạng thái truy cập","amber")),
-                List.of(m("logins","Đăng nhập hôm nay",logins,"lượt","Các lần đăng nhập thành công"),m("events","Thao tác hôm nay",events,"lượt","Nhật ký yêu cầu tuyển dụng"),m("disabled","Chưa kích hoạt / vô hiệu hóa",disabled,"","Tài khoản bị tắt truy cập","amber")),
+                List.of(m("logins","Đăng nhập hôm nay",logins,"lượt","Các lần đăng nhập thành công"),m("events","Thao tác hôm nay",events,"lượt","Nhật ký thao tác hệ thống"),m("disabled","Chưa kích hoạt / vô hiệu hóa",disabled,"","Tài khoản bị tắt truy cập","amber")),
                 List.of(activity), List.of(task("disabled","Tài khoản bị vô hiệu hóa","Kiểm tra trạng thái tài khoản",disabled,"amber"),task("locked","Tài khoản đang bị khóa","Kiểm tra quyền truy cập",locked,"amber"),task("roles","Vai trò được cấu hình","Đã ánh xạ quyền dashboard",roles,"green")),
                 chart(t,"Tài khoản đăng nhập trong tuần","Số tài khoản đăng nhập thành công theo ngày, từ nhật ký thực tế.",
                         "SELECT COUNT(DISTINCT user_id) FROM user_login_events WHERE occurred_at>=? AND occurred_at<?"),null);
@@ -142,31 +139,6 @@ public class DashboardService {
                 chart(t,"Lịch học trong tuần","Số buổi học trong các lớp đã xếp.","SELECT COUNT(*) FROM training_sessions s JOIN training_classes c ON c.id=s.class_id WHERE c.status<>'CANCELLED' AND "+own+" AND s.starts_at>=? AND s.starts_at<?",id),new Progress(completed,total,absent,end==null?null:end.toString()));
     }
 
-    private DashboardView accountant(Time t) {
-        var tuition=a("SELECT COALESCE(SUM(amount),0) FROM financial_transactions WHERE kind='TUITION' AND status='CONFIRMED' AND created_at>=? AND created_at<?",t.month(),t.nextMonth());
-        var deposits=a("SELECT GREATEST(COALESCE(SUM(CASE WHEN kind='DEPOSIT' THEN amount WHEN kind='REFUND' THEN -amount ELSE 0 END),0),0) FROM financial_transactions WHERE status='CONFIRMED'");
-        var receivables=a("SELECT COALESCE(SUM("+OUTSTANDING+"),0) FROM training_contracts c WHERE c.status IN ('SIGNED','ACTIVE')");
-        var compensation=a("SELECT COALESCE(SUM(compensation_due),0) FROM equipment_incidents WHERE status<>'RESOLVED'");
-        long pending=n("SELECT COUNT(*) FROM financial_transactions WHERE status='PENDING'");
-        long mismatch=n("SELECT COUNT(*) FROM financial_transactions WHERE status='MISMATCH'");
-        long refunds=n("SELECT COUNT(*) FROM financial_transactions WHERE kind='REFUND' AND status='PENDING'");
-        long unpaid=n("SELECT COUNT(*) FROM training_contracts c WHERE c.status IN ('SIGNED','ACTIVE') AND "+OUTSTANDING+">0");
-        var transactions=panel("transactions","Giao dịch cần đối soát","Kiểm tra giao dịch trước khi xác nhận vào hệ thống.",List.of("Hợp đồng / học viên","Loại giao dịch","Số tiền","Thời gian"),
-                """
-                SELECT f.id,c.code,u.full_name,f.kind,f.amount,f.created_at,f.status FROM financial_transactions f
-                JOIN training_contracts c ON c.id=f.contract_id JOIN m_user u ON u.user_id=c.student_id
-                WHERE f.status IN ('PENDING','MISMATCH') ORDER BY f.created_at DESC,f.id FETCH FIRST 6 ROWS ONLY
-                """,r->row(r,List.of(s(r,"code")+" · "+s(r,"full_name"),kind(s(r,"kind")),money(r,"amount"),date(r,"created_at")),status(s(r,"status")),tone(s(r,"status")),null));
-        var payments=panel("payments","Tình trạng học phí theo hợp đồng","Công nợ được tính từ học phí và giao dịch đã xác nhận.",List.of("Hợp đồng","Học viên","Học phí","Đã thanh toán","Còn phải thu"),
-                "SELECT c.id,c.code,u.full_name,c.tuition_due,"+PAID_TUITION+" AS paid,"+OUTSTANDING+" AS remaining FROM training_contracts c JOIN m_user u ON u.user_id=c.student_id WHERE c.status IN ('SIGNED','ACTIVE') ORDER BY remaining DESC,c.code FETCH FIRST 6 ROWS ONLY",
-                r->row(r,List.of(s(r,"code"),s(r,"full_name"),money(r,"tuition_due"),money(r,"paid"),money(r,"remaining")),number(r,"remaining").signum()>0?"Còn công nợ":"Đã thanh toán",number(r,"remaining").signum()>0?"amber":"green",null));
-        return view(DashboardRole.ACCOUNTANT,t,
-                List.of(m("tuition","Học phí đã thu tháng này",tuition,"đ","Chỉ tính giao dịch đã xác nhận"),m("deposits","Cọc thiết bị đang giữ",deposits,"đ","Tiền cọc đã nhận trừ khoản hoàn"),m("receivables","Học phí còn phải thu",receivables,"đ",unpaid+" hợp đồng còn dư nợ","amber"),m("compensation","Bồi thường chờ thu",compensation,"đ","Từ hồ sơ sự cố chưa giải quyết","amber")),
-                List.of(m("pending","Chờ đối soát",pending,"","Giao dịch chưa xác nhận","amber"),m("mismatch","Cần kiểm tra",mismatch,"","Sai lệch thông tin","red"),m("refunds","Chờ hoàn cọc",refunds,"","Giao dịch hoàn cọc đang chờ","amber")),
-                List.of(transactions,payments),List.of(task("pending","Giao dịch chờ xác minh","Đối chiếu thông tin hợp đồng",pending,"amber"),task("mismatch","Giao dịch sai lệch","Rà soát trước khi xác nhận",mismatch,"red"),task("refunds","Hoàn cọc thiết bị","Kiểm tra khoản hoàn đang chờ",refunds,"green"),task("compensation","Bồi thường chờ thanh toán","Hồ sơ sự cố còn khoản phải thu",n("SELECT COUNT(*) FROM equipment_incidents WHERE status<>'RESOLVED' AND compensation_due>0"),"amber")),
-                chart(t,"Giao dịch đã xác nhận trong tuần","Số giao dịch thực tế được ghi nhận theo ngày.","SELECT COUNT(*) FROM financial_transactions WHERE status='CONFIRMED' AND created_at>=? AND created_at<?"),null);
-    }
-
     private DashboardView support(Time t) {
         long total=n("SELECT COUNT(*) FROM equipment_assets WHERE status<>'RETIRED'");
         long assigned=n("SELECT COUNT(DISTINCT asset_id) FROM equipment_loans WHERE returned_at IS NULL AND return_status<>'RETURNED'");
@@ -196,57 +168,9 @@ public class DashboardService {
                 chart(t,"Yêu cầu thiết bị trong tuần","Số yêu cầu cấp thiết bị được tạo theo ngày.","SELECT COUNT(*) FROM equipment_requests WHERE created_at>=? AND created_at<?"),null);
     }
 
-    private DashboardView manager(Time t) {
-        long students=n("SELECT COUNT(DISTINCT e.student_id) FROM training_enrollments e JOIN training_classes c ON c.id=e.class_id WHERE e.status='ACTIVE' AND c.status='ACTIVE'");
-        long classes=n("SELECT COUNT(*) FROM training_classes WHERE status='ACTIVE'");
-        long assignments=n("SELECT COUNT(*) FROM training_enrollments WHERE assignment_status='PENDING' AND status IN ('PENDING','ACTIVE')");
-        long incomplete=n("SELECT COUNT(*) FROM training_enrollments WHERE records_complete=FALSE AND status IN ('PENDING','ACTIVE')");
-        long conflicts=n("SELECT COUNT(DISTINCT a.id) FROM training_sessions a JOIN training_classes ca ON ca.id=a.class_id WHERE ca.status<>'CANCELLED' AND a.ends_at>? AND EXISTS (SELECT 1 FROM training_sessions b JOIN training_classes cb ON cb.id=b.class_id WHERE b.id<>a.id AND cb.status<>'CANCELLED' AND a.starts_at<b.ends_at AND a.ends_at>b.starts_at AND ((ca.lecturer_id IS NOT NULL AND ca.lecturer_id=cb.lecturer_id) OR (a.room IS NOT NULL AND a.room<>'' AND a.room=b.room)))",t.now());
-        long closing=n("SELECT COUNT(*) FROM training_classes WHERE status='ACTIVE' AND ends_on>=? AND ends_on<=?",t.today(),t.today().plusDays(7));
-        long withdrawn=n("SELECT COUNT(*) FROM training_enrollments WHERE status='WITHDRAWN'");
-        long lowAttendance=n("SELECT COUNT(*) FROM (SELECT a.student_id FROM training_attendance a JOIN training_sessions s ON s.id=a.session_id JOIN training_classes c ON c.id=s.class_id WHERE c.status='ACTIVE' AND a.status IN ('PRESENT','LATE','ABSENT') AND EXISTS (SELECT 1 FROM training_enrollments e WHERE e.student_id=a.student_id AND e.class_id=c.id AND e.status='ACTIVE') GROUP BY a.student_id HAVING SUM(CASE WHEN a.status IN ('PRESENT','LATE') THEN 1 ELSE 0 END)*1.0/COUNT(*)<0.8) attention");
-        var assignmentPanel=panel("assignments","Kết quả xếp lớp cần kiểm tra","Kiểm tra hồ sơ học viên trước khi xác nhận lớp.",List.of("Học viên","Lớp đề xuất","Tình trạng hồ sơ"),
-                """
-                SELECT e.id,u.full_name,c.code,c.name,e.assignment_status,e.records_complete FROM training_enrollments e
-                JOIN m_user u ON u.user_id=e.student_id JOIN training_classes c ON c.id=e.class_id
-                WHERE e.assignment_status='PENDING' AND e.status IN ('PENDING','ACTIVE')
-                ORDER BY e.created_at,e.id FETCH FIRST 6 ROWS ONLY
-                """,r->row(r,List.of(s(r,"full_name"),s(r,"code")+" · "+s(r,"name"),Boolean.TRUE.equals(r.get("records_complete"))?"Đã đầy đủ":"Cần bổ sung"),"Chờ kiểm tra","amber",null));
-        var attention=new Panel("attention","Theo dõi lớp học & học viên","Các chỉ số cần điều phối trong hệ thống.",List.of("Nội dung","Số lượng"),List.of(
-                new Row("attendance",List.of("Học viên chuyên cần dưới 80%",String.valueOf(lowAttendance)),"Cần theo dõi","amber","Tỷ lệ từ các buổi có điểm danh"),
-                new Row("closing",List.of("Lớp kết thúc trong 7 ngày tới",String.valueOf(closing)),"Sắp kết thúc","green",null),
-                new Row("withdrawn",List.of("Học viên nghỉ giữa chừng",String.valueOf(withdrawn)),"Cần rà soát","red",null)));
-        return view(DashboardRole.MANAGER,t,
-                List.of(m("students","Học viên đang học",students,"","Thuộc các khóa đang mở"),m("classes","Lớp đang hoạt động",classes,"","Theo dữ liệu lớp học"),m("assignments","Chờ kiểm tra xếp lớp",assignments,"","Xác minh lớp được đề xuất","amber"),m("incomplete","Hồ sơ chưa hoàn tất",incomplete,"","Cần bổ sung hồ sơ học viên","amber")),
-                List.of(m("assignments","Xếp lớp",assignments,"","Kết quả cần kiểm tra","amber"),m("conflicts","Lịch học",conflicts,"","Buổi trùng giảng viên hoặc phòng","red"),m("incomplete","Hoàn tất hồ sơ",incomplete,"","Đang chờ cập nhật","amber")),
-                List.of(assignmentPanel,attention),List.of(task("assignments","Kiểm tra xếp lớp","Xác nhận lớp và thông tin học viên",assignments,"amber"),task("conflicts","Xung đột lịch học","Rà soát phòng và giảng viên",conflicts,"red"),task("incomplete","Hồ sơ chưa đủ điều kiện","Kiểm tra thông tin còn thiếu",incomplete,"amber"),task("withdrawn","Nghỉ học cần rà soát","Theo dõi học viên đã nghỉ",withdrawn,"red")),
-                chart(t,"Học viên được ghi danh trong tuần","Số hồ sơ ghi danh được tạo theo ngày.","SELECT COUNT(*) FROM training_enrollments WHERE created_at>=? AND created_at<?"),null);
-    }
-
-    private DashboardView hr(Time t) {
-        long registrations=n("SELECT COUNT(*) FROM consultation_registrations WHERE created_date>=? AND created_date<?",t.week(),t.nextWeek());
-        long consulting=n("SELECT COUNT(*) FROM consultation_followups WHERE status IN ('CONTACTED','APPOINTMENT')");
-        long drafts=n("SELECT COUNT(*) FROM training_contracts WHERE status='DRAFT'");
-        long contracts=n("SELECT COUNT(*) FROM training_contracts WHERE status IN ('SIGNED','ACTIVE','COMPLETED') AND created_at>=? AND created_at<?",t.week(),t.nextWeek());
-        long fresh=n("SELECT COUNT(*) FROM consultation_registrations r LEFT JOIN consultation_followups f ON f.consultation_id=r.id WHERE f.id IS NULL OR f.status='NEW'");
-        long appointments=n("SELECT COUNT(*) FROM consultation_followups WHERE status='APPOINTMENT' AND appointment_at>=? AND appointment_at<?",t.day(),t.nextDay());
-        long pendingPayments=n("SELECT COUNT(*) FROM training_contracts c WHERE c.status IN ('SIGNED','ACTIVE') AND "+OUTSTANDING+">0");
-        var panel=panel("registrations","Đăng ký tư vấn mới từ website","Thông tin đăng ký được lấy từ cơ sở dữ liệu website công khai.",List.of("Người đăng ký","Khóa học quan tâm","Điện thoại / email","Ngày đăng ký"),
-                """
-                SELECT r.id,r.full_name,r.program_name,r.phone,r.email,r.created_date,COALESCE(f.status,'NEW') AS status
-                FROM consultation_registrations r LEFT JOIN consultation_followups f ON f.consultation_id=r.id
-                ORDER BY r.created_date DESC,r.id FETCH FIRST 6 ROWS ONLY
-                """,r->row(r,List.of(s(r,"full_name"),s(r,"program_name"),s(r,"phone")+(s(r,"email").isBlank()?"":" · "+s(r,"email")),date(r,"created_date")),status(s(r,"status")),tone(s(r,"status")),null));
-        return view(DashboardRole.HR,t,
-                List.of(m("registrations","Đăng ký mới tuần này",registrations,"","Nguồn từ website công khai"),m("consulting","Đang tư vấn",consulting,"","Hồ sơ đang được liên hệ"),m("drafts","Hợp đồng chờ ký",drafts,"","Chưa chuyển bước thanh toán","amber"),m("contracts","Hợp đồng tuần này đã ký",contracts,"","Hợp đồng tạo trong tuần và đã ký")),
-                List.of(m("fresh","Tiếp nhận",fresh,"","Đăng ký mới cần liên hệ","amber"),m("consulting","Tư vấn",consulting,"","Hồ sơ đang theo dõi"),m("drafts","Hợp đồng",drafts,"","Đang chờ ký","amber")),
-                List.of(panel),List.of(task("appointments","Lịch hẹn tư vấn","Lịch hẹn được ghi nhận trong hôm nay",appointments,"amber"),task("drafts","Hợp đồng đang chờ ký","Rà soát thông tin và điều khoản",drafts,"amber"),task("fresh","Đăng ký mới cần tiếp nhận","Liên hệ và ghi nhận nhu cầu",fresh,"green"),task("payments","Hợp đồng chờ xác nhận học phí","Theo dõi khoản học phí còn phải thu",pendingPayments,"green")),
-                chart(t,"Đăng ký tư vấn trong tuần","Số đăng ký mới được tiếp nhận từ website công khai.","SELECT COUNT(*) FROM consultation_registrations WHERE created_date>=? AND created_date<?"),null);
-    }
-
     private Panel schedule(String title,String description,String scope,Time t,long id) {
         return panel("schedule",title,description,List.of("Lớp / nội dung","Thời gian","Phòng"),
-                "SELECT s.id,c.code,s.title,s.starts_at,s.ends_at,s.room,s.attendance_finalized FROM training_sessions s JOIN training_classes c ON c.id=s.class_id WHERE c.status<>'CANCELLED' AND "+scope+" AND s.ends_at>=? ORDER BY s.starts_at,s.id FETCH FIRST 6 ROWS ONLY",
+                "SELECT s.id,c.code,s.title,s.starts_at,s.ends_at,COALESCE((SELECT m.name FROM m_classroom m WHERE m.id=s.classroom_id),s.room) AS room,s.attendance_finalized FROM training_sessions s JOIN training_classes c ON c.id=s.class_id WHERE c.status<>'CANCELLED' AND "+scope+" AND s.ends_at>=? ORDER BY s.starts_at,s.id FETCH FIRST 6 ROWS ONLY",
                 r->row(r,List.of(s(r,"code")+" · "+s(r,"title"),date(r,"starts_at")+" – "+time(r,"ends_at"),s(r,"room")),Boolean.TRUE.equals(r.get("attendance_finalized"))?"Đã điểm danh":"Theo lịch",Boolean.TRUE.equals(r.get("attendance_finalized"))?"green":"neutral",null),id,t.day());
     }
 

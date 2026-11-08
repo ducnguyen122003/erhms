@@ -301,10 +301,12 @@ class DashboardIntegrationTest {
         transaction(active, "DEPOSIT", 900_000, "PENDING");
         UUID asset = insert("equipment_assets", "code", "DAMAGED-ASSET", "name", "Damaged equipment",
                 "status", "MAINTENANCE");
+        jdbc.update("UPDATE training_contracts SET accountant_id=?,handed_over_at=CURRENT_TIMESTAMP WHERE id=?",accountant.id,active);
+        UUID loan=insert("equipment_loans","asset_id",asset,"student_id",student.id,"contract_id",active);
         insert("equipment_incidents", "asset_id", asset, "reported_by", accountant.id,
-                "description", "Unpaid damage", "status", "OPEN", "compensation_due", 30_000);
+                "description", "Unpaid damage", "status", "OPEN", "compensation_due", 30_000,"loan_id",loan);
         insert("equipment_incidents", "asset_id", asset, "reported_by", accountant.id,
-                "description", "Resolved damage", "status", "RESOLVED", "compensation_due", 40_000);
+                "description", "Resolved damage", "status", "RESOLVED", "compensation_due", 40_000,"loan_id",loan);
 
         JsonNode dashboard = dashboard(login(accountant.email), "/api/dashboard");
         assertStat(dashboard, "tuition", 600_000);
@@ -330,6 +332,7 @@ class DashboardIntegrationTest {
         contract("HR-CANCELLED", student, "CANCELLED", 1_000_000, 0);
         insert("training_contracts", "code", "HR-OLD", "student_id", student.id, "status", "SIGNED",
                 "created_at", OffsetDateTime.now().minusWeeks(1));
+        jdbc.update("UPDATE training_contracts SET created_by=? WHERE code LIKE 'HR-%'",hr.id);
 
         JsonNode dashboard = dashboard(login(hr.email), "/api/dashboard");
         assertStat(dashboard, "registrations", 2);

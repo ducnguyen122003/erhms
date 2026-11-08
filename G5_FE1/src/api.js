@@ -9,7 +9,7 @@ export async function api(path,options={}){
  if(method!=='GET' && !csrf)await refreshCsrf();
  const headers={...options.headers};
  if(method!=='GET')headers[csrf.headerName]=csrf.token;
- if(options.body && !(options.body instanceof URLSearchParams))headers['Content-Type']='application/json';
+ if(options.body && !(options.body instanceof URLSearchParams) && !(options.body instanceof FormData))headers['Content-Type']='application/json';
  const response=await fetch(path,{credentials:'same-origin',...options,headers});
  if(response.status===204)return null;
  const data=await response.json().catch(()=>({message:'Phản hồi máy chủ không hợp lệ'}));

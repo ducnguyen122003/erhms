@@ -1,0 +1,2 @@
+import {TriangleAlert} from 'lucide-react';
+export default function TimetableConflictNotice(){return <section className="admin-message is-error"><TriangleAlert size={20}/><div><strong>Phát hiện lịch trùng</strong><p>Khung giờ đang trùng lớp, phòng hoặc giảng viên. Cập nhật khung giờ, phòng hoặc lớp trước khi lưu.</p><button type="button" className="admin-secondary" onClick={()=>document.getElementById('screen-field-startsAt')?.focus()}>Chọn phương án khác</button></div></section>;}

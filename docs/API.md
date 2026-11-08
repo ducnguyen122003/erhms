@@ -71,9 +71,50 @@ Khi dùng Postman: giữ cookie jar, GET csrf trước, lấy `token` đặt và
 
 Chi tiết dashboard, cấu trúc response, nguồn số liệu và cách gán role: [DASHBOARDS.md](DASHBOARDS.md).
 
-## Tài khoản người dùng (ADMIN)
+## Không gian quản trị V8
 
-Mọi endpoint `/api/admin/**` yêu cầu phiên đăng nhập của đúng `1/ADMIN`; các role khác trả `403`. `GET /api/admin/roles` trả danh sách `[{ "id": 1, "code": "ADMIN", "name": "Quản trị viên" }, ...]` lấy từ `m_role`, chỉ gồm cặp ID/mã chuẩn từ 1 đến 7.
+Danh sách màn, mã màn, bảng phân quyền và cách chạy: [ADMIN_WORKSPACE.md](ADMIN_WORKSPACE.md).
+
+| Method | Path (sau `/api`) | Quyền / nội dung |
+| --- | --- | --- |
+| GET | `/auth/permissions` | Các mã chức năng và phiên bản quyền của người đang đăng nhập |
+| GET | `/admin/users/{id}/profile` | `USER_ACCOUNTS`: hồ sơ chỉ đọc, quyền màn của role và lịch sử liên quan |
+| PUT | `/admin/users/{id}/details` | `USER_ACCOUNTS`: cập nhật thông tin + trạng thái + ghi chú nguyên tử |
+| GET, PUT | `/admin/permissions` | `ROLE_PERMISSIONS`: xem/lưu toàn bộ ma trận 7 role |
+| GET | `/admin/audit-logs?q=&action=&date=&page=0&size=10` | `SYSTEM_AUDIT_LOG`: tìm/lọc/phân trang nhật ký |
+| GET | `/admin/audit-logs/{uuid}` | `SYSTEM_AUDIT_LOG`: chi tiết nhật ký |
+| GET, PUT | `/admin/settings` | `SYSTEM_CONFIG`: xem/lưu cấu hình trung tâm |
+| POST | `/admin/settings/test-email` | `SYSTEM_CONFIG`: kiểm tra kết nối/xác thực SMTP, không gửi thư |
+| GET | `/system/branding` | Công khai: tên trung tâm, email liên hệ và ngôn ngữ; không có thông tin truy cập SMTP |
+
+Tất cả request thay đổi vẫn yêu cầu CSRF. Quyền được kiểm tra lại từ database ở mỗi request; `403` khi thiếu quyền. Các role phải khớp đúng cặp ID/mã 1–7. Ma trận không mở dữ liệu ngoài phạm vi nghiệp vụ và dashboard của role khác.
+
+`GET /admin/users` nhận thêm `status=ACTIVE|DISABLED|LOCKED`, tìm `q=TK-0001` theo mã tài khoản. Response có thêm `stats: {total, active, disabled, locked}` lấy trên toàn bộ tài khoản, độc lập bộ lọc danh sách. Chi tiết tài khoản có thêm `version` để dùng khi lưu trên trang sửa mới.
+
+`PUT /admin/users/{id}/details` nhận:
+
+```json
+{
+  "account": { "fullName": "Trần Minh Đức", "email": "duc@example.com", "phone": "0912345678", "roleId": 2 },
+  "status": "LOCKED",
+  "changeNote": "Cập nhật theo phân công giảng dạy",
+  "version": 0
+}
+```
+
+`account.password` và `account.confirmPassword` tùy chọn; quy tắc như API tạo/sửa cũ. `status` nhận `ACTIVE`, `DISABLED`, `LOCKED`, `DISABLED_LOCKED`. `version` bắt buộc và lấy từ GET mới nhất; sai phiên bản trả `409`, lỗi trường nhập liệu trả `400`, không cập nhật một phần. `changeNote` tối đa 1000 ký tự, được ghi vào nhật ký. Tự khóa/vô hiệu hóa/đổi role hoặc làm mất Admin cuối cùng trả `409`.
+
+`GET /admin/users/{id}/profile` phục vụ màn xem riêng, trả `{account, roleName, createdAt, updatedAt, lastLoginAt, functions, history}`. `account` là DTO tài khoản an toàn như GET chi tiết hiện có; `functions` gồm `{code, screenCode, name}` theo role hiện tại. `history` tối đa 20 hoạt động liên quan, gồm `{actionCode, actionLabel, actorName, result, changeNote, occurredAt}`; không bao gồm thao tác trên tài khoản khác hoặc nhật ký cấu hình/phân quyền của tác giả. Ngày chưa ghi nhận là `null`, danh sách trống là `[]`. Request chỉ đọc, không tăng version, không tạo sự kiện audit; yêu cầu quyền `USER_ACCOUNTS`, thiếu phiên `401`, thiếu quyền `403`, không có tài khoản `404`.
+
+`GET /admin/permissions` trả `{version, roles, functions, grants}`; mỗi function có `{code, screenCode, name, path, allowedRoles}`, mỗi grant có `{roleId, functionCode}`. PUT gửi `{version, grants}` với **toàn bộ** các ô được chọn từ ma trận. Bỏ ô sẽ thu hồi quyền. Bảo vệ hai quyền quản lý tài khoản/phân quyền của Admin; từ chối cấp trùng, mã không hợp lệ hoặc cấp màn tuyển dụng ngoài HR/Manager. Phiên bản cũ trả `409`. Không dùng quyền lưu trong session để bỏ qua DB.
+
+Nhật ký trả `{items, total, page, size, totalPages, stats, actions}`. `date` theo `yyyy-MM-dd`, múi giờ Việt Nam; `stats` đếm hôm nay và không bị giới hạn bởi bộ lọc bảng. Bản ghi có người thực hiện, role, action, đối tượng, method/path, `SUCCESS|FAILURE`, HTTP status, ghi chú và thời gian. Không có request body, password/hash, OTP hoặc token.
+
+`PUT /admin/settings` gửi `{centerName, notificationEmail, defaultLanguage: "vi", version}`; thông tin đơn vị/email bắt buộc, giới hạn 160/190 ký tự, email đúng định dạng. Version cũ trả `409`. Response có trạng thái cấu hình SMTP, Banking, múi giờ, chính sách khôi phục và thông tin lần cập nhật; không có SMTP username/password. `POST /admin/settings/test-email` trả `503` khi chưa cấu hình, `502` khi kết nối/xác thực thất bại, hoặc `{connected: true, message: ...}` khi thành công. Banking hiện hiển thị chưa cấu hình.
+
+## Tài khoản người dùng
+
+Các endpoint `/api/admin/**` yêu cầu quyền màn tương ứng trong `role_function`, mặc định được cấp cho `1/ADMIN`. Có thể cấp rõ ràng cho role khác qua ma trận; thiếu quyền trả `403`, kể cả khi client tự khai authority ADMIN. `GET /api/admin/roles` yêu cầu `USER_ACCOUNTS`, trả danh sách `[{ "id": 1, "code": "ADMIN", "name": "Quản trị viên" }, ...]` từ `m_role`, chỉ gồm cặp ID/mã chuẩn 1–7.
 
 `GET /api/admin/users` tìm `q` trong họ tên, email và số điện thoại, không phân biệt hoa/thường; từ khóa tối đa 200 ký tự. `roleId` không bắt buộc; nếu có phải từ 1 đến 7. `page` bắt đầu từ 0, `size` từ 1 đến 100, mặc định 10. Kết quả sắp xếp theo ID giảm dần:
 
@@ -116,7 +157,7 @@ Quản trị viên không tự hạ quyền tài khoản đang đăng nhập (`4
 { "accountEnabled": false }
 ```
 
-Gửi `false` để vô hiệu hóa, `true` để bật lại. `accountEnabled` bắt buộc và phải là boolean; thiếu, `null` hoặc sai kiểu trả `400`. Thành công trả `200` với đối tượng tài khoản cùng các trường như `items` phía trên; không có tài khoản trả `404`. Chỉ ADMIN được gọi; các role khác trả `403`.
+Gửi `false` để vô hiệu hóa, `true` để bật lại. `accountEnabled` bắt buộc và phải là boolean; thiếu, `null` hoặc sai kiểu trả `400`. Thành công trả `200` với đối tượng tài khoản cùng các trường như `items` phía trên; không có tài khoản trả `404`. Yêu cầu quyền `USER_ACCOUNTS`.
 
 Không thể tự vô hiệu hóa tài khoản đang đăng nhập hoặc vô hiệu hóa quản trị viên hợp lệ đang hoạt động cuối cùng (`409`). Mỗi lần trạng thái thực sự thay đổi, backend tăng `credentials_version`: phiên và mã/token khôi phục trước đó hết hiệu lực, kể cả sau khi bật lại. Phiên cũ gọi API bảo vệ trả `401`, `code: SESSION_EXPIRED`, và bị hủy. Gửi lại đúng trạng thái hiện tại không thay đổi phiên bản. Vô hiệu hóa chặn đăng nhập, truy cập API bảo vệ và nhận mã khôi phục mới. Bật lại cho phép đăng nhập bằng mật khẩu hiện có khi role hợp lệ và `accountLocked` là `false`; endpoint này không xóa cờ khóa. Thông tin tài khoản và toàn bộ dữ liệu nghiệp vụ được giữ nguyên. Giao diện yêu cầu xác nhận cả hai thao tác.
 
@@ -126,7 +167,7 @@ Không thể tự vô hiệu hóa tài khoản đang đăng nhập hoặc vô hi
 { "accountLocked": true }
 ```
 
-Gửi `true` để khóa, `false` để mở khóa. `accountLocked` bắt buộc và phải là JSON boolean; thiếu, `null`, chuỗi hoặc số trả `400`. Khi thiếu hoặc `null`, lỗi nằm trong `fields.accountLocked`; sai kiểu JSON trả thông báo dữ liệu không hợp lệ. Chỉ đúng `1/ADMIN` được gọi; chưa đăng nhập trả `401`, role khác hoặc thiếu CSRF trả `403`, tài khoản không tồn tại trả `404`. Thành công trả `200` cùng đối tượng tài khoản như danh sách, không có mật khẩu hoặc hash.
+Gửi `true` để khóa, `false` để mở khóa. `accountLocked` bắt buộc và phải là JSON boolean; thiếu, `null`, chuỗi hoặc số trả `400`. Khi thiếu hoặc `null`, lỗi nằm trong `fields.accountLocked`; sai kiểu JSON trả thông báo dữ liệu không hợp lệ. Yêu cầu quyền `USER_ACCOUNTS`; chưa đăng nhập trả `401`, thiếu quyền hoặc CSRF trả `403`, tài khoản không tồn tại trả `404`. Thành công trả `200` cùng đối tượng tài khoản như danh sách, không có mật khẩu hoặc hash.
 
 Không thể tự khóa tài khoản đang đăng nhập hoặc khóa quản trị viên hợp lệ đang hoạt động cuối cùng (`409`, `fields.accountLocked`). Khi cờ khóa thực sự thay đổi, backend tăng `credentials_version` để phiên và mã/token khôi phục cũ không được dùng lại, kể cả sau khi mở khóa. Gửi lại đúng trạng thái hiện có không thay đổi phiên bản. Khóa chặn đăng nhập, API bảo vệ và nhận mã khôi phục mới; mở khóa giữ nguyên mật khẩu, role, cờ `accountEnabled` và dữ liệu nghiệp vụ. Vì vậy mở khóa không tự bật tài khoản đang vô hiệu hóa, còn kích hoạt lại không tự mở khóa. Giao diện yêu cầu xác nhận cả khóa và mở khóa.
 
@@ -139,7 +180,7 @@ Dashboard lấy số liệu từ `GET /api/dashboard/admin`. Giao diện tải l
 - `equipment_requests.requested_by`, `equipment_loans.student_id`, `equipment_incidents.reported_by`.
 - `consultation_followups.assigned_to`.
 
-Khi xóa bị từ chối, dữ liệu tài khoản và nghiệp vụ được giữ nguyên. Chỉ `user_login_events` và `password_reset_challenges` có khóa ngoại xóa kèm tài khoản; không xóa dây chuyền dữ liệu nghiệp vụ. Phiên của tài khoản đã xóa không còn dùng được; API bảo vệ trả `401`, `code: SESSION_EXPIRED`. Bổ sung CRUD này không cần migration mới; dùng schema V1–V7 hiện có.
+Khi xóa bị từ chối, dữ liệu tài khoản và nghiệp vụ được giữ nguyên. Chỉ `user_login_events` và `password_reset_challenges` có khóa ngoại xóa kèm tài khoản; không xóa dây chuyền dữ liệu nghiệp vụ. Phiên của tài khoản đã xóa không còn dùng được; API bảo vệ trả `401`, `code: SESSION_EXPIRED`. Nhật ký hệ thống giữ nguyên lịch sử sau khi xóa người dùng. Không gian quản trị hiện tại sử dụng schema V1–V8.
 
 ## Quên mật khẩu (không cần đăng nhập)
 

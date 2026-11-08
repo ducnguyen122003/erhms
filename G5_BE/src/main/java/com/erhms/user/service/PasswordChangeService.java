@@ -43,6 +43,7 @@ public class PasswordChangeService {
             throw invalid("Mật khẩu hiện tại không đúng");
         }
         user.passwordHash = encoder.encode(input.newPassword());
+        user.adminVersion++;
         users.saveAndFlush(user);
     }
 
