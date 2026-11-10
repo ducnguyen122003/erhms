@@ -40,7 +40,7 @@ export default function BusinessScreen({code,accountId:id,user,functions=[],onNa
  }
  function openAction(key,title,fields=actionForms[key],override={}){setError('');setFieldErrors({});setAction({key,title,fields,override});}
  const run=(key,payload=empty)=>mutate({version:record?.version,...payload},null,key);
- function targetFor(row){if(code==='TimeTable_Conflict')return 'TimeTable_EditSession';if(code==='ListClass_Lecturer')return 'ClassDetail_Lecturer';if(code==='ListEquipmentRequest_IT')return 'EquipmentRequestDetail_IT';if(code==='StudentAssets')return 'StudentAssetReceipt';if(code==='AssetHandover_Receipt')return 'AssetHandover_Receipt';if(code==='TuitionDetail_Student')return 'TuitionDetail_Student';if(code==='PaymentStatus_Admissions')return 'TrainingContractDetail';if(spec.kind==='timetable')return code;return targets[data?.resource];}
+ function targetFor(row){if(code==='TimeTable_Conflict')return 'TimeTable_EditSession';if(code==='ListClass_Lecturer')return 'ClassDetail_Lecturer';if(code==='ListEquipmentRequest_IT')return 'EquipmentRequestDetail_IT';if(code==='StudentAssets')return 'StudentAssetReceipt';if(code==='AssetHandover_Receipt')return 'AssetHandover_Receipt';if(code==='TuitionDetail_Student')return 'TuitionDetail_Student';if(code==='PaymentStatus_Admissions')return user.role==='HR'?'PaymentStatus_Admissions':'TrainingContractDetail';if(spec.kind==='timetable')return code;return targets[data?.resource];}
  function openRow(row){const target=targetFor(row);if(target&&can(target))go(target,row.id);}
  const genericBack=spec.back||formBacks[code];
  const back=()=>{
@@ -56,6 +56,7 @@ export default function BusinessScreen({code,accountId:id,user,functions=[],onNa
  function addButton(key,label,handler,disabled=false){actionButtons.push(<button key={key} type="button" className="admin-secondary" disabled={saving||disabled} onClick={handler}>{label}</button>);}
  if(record){
   for(const [label,target] of Array.isArray(spec.actions)?spec.actions:[])if(can(target)){let nextId=record.id;if(target==='AddEquipmentRequest'){addButton(target,label,()=>onNavigate(screenPath(target)+'?classId='+record.id));continue;}
+   if(target==='AddTrainingContract'&&data.resource==='admissions'&&record.status!=='CONTACTED')continue;
    if(target==='AddTrainingContract'){addButton(target,label,()=>onNavigate(screenPath(target)+'?consultationId='+record.id));continue;}
    if(target==='ClassAttendance')continue; // A session is selected from the actual timetable below.
    if(['list','timetable','notifications','report'].includes(screens[target]?.kind))nextId=null;

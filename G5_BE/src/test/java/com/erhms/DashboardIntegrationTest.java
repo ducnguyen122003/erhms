@@ -337,8 +337,8 @@ class DashboardIntegrationTest {
         JsonNode dashboard = dashboard(login(hr.email), "/api/dashboard");
         assertStat(dashboard, "registrations", 2);
         assertStat(dashboard, "consulting", 2);
-        assertStat(dashboard, "drafts", 1);
-        assertStat(dashboard, "contracts", 3);
+        assertStat(dashboard, "contacted", 1);
+        assertStat(dashboard, "contracted", 0);
         String registrationRows = dashboard.path("panels").toString();
         assertTrue(registrationRows.contains("Current registration one"));
         assertTrue(registrationRows.contains("Current registration two"));

@@ -1,0 +1,46 @@
+{
+  "ListTrainingContract": {
+    "roles": [
+      "ACCOUNTANT",
+      "MANAGER"
+    ],
+    "actions": "Manager quản lý hợp đồng đào tạo; Kế toán xem hợp đồng đã bàn giao để đối chiếu.",
+    "scope": "Manager theo hợp đồng và khóa học được phân công; Kế toán theo hồ sơ đã bàn giao."
+  },
+  "AddTrainingContract": {
+    "roles": [
+      "MANAGER"
+    ],
+    "actions": "Manager lập hợp đồng từ hồ sơ ở trạng thái Đã liên hệ và khóa học mình quản lý.",
+    "scope": "Manager theo hợp đồng và khóa học được phân công; Kế toán theo hồ sơ đã bàn giao."
+  },
+  "EditTrainingContract": {
+    "roles": [
+      "MANAGER"
+    ],
+    "actions": "Manager sửa hợp đồng nháp trong phạm vi quản lý.",
+    "scope": "Manager theo hợp đồng và khóa học được phân công; Kế toán theo hồ sơ đã bàn giao."
+  },
+  "TrainingContractDetail": {
+    "roles": [
+      "ACCOUNTANT",
+      "MANAGER"
+    ],
+    "scope": "Manager theo hợp đồng và khóa học được phân công; Kế toán theo hồ sơ đã bàn giao."
+  },
+  "ContractSignature": {
+    "roles": [
+      "MANAGER"
+    ],
+    "actions": "Manager ghi nhận minh chứng ký và bàn giao cho Kế toán.",
+    "scope": "Manager theo hợp đồng và khóa học được phân công; Kế toán theo hồ sơ đã bàn giao."
+  },
+  "ListAdmissionApplicationDetail": {
+    "actions": [
+      [
+        "Ghi nhận tư vấn",
+        "AdmissionConsultation"
+      ]
+    ]
+  }
+}

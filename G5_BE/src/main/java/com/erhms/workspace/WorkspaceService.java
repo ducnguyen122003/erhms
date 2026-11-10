@@ -68,8 +68,8 @@ public class WorkspaceService {
         result.put("options",options(code,u,id));return result;
     }
     private boolean canWrite(String code,User u){return switch(u.getRoleCode()){
-        case "MANAGER"->Set.of("AddCourse","EditCourse","EditClass","TimeTable_Manager","TimeTable_EditSession","TimeTable_Conflict","EditStudentProfile","SendNotification","AutoAssignmentDetail","TrainingClosureDetail","TrainingClosureDetail_Ready","TrainingClosureDetail_Withdrawal","RecordWithdrawal").contains(code);
-        case "HR"->Set.of("AdmissionConsultation","AddTrainingContract","EditTrainingContract","ContractSignature").contains(code);
+        case "MANAGER"->Set.of("AddTrainingContract","EditTrainingContract","ContractSignature","AddCourse","EditCourse","EditClass","TimeTable_Manager","TimeTable_EditSession","TimeTable_Conflict","EditStudentProfile","SendNotification","AutoAssignmentDetail","TrainingClosureDetail","TrainingClosureDetail_Ready","TrainingClosureDetail_Withdrawal","RecordWithdrawal").contains(code);
+        case "HR"->code.equals("AdmissionConsultation");
         case "LECTURER"->Set.of("ClassAttendance","Attendance_Correction","ClassGradebook","AddEquipmentRequest").contains(code);
         case "ACCOUNTANT"->Set.of("ListPayment","PaymentDetail","PaymentDetail_Mismatch","PaymentInstruction","TuitionDetail","DepositRefund","AssetIncidentDetail_Accountant").contains(code);
         case "IT_SUPPORT"->Set.of("AddAsset","EditAsset","AssetDetail","AssetMaintenance","EquipmentRequestDetail_IT","AssetHandover","AssetHandover_Receipt","ListAssetDetail","Recovery_Withdrawal","AssetIncidentDetail","ListAssetIncident").contains(code);
@@ -104,7 +104,14 @@ public class WorkspaceService {
                 if(code.equals("EditClass")&&id!=null&&d.record("classes",id,u).get("courseId")!=null)out.put("lecturers",d.rows("SELECT user_id AS id,full_name AS name FROM m_user WHERE role_id=2 AND account_enabled=TRUE AND account_locked=FALSE AND user_id IN(SELECT lecturer_id FROM course_lecturers WHERE course_id=?) ORDER BY full_name",uuid(d.record("classes",id,u).get("courseId").toString())));
                 else out.put("lecturers",d.rows("SELECT user_id AS id,full_name AS name FROM m_user WHERE role_id=2 AND account_enabled=TRUE AND account_locked=FALSE ORDER BY full_name"));
             }
-            case "AddTrainingContract","EditTrainingContract"->{out.put("admissions",choices("admissions",u));out.put("courses",choices("courses",u));out.put("students",d.rows("SELECT DISTINCT s.user_id AS id,s.full_name AS name,s.email FROM m_user s JOIN consultation_registrations r ON LOWER(r.email)=LOWER(s.email) JOIN consultation_followups f ON f.consultation_id=r.id WHERE s.role_id=3 AND (f.assigned_to=? OR f.assigned_to IS NULL) AND f.status NOT IN ('NEW','CLOSED')",u.id));}
+            case "AddTrainingContract","EditTrainingContract"->{
+                Object currentAdmission=id==null?null:d.record("contracts",id,u).get("consultationId");
+                UUID admission=currentAdmission==null?null:uuid(currentAdmission.toString());
+                String eligible="(f.status='CONTACTED' OR (r.id=? AND f.status='CONTRACTED'))";
+                out.put("admissions",d.rows("SELECT r.*,f.status FROM consultation_registrations r JOIN consultation_followups f ON f.consultation_id=r.id WHERE "+eligible+" ORDER BY r.created_date DESC,r.id",admission));
+                out.put("courses",d.rows("SELECT scoped.* FROM ("+d.base("courses",u)+") scoped WHERE status IN ('OPEN','ACTIVE') ORDER BY name"));
+                out.put("students",d.rows("SELECT DISTINCT s.user_id AS id,s.full_name AS name,s.email FROM m_user s JOIN consultation_registrations r ON LOWER(r.email)=LOWER(s.email) JOIN consultation_followups f ON f.consultation_id=r.id WHERE s.role_id=3 AND s.account_enabled=TRUE AND s.account_locked=FALSE AND "+eligible+" ORDER BY s.full_name",admission));
+            }
             case "ContractSignature"->out.put("accountants",d.rows("SELECT user_id AS id,full_name AS name FROM m_user WHERE role_id=4 AND account_enabled=TRUE AND account_locked=FALSE ORDER BY full_name"));
             case "TimeTable_EditSession","TimeTable_Manager","TimeTable_Conflict"->{out.put("classes",choices("classes",u));out.put("classrooms",masters.choices("classrooms"));}
             case "AddEquipmentRequest"->{out.put("equipmentGroups",masters.choices("equipmentGroups"));out.put("classes",choices("classes",u));out.put("students",d.rows("SELECT DISTINCT s.user_id AS id,s.full_name AS name,e.class_id FROM training_enrollments e JOIN m_user s ON s.user_id=e.student_id JOIN training_classes c ON c.id=e.class_id WHERE e.status='ACTIVE' AND "+classScope(u,"c")));}

@@ -64,7 +64,7 @@ Cả hai frontend chuyển tiếp `/api` tới `http://localhost:8080`. Nếu ba
 
 ## Dashboard theo vai trò
 
-Đã bổ sung các màn theo bộ SVG và ma trận Excel: tuyển sinh, hồ sơ học viên, hợp đồng, khóa/lớp/lịch, điểm danh/điểm, học phí/thanh toán/cọc, thiết bị/thu hồi/bồi thường, đóng hồ sơ, thông báo và báo cáo. Frontend nằm trong `G5_FE1`; trang công khai mới tại http://localhost:8082/public/HomePage. Khởi động lại backend để áp dụng migration **V9–V11**. Luồng sử dụng, quyền và API: [FULL_SCREEN_WORKSPACE.md](docs/FULL_SCREEN_WORKSPACE.md); danh mục 120 mã màn: [SCREEN_ROUTE_COVERAGE.md](docs/SCREEN_ROUTE_COVERAGE.md).
+Đã bổ sung các màn theo bộ SVG và ma trận Excel: tuyển sinh, hồ sơ học viên, hợp đồng, khóa/lớp/lịch, điểm danh/điểm, học phí/thanh toán/cọc, thiết bị/thu hồi/bồi thường, đóng hồ sơ, thông báo và báo cáo. Frontend nằm trong `G5_FE1`; trang công khai mới tại http://localhost:8082/public/HomePage. Khởi động lại backend để áp dụng migration **V9–V12**. Luồng sử dụng, quyền và API: [FULL_SCREEN_WORKSPACE.md](docs/FULL_SCREEN_WORKSPACE.md); danh mục 120 mã màn: [SCREEN_ROUTE_COVERAGE.md](docs/SCREEN_ROUTE_COVERAGE.md).
 
 Sau khi đăng nhập, `G5_FE1` tự mở dashboard theo `m_user.role_id`, đồng thời kiểm tra `m_role.code` đúng với ID quy định. Tải lại trang giữ đúng dashboard; mở URL của role khác bị chặn ở cả giao diện và API. Mỗi dashboard có file React riêng:
 
@@ -158,6 +158,10 @@ docker compose down
 ```
 
 `down` giữ dữ liệu volume. Không dùng `down -v` nếu muốn giữ dữ liệu.
+
+## Hợp đồng đào tạo và thanh điều hướng
+
+Manager quản lý tạo/sửa nháp/ký/bàn giao hợp đồng; HR chỉ tiếp nhận và tư vấn. Hồ sơ phải ở trạng thái **Đã liên hệ** mới được chọn khi tạo hợp đồng. Khởi động lại backend để áp dụng V12. Khối người dùng/đăng xuất được ghim ở đáy menu. Hướng dẫn: [MANAGER_TRAINING_CONTRACTS.md](docs/MANAGER_TRAINING_CONTRACTS.md).
 
 ## Danh mục dùng chung BK-VTCMS
 

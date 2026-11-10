@@ -48,8 +48,8 @@ class ScreenWorkflowIntegrationTest {
  String createContract(String course)throws Exception{
   String admission=body(mvc.perform(post("/api/public/consultations").with(csrf()).contentType("application/json").content(json.writeValueAsString(values("fullName",student.fullName,"phone","0912345678","email",student.email,"contactTime","any","program_name","Khóa thực hành")))).andExpect(status().isCreated()).andReturn()).path("id").asText();
   save(hr,"AdmissionConsultation",admission,values("version",0,"channel","PHONE","status","CONTACTED","notes","Đã tư vấn thông tin khóa học","appointmentAt",""));
-  String contract=save(hr,"AddTrainingContract",null,values("consultationId",admission,"courseId",course,"studentId",student.id,"startsOn","2026-11-15","paymentDueOn","2026-11-14","tuitionDue",1000,"depositDue",200,"terms","Điều khoản theo hồ sơ xác nhận","paymentSchedule","")).path("id").asText();
-  save(hr,"ContractSignature",contract,values("version",0,"signedOn","2026-11-01","signatureMethod","PAPER","signatureEvidence","Biên bản ký đã xác minh","accountantId",accountant.id,"handoverNote","Bàn giao đào tạo và kế toán"));return contract;
+  String contract=save(manager,"AddTrainingContract",null,values("consultationId",admission,"courseId",course,"studentId",student.id,"startsOn","2026-11-15","paymentDueOn","2026-11-14","tuitionDue",1000,"depositDue",200,"terms","Điều khoản theo hồ sơ xác nhận","paymentSchedule","")).path("id").asText();
+  save(manager,"ContractSignature",contract,values("version",0,"signedOn","2026-11-01","signatureMethod","PAPER","signatureEvidence","Biên bản ký đã xác minh","accountantId",accountant.id,"handoverNote","Bàn giao đào tạo và kế toán"));return contract;
  }
  String importAndConfirm(String contract,String kind,int amount)throws Exception{
   String id=action(accountant,"ListPayment","new","import",values("contractId",contract,"kind",kind,"amount",amount,"bankReference",UUID.randomUUID().toString(),"payerName",student.fullName,"bankId",BANK,"memo","Đối chiếu theo hợp đồng","evidence","Chứng từ đã kiểm tra")).path("id").asText();
@@ -83,7 +83,7 @@ class ScreenWorkflowIntegrationTest {
   String reference=view(accountant,"PaymentDetail",payment).path("record").path("bankReference").asText();JsonNode duplicate=action(accountant,"ListPayment","new","import",values("contractId",ct,"bankReference",reference));assertEquals("PaymentDetail_Duplicate",duplicate.path("screen").asText());assertEquals(payment,duplicate.path("id").asText());
   assertEquals(1,view(manager,"AutoAssignmentReview",null).path("total").asInt());assertEquals(0,view(otherManager,"AutoAssignmentReview",null).path("total").asInt());
   read(otherStudent,"TuitionDetail_Student",ct).andExpect(status().isNotFound());read(student,"TuitionDetail_Student",ct).andExpect(status().isOk());
-  assertFalse(view(hr,"TrainingContractDetail",ct).path("canWrite").asBoolean());
+  read(hr,"TrainingContractDetail",ct).andExpect(status().isForbidden());
  }
  @Test void mismatchedOrOverpaidTransactionsRemainUnconfirmedAndDoNotAssignStudents()throws Exception{
   String ct=createContract(createCourse());String payment=action(accountant,"ListPayment","new","import",values("contractId",ct,"kind","TUITION","amount",2000,"bankReference",UUID.randomUUID().toString(),"payerName",student.fullName,"bankId",BANK,"memo","Sai số tiền","evidence","Kiểm thử")).path("id").asText();
@@ -143,11 +143,11 @@ class ScreenWorkflowIntegrationTest {
  void saveNotificationToOutsider()throws Exception{write(manager,"SendNotification",null,values("title","Không được gửi","content","Kiểm tra","recipients",List.of(values("id",otherStudent.id)),"scheduledAt","")).andExpect(status().isNotFound());}
  @Test void evidenceFilesAreAuthenticatedValidatedAndPrivateUntilLinkedToAScopedRecord()throws Exception{
   MockMultipartFile file=new MockMultipartFile("file","bien-ban.pdf","application/pdf","%PDF-1.4\nTest evidence".getBytes(StandardCharsets.US_ASCII));
-  String id=body(mvc.perform(multipart("/api/workspace/files").file(file).param("screen","ContractSignature").with(user(hr.email).roles("HR")).with(csrf())).andExpect(status().isOk()).andReturn()).path("id").asText();
-  mvc.perform(get("/api/workspace/files/"+id)).andExpect(status().isUnauthorized());mvc.perform(get("/api/workspace/files/"+id).with(user(student.email).roles("STUDENT"))).andExpect(status().isNotFound());mvc.perform(get("/api/workspace/files/"+id).with(user(hr.email).roles("HR"))).andExpect(status().isOk()).andExpect(header().string("X-Content-Type-Options","nosniff"));
+  String id=body(mvc.perform(multipart("/api/workspace/files").file(file).param("screen","ContractSignature").with(user(manager.email).roles("MANAGER")).with(csrf())).andExpect(status().isOk()).andReturn()).path("id").asText();
+  mvc.perform(get("/api/workspace/files/"+id)).andExpect(status().isUnauthorized());mvc.perform(get("/api/workspace/files/"+id).with(user(student.email).roles("STUDENT"))).andExpect(status().isNotFound());mvc.perform(get("/api/workspace/files/"+id).with(user(manager.email).roles("MANAGER"))).andExpect(status().isOk()).andExpect(header().string("X-Content-Type-Options","nosniff"));
   String contract=createContract(createCourse());jdbc.update("UPDATE training_contracts SET signature_evidence=? WHERE id=?","file:"+id+":bien-ban.pdf",UUID.fromString(contract));
   mvc.perform(get("/api/workspace/files/"+id).with(user(student.email).roles("STUDENT"))).andExpect(status().isOk());mvc.perform(get("/api/workspace/files/"+id).with(user(otherStudent.email).roles("STUDENT"))).andExpect(status().isNotFound());
-  mvc.perform(multipart("/api/workspace/files").file(new MockMultipartFile("file","bad.html","text/html","<script>test</script>".getBytes())).param("screen","ContractSignature").with(user(hr.email).roles("HR")).with(csrf())).andExpect(status().isBadRequest());
+  mvc.perform(multipart("/api/workspace/files").file(new MockMultipartFile("file","bad.html","text/html","<script>test</script>".getBytes())).param("screen","ContractSignature").with(user(manager.email).roles("MANAGER")).with(csrf())).andExpect(status().isBadRequest());
  }
  @Test void screenRevocationAppliesToReadsAndWritesAndInvalidIdentifiersFailClearly()throws Exception{
   jdbc.update("DELETE FROM role_function WHERE role_id=6 AND function_code='AddCourse'");write(manager,"AddCourse",null,Map.of()).andExpect(status().isForbidden());read(manager,"AddCourse",null).andExpect(status().isForbidden());read(it,"AssetDetail","not-a-uuid").andExpect(status().isBadRequest());read(it,"UnknownScreen",null).andExpect(status().isNotFound());
@@ -181,10 +181,62 @@ class ScreenWorkflowIntegrationTest {
   }
  }
  @Test void signedContractsAndOwnedAdmissionsCannotBeEditedByOtherStaff()throws Exception{
-  String ct=createContract(createCourse());String admission=view(hr,"TrainingContractDetail",ct).path("record").path("consultationId").asText();assertEquals("CONTRACTED",view(hr,"ListAdmissionApplicationDetail",admission).path("record").path("status").asText());read(otherHr,"ListAdmissionApplicationDetail",admission).andExpect(status().isNotFound());write(hr,"EditTrainingContract",ct,values("version",1)).andExpect(status().isConflict());
+  String ct=createContract(createCourse());String admission=view(manager,"TrainingContractDetail",ct).path("record").path("consultationId").asText();assertEquals("CONTRACTED",view(hr,"ListAdmissionApplicationDetail",admission).path("record").path("status").asText());read(otherHr,"ListAdmissionApplicationDetail",admission).andExpect(status().isNotFound());write(manager,"EditTrainingContract",ct,values("version",1)).andExpect(status().isConflict());
  }
  @Test void zeroTuitionRequiresAnAccountantConfirmationAndDoesNotInventAZeroAmountPayment()throws Exception{
   String ct=createContract(createCourse());jdbc.update("UPDATE training_contracts SET tuition_due=0 WHERE id=?",UUID.fromString(ct));
   act(hr,"TuitionDetail",ct,"activate-zero",values("version",1,"changeNote","Miễn phí")).andExpect(status().isForbidden());action(accountant,"TuitionDetail",ct,"activate-zero",values("version",1,"changeNote","Căn cứ hợp đồng miễn học phí đã ký"));assertEquals(1,jdbc.queryForObject("SELECT COUNT(*) FROM training_enrollments WHERE contract_id=?",Integer.class,UUID.fromString(ct)));assertEquals(0,jdbc.queryForObject("SELECT COUNT(*) FROM financial_transactions WHERE contract_id=?",Integer.class,UUID.fromString(ct)));
+ }
+ String registration(String state)throws Exception{
+  String id=body(mvc.perform(post("/api/public/consultations").with(csrf()).contentType("application/json").content(json.writeValueAsString(values("fullName",student.fullName,"phone","0912345678","email",student.email,"contactTime","any","program_name","Khóa thực hành")))).andExpect(status().isCreated()).andReturn()).path("id").asText();
+  if(!state.equals("NEW"))save(hr,"AdmissionConsultation",id,values("version",0,"channel","PHONE","status",state,"notes","Đã xác minh hồ sơ","appointmentAt",state.equals("APPOINTMENT")?"2026-12-15T01:00:00Z":""));return id;
+ }
+ Map<String,Object> contractInput(String course,String admission){return values("consultationId",admission,"courseId",course,"studentId",student.id,"startsOn","2026-12-15","paymentDueOn","2026-12-14","tuitionDue",1000,"depositDue",200,"terms","Điều khoản đã thỏa thuận","paymentSchedule","");}
+ @Test void onlyContactedRegistrationsAreSelectableAndAcceptedForNewManagerContracts()throws Exception{
+  String course=createCourse();
+  for(String state:List.of("NEW","APPOINTMENT","CLOSED")){
+   String id=registration(state);assertFalse(view(manager,"AddTrainingContract",null).path("options").path("admissions").toString().contains(id));
+   write(manager,"AddTrainingContract",null,contractInput(course,id)).andExpect(status().isBadRequest()).andExpect(jsonPath("$.fields.consultationId").exists());
+  }
+  String id=registration("CONTACTED");assertTrue(view(manager,"AddTrainingContract",null).path("options").path("admissions").toString().contains(id));
+  write(hr,"AdmissionConsultation",id,values("version",0,"channel","PHONE","status","CONTRACTED","notes","Không được tự chuyển trạng thái")).andExpect(status().isBadRequest());
+  String ct=save(manager,"AddTrainingContract",null,contractInput(course,id)).path("id").asText();
+  assertEquals(manager.id,jdbc.queryForObject("SELECT created_by FROM training_contracts WHERE id=?",Long.class,UUID.fromString(ct)));
+  assertEquals("CONTRACTED",view(hr,"ListAdmissionApplicationDetail",id).path("record").path("status").asText());
+  assertFalse(view(manager,"AddTrainingContract",null).path("options").path("admissions").toString().contains(id));
+  write(manager,"AddTrainingContract",null,contractInput(course,id)).andExpect(status().isBadRequest());
+ }
+ @Test void managerCanEditAndSignAnOwnedDraftWhileHrAndOtherManagersCannotManageIt()throws Exception{
+  String course=createCourse(),admission=registration("CONTACTED"),ct=save(manager,"AddTrainingContract",null,contractInput(course,admission)).path("id").asText();
+  assertEquals(1,view(manager,"ListTrainingContract",null).path("total").asInt());assertEquals(0,view(accountant,"ListTrainingContract",null).path("total").asInt());
+  assertTrue(view(manager,"EditTrainingContract",ct).path("options").path("admissions").toString().contains(admission));
+  var edit=contractInput(course,admission);edit.put("version",0);edit.put("terms","Điều khoản đã cập nhật");save(manager,"EditTrainingContract",ct,edit);
+  for(String code:List.of("ListTrainingContract","AddTrainingContract","EditTrainingContract","TrainingContractDetail","ContractSignature"))read(hr,code,code.startsWith("List")||code.startsWith("Add")?null:ct).andExpect(status().isForbidden());
+  write(hr,"AddTrainingContract",null,contractInput(course,admission)).andExpect(status().isForbidden());write(hr,"EditTrainingContract",ct,edit).andExpect(status().isForbidden());write(hr,"ContractSignature",ct,Map.of()).andExpect(status().isForbidden());
+  read(otherManager,"TrainingContractDetail",ct).andExpect(status().isNotFound());write(otherManager,"EditTrainingContract",ct,edit).andExpect(status().isNotFound());
+  jdbc.update("INSERT INTO role_function(role_id,function_code) VALUES (7,'AddTrainingContract')");write(hr,"AddTrainingContract",null,Map.of()).andExpect(status().isForbidden());
+  save(manager,"ContractSignature",ct,values("version",1,"signedOn","2026-11-01","signatureMethod","PAPER","signatureEvidence","Biên bản ký","accountantId",accountant.id,"handoverNote","Bàn giao"));
+  assertEquals(1,view(accountant,"ListTrainingContract",null).path("total").asInt());assertEquals(1,view(hr,"PaymentStatus_Admissions",null).path("total").asInt());
+  write(manager,"EditTrainingContract",ct,edit).andExpect(status().isConflict());
+ }
+ @Test void contactStatusIsRecheckedAtSubmitAndManagersOnlySelectTheirOwnCourses()throws Exception{
+  String course=createCourse(),id=registration("CONTACTED");assertTrue(view(manager,"AddTrainingContract",null).path("options").path("admissions").toString().contains(id));
+  write(otherManager,"AddTrainingContract",null,contractInput(course,id)).andExpect(status().isNotFound());
+  save(hr,"AdmissionConsultation",id,values("version",0,"channel","PHONE","status","CLOSED","notes","Hồ sơ không tiếp tục"));
+  write(manager,"AddTrainingContract",null,contractInput(course,id)).andExpect(status().isBadRequest());
+  assertEquals(0,jdbc.queryForObject("SELECT COUNT(*) FROM training_contracts WHERE consultation_id=?",Integer.class,UUID.fromString(id)));
+ }
+ @Test void contractPermissionsCanBeRevokedAndHrCannotUploadSignatureEvidence()throws Exception{
+  jdbc.update("DELETE FROM role_function WHERE role_id=6 AND function_code='AddTrainingContract'");read(manager,"AddTrainingContract",null).andExpect(status().isForbidden());write(manager,"AddTrainingContract",null,Map.of()).andExpect(status().isForbidden());
+  jdbc.update("INSERT INTO role_function(role_id,function_code) VALUES (7,'ContractSignature')");
+  mvc.perform(multipart("/api/workspace/files").file(new MockMultipartFile("file","signed.pdf","application/pdf","%PDF-1.4\nEvidence".getBytes())).param("screen","ContractSignature").with(user(hr.email).roles("HR")).with(csrf())).andExpect(status().isForbidden());
+ }
+ @Test void changingTheRegistrationOnADraftRestoresThePreviousContactedProfile()throws Exception{
+  String course=createCourse(),first=registration("CONTACTED"),second=registration("CONTACTED");
+  String ct=save(manager,"AddTrainingContract",null,contractInput(course,first)).path("id").asText();
+  var edit=contractInput(course,second);edit.put("version",0);save(manager,"EditTrainingContract",ct,edit);
+  assertEquals("CONTACTED",view(hr,"ListAdmissionApplicationDetail",first).path("record").path("status").asText());
+  assertEquals("CONTRACTED",view(hr,"ListAdmissionApplicationDetail",second).path("record").path("status").asText());
+  String eligible=view(manager,"AddTrainingContract",null).path("options").path("admissions").toString();assertTrue(eligible.contains(first));assertFalse(eligible.contains(second));
  }
 }

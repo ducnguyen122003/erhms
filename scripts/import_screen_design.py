@@ -4,6 +4,7 @@ Run from the repository root after updating docs/design-access-matrix.json.
 The XLSX permissions were read using Python's zipfile/ElementTree (no Excel dependency).
 """
 import json
+import copy
 import re
 import argparse
 import zipfile
@@ -60,8 +61,12 @@ for source in manifest['screens']:
                                for field in section['fields'] if field['label']!='Số serial']
     screens.append(item)
 extension_screens = json.loads((root/'docs/master-screen-catalog.json').read_text(encoding='utf8'))
+overrides=json.loads((root/'docs/screen-access-overrides.json').read_text(encoding='utf8'))
+runtime_screens=copy.deepcopy(screens)
+for screen in runtime_screens:
+    screen.update(overrides.get(screen['code'],{}))
 for location in ['G5_FE1/src/screens/catalog.json','G5_BE/src/main/resources/workspace/screen-catalog.json']:
-    (root/location).write_text(json.dumps(screens+extension_screens,ensure_ascii=False,indent=2)+'\n',encoding='utf8')
+    (root/location).write_text(json.dumps(runtime_screens+extension_screens,ensure_ascii=False,indent=2)+'\n',encoding='utf8')
 
 def quote(value): return "'"+str(value).replace("'","''")+"'"
 roles={'ADMIN':1,'LECTURER':2,'STUDENT':3,'ACCOUNTANT':4,'IT_SUPPORT':5,'MANAGER':6,'HR':7}

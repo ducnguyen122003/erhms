@@ -2,6 +2,8 @@
 
 Gồm 108 mã từ bộ thiết kế và 12 màn danh mục bổ sung theo yêu cầu.
 
+Quyền hợp đồng được cập nhật theo V12: [MANAGER_TRAINING_CONTRACTS.md](MANAGER_TRAINING_CONTRACTS.md).
+
 Nguồn: ma trận Excel và `Screen_Manifest.json` trong bộ SVG. Mỗi mã dưới đây có route/component; tab, popup và trạng thái dùng chung bộ xử lý nghiệp vụ. Đăng nhập và khôi phục giữ luồng OTP 6 số đã triển khai theo yêu cầu trước đó.
 
 | FE | Mã màn | Route | File giao diện | Vai trò mặc định |
@@ -42,11 +44,11 @@ Nguồn: ma trận Excel và `Screen_Manifest.json` trong bộ SVG. Mỗi mã d�
 | FE-06/20 | `ListNotification` | `/screens/ListNotification` | [ListNotification.jsx](../G5_FE1/src/screens/pages/ListNotification.jsx) | ADMIN, LECTURER, STUDENT, ACCOUNTANT, IT_SUPPORT, MANAGER, HR |
 | FE-06 | `ViewNotification` | `/screens/ViewNotification/{id}` | [ViewNotification.jsx](../G5_FE1/src/screens/pages/ViewNotification.jsx) | ADMIN, LECTURER, STUDENT, ACCOUNTANT, IT_SUPPORT, MANAGER, HR |
 | FE-06 | `SendNotification` | `/screens/SendNotification` | [SendNotification.jsx](../G5_FE1/src/screens/pages/SendNotification.jsx) | MANAGER |
-| FE-07 | `ListTrainingContract` | `/screens/ListTrainingContract` | [ListTrainingContract.jsx](../G5_FE1/src/screens/pages/ListTrainingContract.jsx) | ACCOUNTANT, MANAGER, HR |
-| FE-07 | `AddTrainingContract` | `/screens/AddTrainingContract` | [AddTrainingContract.jsx](../G5_FE1/src/screens/pages/AddTrainingContract.jsx) | HR |
-| FE-07 | `EditTrainingContract` | `/screens/EditTrainingContract/{id}` | [EditTrainingContract.jsx](../G5_FE1/src/screens/pages/EditTrainingContract.jsx) | HR |
-| FE-07 | `TrainingContractDetail` | `/screens/TrainingContractDetail/{id}` | [TrainingContractDetail.jsx](../G5_FE1/src/screens/pages/TrainingContractDetail.jsx) | ACCOUNTANT, MANAGER, HR |
-| FE-07 | `ContractSignature` | `/screens/ContractSignature/{id}` | [ContractSignature.jsx](../G5_FE1/src/screens/pages/ContractSignature.jsx) | HR |
+| FE-07 | `ListTrainingContract` | `/screens/ListTrainingContract` | [ListTrainingContract.jsx](../G5_FE1/src/screens/pages/ListTrainingContract.jsx) | ACCOUNTANT, MANAGER |
+| FE-07 | `AddTrainingContract` | `/screens/AddTrainingContract` | [AddTrainingContract.jsx](../G5_FE1/src/screens/pages/AddTrainingContract.jsx) | MANAGER |
+| FE-07 | `EditTrainingContract` | `/screens/EditTrainingContract/{id}` | [EditTrainingContract.jsx](../G5_FE1/src/screens/pages/EditTrainingContract.jsx) | MANAGER |
+| FE-07 | `TrainingContractDetail` | `/screens/TrainingContractDetail/{id}` | [TrainingContractDetail.jsx](../G5_FE1/src/screens/pages/TrainingContractDetail.jsx) | ACCOUNTANT, MANAGER |
+| FE-07 | `ContractSignature` | `/screens/ContractSignature/{id}` | [ContractSignature.jsx](../G5_FE1/src/screens/pages/ContractSignature.jsx) | MANAGER |
 | FE-08 | `ListCourse` | `/screens/ListCourse` | [ListCourse.jsx](../G5_FE1/src/screens/pages/ListCourse.jsx) | MANAGER, HR |
 | FE-08 | `AddCourse` | `/screens/AddCourse` | [AddCourse.jsx](../G5_FE1/src/screens/pages/AddCourse.jsx) | MANAGER |
 | FE-08 | `EditCourse` | `/screens/EditCourse/{id}` | [EditCourse.jsx](../G5_FE1/src/screens/pages/EditCourse.jsx) | MANAGER |

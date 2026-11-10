@@ -43,6 +43,9 @@ public class TrainingWorkflows {
         d.one("SELECT id FROM consultation_registrations WHERE id=? FOR UPDATE",key);d.record("admissions",id,u);
         var rows=d.rows("SELECT * FROM consultation_followups WHERE consultation_id=?",key);
         String channel=choice(p,"channel","PHONE","EMAIL","IN_PERSON"),status=choice(p,"status","CONTACTED","APPOINTMENT","CONTRACTED","CLOSED");
+        boolean contracted=d.count("SELECT COUNT(*) FROM training_contracts WHERE consultation_id=? AND status<>'CANCELLED'",key)>0;
+        if(contracted&&!status.equals("CONTRACTED"))throw invalid("status","Hồ sơ đã có hợp đồng, không thay đổi trạng thái Đã lập hợp đồng");
+        if(!contracted&&status.equals("CONTRACTED"))throw invalid("status","Trạng thái Đã lập hợp đồng được cập nhật khi Manager tạo hợp đồng");
         String notes=text(p,"notes",2000,true);OffsetDateTime appointment=instant(p,"appointmentAt",false);
         if(p.containsKey("email")){String email=text(p,"email",190,false);if(!email.isEmpty()&&!email.matches("[^\\s@]+@[^\\s@]+\\.[^\\s@]+"))throw invalid("email","Email không hợp lệ");d.jdbc.update("UPDATE consultation_registrations SET email=? WHERE id=?",email.isEmpty()?null:email.toLowerCase(Locale.ROOT),key);}
         if(status.equals("APPOINTMENT")&&appointment==null)throw invalid("appointmentAt","Nhập lịch hẹn tiếp theo");
@@ -67,12 +70,18 @@ public class TrainingWorkflows {
         return saved("StudentProfileDetail",key);
     }
     public Map<String,Object> contract(String id,Map<String,Object> p,User u){
-        role(u,"HR");UUID key=id==null?UUID.randomUUID():uuid(id);
-        if(id!=null){var c=d.record("contracts",id,u);d.lock("training_contracts",key,p);if(!"DRAFT".equals(c.get("status")))throw conflict("Chỉ được sửa hợp đồng bản nháp");}
-        UUID admission=uuid(p,"consultationId");var application=d.record("admissions",admission.toString(),u);
-        if("NEW".equals(application.get("status"))||"CLOSED".equals(application.get("status")))throw invalid("consultationId","Cần ghi nhận tư vấn trước khi tạo hợp đồng");
+        role(u,"MANAGER");UUID key=id==null?UUID.randomUUID():uuid(id);Map<String,Object> existing=null;
+        if(id!=null){d.record("contracts",id,u);d.lock("training_contracts",key,p);existing=d.record("contracts",id,u);if(!"DRAFT".equals(existing.get("status")))throw conflict("Chỉ được sửa hợp đồng bản nháp");}
+        UUID admission=uuid(p,"consultationId");
+        // Consultation updates take the same parent lock; recheck the latest status before creating a contract.
+        UUID previousAdmission=existing==null||existing.get("consultationId")==null?null:uuid(existing.get("consultationId").toString());
+        var admissionLocks=new TreeSet<UUID>();admissionLocks.add(admission);if(previousAdmission!=null)admissionLocks.add(previousAdmission);
+        for(UUID locked:admissionLocks)d.one("SELECT id FROM consultation_registrations WHERE id=? FOR UPDATE",locked);
+        var application=d.one("SELECT r.*,COALESCE(f.status,'NEW') AS status FROM consultation_registrations r LEFT JOIN consultation_followups f ON f.consultation_id=r.id WHERE r.id=?",admission);
+        boolean keepExisting=existing!=null&&admission.toString().equals(Objects.toString(existing.get("consultationId"),""))&&"CONTRACTED".equals(application.get("status"));
+        if(!"CONTACTED".equals(application.get("status"))&&!keepExisting)throw invalid("consultationId","Chỉ hồ sơ ở trạng thái Đã liên hệ mới được tạo hợp đồng");
         UUID course=uuid(p,"courseId");var co=d.record("courses",course.toString(),u);
-        d.one("SELECT id FROM consultation_registrations WHERE id=? FOR UPDATE",admission);
+        if(!List.of("OPEN","ACTIVE").contains(co.get("status")))throw invalid("courseId","Chọn khóa học đang mở tuyển sinh hoặc đang hoạt động");
         if(d.count("SELECT COUNT(*) FROM training_contracts WHERE consultation_id=? AND course_id=? AND id<>? AND status<>'CANCELLED'",admission,course,key)>0)throw invalid("consultationId","Hồ sơ này đã có hợp đồng cho khóa học được chọn");
         long student=number(p,"studentId",1,Long.MAX_VALUE);d.requireRoleId(student,3);
         if(d.count("SELECT COUNT(*) FROM m_user WHERE user_id=? AND LOWER(email)=LOWER(?)",student,application.get("email"))==0)throw invalid("studentId","Tài khoản học viên phải khớp email của hồ sơ đăng ký đã tư vấn");
@@ -81,10 +90,11 @@ public class TrainingWorkflows {
         if(id==null)d.jdbc.update("INSERT INTO training_contracts(id,code,student_id,consultation_id,course_id,tuition_due,deposit_due,status,created_by,manager_id,starts_on,payment_due_on,payment_schedule,terms) VALUES (?,?,?,?,?,?,?,'DRAFT',?,?,?,?,?,?)",key,"HD-"+key.toString().substring(0,8).toUpperCase(Locale.ROOT),student,admission,course,tuition,deposit,u.id,co.get("managerId"),start,due,schedule,terms);
         else d.jdbc.update("UPDATE training_contracts SET student_id=?,consultation_id=?,course_id=?,tuition_due=?,deposit_due=?,manager_id=?,starts_on=?,payment_due_on=?,payment_schedule=?,terms=?,version=version+1 WHERE id=?",student,admission,course,tuition,deposit,co.get("managerId"),start,due,schedule,terms,key);
         d.jdbc.update("UPDATE consultation_followups SET status='CONTRACTED',version=version+1,updated_at=CURRENT_TIMESTAMP WHERE consultation_id=?",admission);
+        if(previousAdmission!=null&&!previousAdmission.equals(admission))d.jdbc.update("UPDATE consultation_followups SET status='CONTACTED',version=version+1,updated_at=CURRENT_TIMESTAMP WHERE consultation_id=? AND status='CONTRACTED' AND NOT EXISTS(SELECT 1 FROM training_contracts WHERE consultation_id=? AND status<>'CANCELLED')",previousAdmission,previousAdmission);
         return saved("TrainingContractDetail",key);
     }
     public Map<String,Object> signature(String id,Map<String,Object> p,User u){
-        role(u,"HR");var c=d.record("contracts",id,u);UUID key=uuid(id);d.lock("training_contracts",key,p);
+        role(u,"MANAGER");d.record("contracts",id,u);UUID key=uuid(id);d.lock("training_contracts",key,p);var c=d.record("contracts",id,u);
         if(!"DRAFT".equals(c.get("status")))throw conflict("Hợp đồng đã được ký hoặc không còn ở trạng thái bản nháp");
         long accountant=number(p,"accountantId",1,Long.MAX_VALUE);d.requireRoleId(accountant,4);
         LocalDate signed=date(p,"signedOn",true);if(signed.isAfter(LocalDate.now()))throw invalid("signedOn","Ngày ký không được ở tương lai");

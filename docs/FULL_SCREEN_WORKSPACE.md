@@ -28,7 +28,7 @@ Migration bổ sung schema và quyền; không tạo học viên, lớp, hợp �
 
 1. **Cấu hình khóa học:** Manager tạo khóa, thời lượng, sức chứa lớp, học phí tham khảo, các đầu điểm/trọng số tổng 100% và danh sách giảng viên đủ điều kiện. Khóa nháp chưa công khai. Sau khi mở tuyển sinh, nội dung xuất hiện ở trang công khai.
 2. **Tiếp nhận:** khách gửi Contact → lưu vào bảng đăng ký thực tế → HR xem chi tiết, ghi kết quả tư vấn, lịch hẹn và email đã xác minh nếu cần bổ sung. Có lịch sử từng lần tư vấn. Không có trang tra cứu đăng ký công khai.
-3. **Hợp đồng:** Admin cấp tài khoản Student với email đã được xác minh; HR liên kết hồ sơ với tài khoản này, chọn khóa và thỏa thuận học phí/cọc. Chỉ sửa bản nháp. Ghi ngày ký, minh chứng và kế toán tiếp nhận để bàn giao. Manager/Accountant xem hợp đồng đã được bàn giao; không sửa hợp đồng thay HR.
+3. **Hợp đồng:** HR xác minh email và chuyển hồ sơ sang **Đã liên hệ**. Admin cấp tài khoản Student khớp email. Manager liên kết hồ sơ này, chọn khóa mình quản lý và thỏa thuận học phí/cọc; chỉ sửa bản nháp. Manager ghi ngày ký, minh chứng và kế toán tiếp nhận để bàn giao. HR không truy cập các màn hợp đồng. Accountant xem hợp đồng đã bàn giao trong phạm vi được phân công. Chi tiết: [MANAGER_TRAINING_CONTRACTS.md](MANAGER_TRAINING_CONTRACTS.md).
 4. **Đối soát:** Accountant tiếp nhận chứng từ ngân hàng, đối chiếu hợp đồng/người học, mục đích, số tiền và mã ngân hàng. Giao dịch chưa xác nhận không làm giảm công nợ. Sai lệch phải được làm rõ; tín hiệu trùng mở bản ghi gốc và không thu lần hai. Màn này chưa tự kết nối ngân hàng bên ngoài; không giả lập trạng thái Banking đã tích hợp.
 5. **Xếp lớp:** khi học phí đã được xác nhận đủ nghĩa vụ hợp đồng, hệ thống xếp lớp theo khóa/ngày bắt đầu/sức chứa và danh sách giảng viên đủ điều kiện. Nếu chưa có giảng viên khả dụng, lớp giữ chờ phân công để Manager kiểm tra. Hợp đồng học phí bằng 0 cần Accountant xác nhận căn cứ miễn phí, không tạo giao dịch tiền bằng 0. Manager kiểm tra và điều chỉnh lớp, giảng viên, sĩ số/lịch trong phạm vi được giao.
 6. **Giảng dạy:** Manager lập lịch, server chặn trùng lớp/phòng/giảng viên. Lecturer điểm danh, lưu tạm hoặc chốt đủ học viên; dữ liệu đã chốt không tự mở lại. Điều chỉnh trước khi chốt phải có lý do. Bảng điểm dùng cấu hình khóa, điểm 0–10; công bố khi đủ đầu điểm. Student chỉ thấy điểm đã công bố.
@@ -71,3 +71,7 @@ Script đọc workbook thành dữ liệu quyền, đối chiếu manifest SVG v
 ## Bổ sung danh mục dùng chung
 
 BK-VTCMS có thêm 12 màn danh mục riêng, đưa tổng số mã màn lên 120. Khởi động lại backend để áp dụng V11. IT Support quản lý nhóm thiết bị/vị trí kho, Manager quản lý ngành nghề, Admin quản lý phòng học. Các biểu mẫu dùng ID danh mục và kế toán chọn ngân hàng từ `m_bank`. Chi tiết: [MASTER_DATA.md](MASTER_DATA.md).
+
+## Chuyển trách nhiệm hợp đồng (V12)
+
+Khởi động lại backend để áp dụng V12. Phần tài khoản/đăng xuất được ghim ở đáy menu; năm màn hợp đồng đào tạo do Manager quản lý, HR không còn truy cập. Danh sách hồ sơ khi tạo hợp đồng mới chỉ nhận trạng thái CONTACTED. Xem [MANAGER_TRAINING_CONTRACTS.md](MANAGER_TRAINING_CONTRACTS.md).

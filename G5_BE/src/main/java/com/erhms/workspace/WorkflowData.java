@@ -78,9 +78,9 @@ public class WorkflowData {
         case "STUDENT"->"EXISTS(SELECT 1 FROM training_enrollments scope_e WHERE scope_e.class_id="+alias+".id AND scope_e.student_id="+u.id+")";
         default->"1=0";};}
     public static String contractScope(User u,String alias){return switch(u.getRoleCode()){
-        case "HR"->"("+alias+".created_by="+u.id+" OR ("+alias+".created_by IS NULL AND EXISTS(SELECT 1 FROM consultation_followups scope_f WHERE scope_f.consultation_id="+alias+".consultation_id AND scope_f.assigned_to="+u.id+")))";
+        case "HR"->alias+".handed_over_at IS NOT NULL AND EXISTS(SELECT 1 FROM consultation_followups scope_f WHERE scope_f.consultation_id="+alias+".consultation_id AND scope_f.assigned_to="+u.id+")";
         case "ACCOUNTANT"->"("+alias+".accountant_id="+u.id+" OR "+alias+".accountant_id IS NULL) AND "+alias+".handed_over_at IS NOT NULL";
-        case "MANAGER"->alias+".manager_id="+u.id+" AND "+alias+".handed_over_at IS NOT NULL";
+        case "MANAGER"->alias+".manager_id="+u.id;
         case "STUDENT"->alias+".student_id="+u.id;
         default->"1=0";};}
     public String base(String resource,User u){

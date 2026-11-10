@@ -763,10 +763,6 @@
       [
         "Ghi nhận tư vấn",
         "AdmissionConsultation"
-      ],
-      [
-        "Tạo hợp đồng",
-        "AddTrainingContract"
       ]
     ],
     "variant": "Màn hình chính",
@@ -1076,13 +1072,12 @@
     "title": "Hợp đồng đào tạo",
     "roles": [
       "ACCOUNTANT",
-      "MANAGER",
-      "HR"
+      "MANAGER"
     ],
     "proposedRoles": [],
     "public": false,
-    "scope": "Đăng ký tư vấn, hợp đồng và trạng thái học phí của hồ sơ được phân công phụ trách. Role xem chéo chỉ đọc dữ liệu liên quan nhiệm vụ; ẩn các nút thay đổi của role chủ trì.",
-    "actions": "Tuyển dụng quản lý hợp đồng; Quản lý sinh viên xem hợp đồng được bàn giao; Kế toán xem để đối chiếu thanh toán.",
+    "scope": "Manager theo hợp đồng và khóa học được phân công; Kế toán theo hồ sơ đã bàn giao.",
+    "actions": "Manager quản lý hợp đồng đào tạo; Kế toán xem hợp đồng đã bàn giao để đối chiếu.",
     "variant": "Màn hình chính",
     "kind": "list",
     "functionCode": "ListTrainingContract",
@@ -1111,12 +1106,12 @@
     "fe": "FE-07",
     "title": "Tạo hợp đồng đào tạo",
     "roles": [
-      "HR"
+      "MANAGER"
     ],
     "proposedRoles": [],
     "public": false,
-    "scope": "Đăng ký tư vấn, hợp đồng và trạng thái học phí của hồ sơ được phân công phụ trách.",
-    "actions": "Tuyển dụng tạo hợp đồng từ hồ sơ đã tư vấn. Quản lý sinh viên và Kế toán không lập hợp đồng tại màn này.",
+    "scope": "Manager theo hợp đồng và khóa học được phân công; Kế toán theo hồ sơ đã bàn giao.",
+    "actions": "Manager lập hợp đồng từ hồ sơ ở trạng thái Đã liên hệ và khóa học mình quản lý.",
     "variant": "Màn hình chính",
     "kind": "form",
     "functionCode": "AddTrainingContract",
@@ -1186,12 +1181,12 @@
     "fe": "FE-07",
     "title": "Chỉnh sửa hợp đồng đào tạo",
     "roles": [
-      "HR"
+      "MANAGER"
     ],
     "proposedRoles": [],
     "public": false,
-    "scope": "Đăng ký tư vấn, hợp đồng và trạng thái học phí của hồ sơ được phân công phụ trách.",
-    "actions": "Chỉ Tuyển dụng và chỉ ở trạng thái được phép sửa; hợp đồng đã ký cần quy trình điều chỉnh tương ứng.",
+    "scope": "Manager theo hợp đồng và khóa học được phân công; Kế toán theo hồ sơ đã bàn giao.",
+    "actions": "Manager sửa hợp đồng nháp trong phạm vi quản lý.",
     "variant": "Màn hình chính",
     "kind": "form",
     "functionCode": "EditTrainingContract",
@@ -1262,12 +1257,11 @@
     "title": "Chi tiết hợp đồng đào tạo",
     "roles": [
       "ACCOUNTANT",
-      "MANAGER",
-      "HR"
+      "MANAGER"
     ],
     "proposedRoles": [],
     "public": false,
-    "scope": "Đăng ký tư vấn, hợp đồng và trạng thái học phí của hồ sơ được phân công phụ trách. Role xem chéo chỉ đọc dữ liệu liên quan nhiệm vụ; ẩn các nút thay đổi của role chủ trì.",
+    "scope": "Manager theo hợp đồng và khóa học được phân công; Kế toán theo hồ sơ đã bàn giao.",
     "actions": [
       [
         "Cập nhật minh chứng ký",
@@ -1296,12 +1290,12 @@
     "fe": "FE-07",
     "title": "Ghi nhận ký & bàn giao hợp đồng",
     "roles": [
-      "HR"
+      "MANAGER"
     ],
     "proposedRoles": [],
     "public": false,
-    "scope": "Đăng ký tư vấn, hợp đồng và trạng thái học phí của hồ sơ được phân công phụ trách.",
-    "actions": "Tuyển dụng ghi nhận minh chứng ký và bàn giao. Bộ phận nhận xem kết quả trong TrainingContractDetail.",
+    "scope": "Manager theo hợp đồng và khóa học được phân công; Kế toán theo hồ sơ đã bàn giao.",
+    "actions": "Manager ghi nhận minh chứng ký và bàn giao cho Kế toán.",
     "variant": "Tab ký và bàn giao của TrainingContractDetail",
     "kind": "form",
     "functionCode": "ContractSignature",

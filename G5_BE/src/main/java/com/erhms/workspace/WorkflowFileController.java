@@ -20,7 +20,7 @@ public class WorkflowFileController {
     @PostMapping(consumes=MediaType.MULTIPART_FORM_DATA_VALUE)
     public Map<String,Object> upload(@RequestParam MultipartFile file,@RequestParam String screen) throws IOException {
         User u=current.get();role(u,"HR","MANAGER","IT_SUPPORT","ACCOUNTANT");
-        if(!Set.of("ContractSignature","RecordWithdrawal","AssetHandover","ListAssetDetail","Recovery_Withdrawal","AssetIncidentDetail","AssetIncidentDetail_Accountant","DepositRefund","ListPayment","ListAssetIncident").contains(screen))throw new AccessDeniedException("Màn không hỗ trợ tải minh chứng");permissions.require(screen);
+        if(!Set.of("ContractSignature","RecordWithdrawal","AssetHandover","ListAssetDetail","Recovery_Withdrawal","AssetIncidentDetail","AssetIncidentDetail_Accountant","DepositRefund","ListPayment","ListAssetIncident").contains(screen))throw new AccessDeniedException("Màn không hỗ trợ tải minh chứng");permissions.require(screen);if(screen.equals("ContractSignature"))role(u,"MANAGER");
         if(file.isEmpty()||file.getSize()>2097152)throw invalid("evidence","Tệp cần có dữ liệu và không vượt quá 2 MB");
         byte[] bytes=file.getBytes();String type;
         if(bytes.length>=5&&new String(bytes,0,5,StandardCharsets.US_ASCII).equals("%PDF-"))type="application/pdf";

@@ -17,7 +17,7 @@ test('all 108 workbook screens and 12 master data screens are mapped to separate
  assert.equal(business,92);assert.equal(pages,9);
 });
 test('confirmed screen access matches the seven role totals in the XLSX including public and shared screens',()=>{
- const totals=[28,30,26,41,44,53,31];
+ const totals=[28,30,26,41,44,56,26];
  roles.forEach((role,index)=>{const user={role,roleId:index+1};assert.equal(Object.keys(screens).filter(code=>canScreen(code,user,grants(role))).length,totals[index],role);});
 });
 test('proposed rights and grants outside the declared role do not enable business screens',()=>{
@@ -50,7 +50,7 @@ test('dashboard records and tasks lead to the appropriate role screen and respec
  assert.equal(dashboardLink({role:'LECTURER'},{panelKey:'classes',row:{id}},['ClassDetail_Lecturer']),'/screens/ClassDetail_Lecturer/'+id);
  assert.equal(dashboardLink({role:'ACCOUNTANT'},{panelKey:'transactions',row:{id}},['PaymentDetail']),'/screens/PaymentDetail/'+id);
  assert.equal(dashboardLink({role:'STUDENT'},{panelKey:'equipment',row:{id}},['StudentAssetReceipt']),'/screens/StudentAssetReceipt/'+id);
- assert.equal(dashboardLink({role:'HR'},{taskKey:'drafts'},['ListTrainingContract']),'/screens/ListTrainingContract');
+ assert.equal(dashboardLink({role:'MANAGER'},{taskKey:'drafts'},['ListTrainingContract']),'/screens/ListTrainingContract');
  assert.equal(dashboardLink({role:'MANAGER'},{panelKey:'assignments',row:{id}},[]),null);
  assert.equal(screenPath('ChangePassword'),'/screens/ChangePassword');
 });
@@ -65,4 +65,16 @@ test('master data screens have distinct components and strict role permissions',
   }
   assert.ok(screenNavigation({role},grants(role)).some(item=>item.code==='List'+suffix));
  }
+});
+test('training contracts belong to Manager and HR cannot regain access through a stale grant',()=>{
+ const codes=['ListTrainingContract','AddTrainingContract','EditTrainingContract','TrainingContractDetail','ContractSignature'];
+ for(const code of codes){
+  assert.equal(canScreen(code,{role:'MANAGER'},[code]),true);
+  assert.equal(canScreen(code,{role:'MANAGER'},[]),false);
+  assert.equal(canScreen(code,{role:'HR'},[code]),false);
+ }
+ assert.ok(screenNavigation({role:'MANAGER'},grants('MANAGER')).some(item=>item.code==='ListTrainingContract'));
+ assert.ok(!screenNavigation({role:'HR'},grants('HR')).some(item=>item.code==='ListTrainingContract'));
+ assert.equal(dashboardLink({role:'HR'},{taskKey:'drafts'},['ListTrainingContract']),null);
+ assert.equal(dashboardLink({role:'MANAGER'},{panelKey:'contracts',row:{id:'42'}},['TrainingContractDetail']),'/screens/TrainingContractDetail/42');
 });
