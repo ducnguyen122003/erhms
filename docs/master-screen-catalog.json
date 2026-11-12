@@ -96,7 +96,7 @@
     "kind": "master_list",
     "functionCode": "ListProfession",
     "roles": [
-      "MANAGER"
+      "ADMIN"
     ],
     "public": false,
     "description": "Quản lý danh mục ngành nghề dùng chung.",
@@ -111,7 +111,7 @@
     "kind": "master_add",
     "functionCode": "AddProfession",
     "roles": [
-      "MANAGER"
+      "ADMIN"
     ],
     "public": false,
     "description": "Quản lý danh mục ngành nghề dùng chung.",
@@ -126,7 +126,7 @@
     "kind": "master_edit",
     "functionCode": "EditProfession",
     "roles": [
-      "MANAGER"
+      "ADMIN"
     ],
     "public": false,
     "description": "Quản lý danh mục ngành nghề dùng chung.",

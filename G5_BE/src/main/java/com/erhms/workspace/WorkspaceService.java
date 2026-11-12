@@ -42,6 +42,7 @@ public class WorkspaceService {
         String resource=resource(code);if(page<0||page>100000||q.length()>200||status.length()>40)throw invalid("filter","Bộ lọc không hợp lệ");
         if(code.equals("StudentProfileDetail_Student"))id=u.id.toString();
         Map<String,Object> result=new LinkedHashMap<>();result.put("resource",resource);result.put("canWrite",canWrite(code,u));
+        if(code.equals("ListAdmissionApplication"))result.put("canImport",u.getRoleCode().equals("HR"));
         if(id!=null){var record=d.record(resource,id,u);result.put("record",record);result.put("related",related(code,resource,record,u));}
         else if(!Set.of("AddCourse","AddTrainingContract","AddEquipmentRequest","AddAsset","SendNotification").contains(code)){
             long total;
@@ -68,7 +69,8 @@ public class WorkspaceService {
         result.put("options",options(code,u,id));return result;
     }
     private boolean canWrite(String code,User u){return switch(u.getRoleCode()){
-        case "MANAGER"->Set.of("AddTrainingContract","EditTrainingContract","ContractSignature","AddCourse","EditCourse","EditClass","TimeTable_Manager","TimeTable_EditSession","TimeTable_Conflict","EditStudentProfile","SendNotification","AutoAssignmentDetail","TrainingClosureDetail","TrainingClosureDetail_Ready","TrainingClosureDetail_Withdrawal","RecordWithdrawal").contains(code);
+        case "ADMIN"->Set.of("AddCourse","EditCourse").contains(code);
+        case "MANAGER"->Set.of("AddTrainingContract","EditTrainingContract","ContractSignature","EditClass","TimeTable_Manager","TimeTable_EditSession","TimeTable_Conflict","EditStudentProfile","SendNotification","AutoAssignmentDetail","TrainingClosureDetail","TrainingClosureDetail_Ready","TrainingClosureDetail_Withdrawal","RecordWithdrawal").contains(code);
         case "HR"->code.equals("AdmissionConsultation");
         case "LECTURER"->Set.of("ClassAttendance","Attendance_Correction","ClassGradebook","AddEquipmentRequest").contains(code);
         case "ACCOUNTANT"->Set.of("ListPayment","PaymentDetail","PaymentDetail_Mismatch","PaymentInstruction","TuitionDetail","DepositRefund","AssetIncidentDetail_Accountant").contains(code);
@@ -79,7 +81,7 @@ public class WorkspaceService {
         switch(resource){
             case "admissions"->related.put("history",d.rows("SELECT n.*,u.full_name AS actor_name FROM consultation_notes n JOIN m_user u ON u.user_id=n.actor_id WHERE n.consultation_id=? ORDER BY n.created_at DESC",key));
             case "students"->{long student=((Number)record.get("id")).longValue();related.put("enrollments",d.rows("SELECT e.id,e.class_id,e.status,c.code AS class_code,c.name AS class_name FROM training_enrollments e JOIN training_classes c ON c.id=e.class_id WHERE e.student_id=? AND "+classScope(u,"c"),student));related.put("contracts",d.rows("SELECT id,code,course_name,status FROM ("+d.base("contracts",u)+") scoped WHERE student_id=?",student));}
-            case "courses"->{related.put("assessments",d.rows("SELECT title,weight FROM course_assessments WHERE course_id=? ORDER BY title",key));related.put("lecturers",d.rows("SELECT l.lecturer_id AS id,u.full_name AS name FROM course_lecturers l JOIN m_user u ON u.user_id=l.lecturer_id WHERE l.course_id=?",key));related.put("classes",d.rows("SELECT id,code,name,status FROM training_classes c WHERE c.course_id=? AND "+classScope(u,"c"),key));}
+            case "courses"->{related.put("assessments",d.rows("SELECT title,weight FROM course_assessments WHERE course_id=? ORDER BY title",key));related.put("lecturers",d.rows("SELECT l.lecturer_id AS id,u.full_name AS name FROM course_lecturers l JOIN m_user u ON u.user_id=l.lecturer_id WHERE l.course_id=?",key));related.put("classes",d.rows("SELECT id,code,name,status FROM training_classes c WHERE c.course_id=? AND "+(u.getRoleCode().equals("ADMIN")?"1=1":classScope(u,"c")),key));}
             case "classes"->{related.put("students",d.rows("SELECT e.id AS enrollment_id,e.student_id,u.full_name AS student_name,e.status,e.closed_at,e.assignment_status FROM training_enrollments e JOIN m_user u ON u.user_id=e.student_id WHERE e.class_id=? ORDER BY u.full_name",key));
                 related.put("sessions",d.rows("SELECT id,title,starts_at,ends_at,room,attendance_finalized,version FROM training_sessions WHERE class_id=? ORDER BY starts_at",key));
                 if(code.equals("ClassGradebook")){related.put("assessments",d.rows("SELECT title,weight FROM course_assessments WHERE course_id=? ORDER BY title",record.get("courseId")==null?null:uuid(record.get("courseId").toString())));related.put("grades",d.rows("SELECT g.* FROM training_grades g JOIN training_enrollments e ON e.id=g.enrollment_id WHERE e.class_id=?",key));}}
@@ -100,7 +102,10 @@ public class WorkspaceService {
         Map<String,Object> out=new LinkedHashMap<>();
         switch(code){
             case "AddCourse","EditCourse","EditClass"->{
-                if(!code.equals("EditClass"))out.put("professions",masters.choices("professions"));
+                if(!code.equals("EditClass")){
+                    out.put("professions",masters.choices("professions"));
+                    out.put("managers",d.rows("SELECT u.user_id AS id,u.full_name AS name FROM m_user u JOIN m_role r ON r.role_id=u.role_id WHERE r.role_id=6 AND r.code='MANAGER' AND u.account_enabled=TRUE AND u.account_locked=FALSE ORDER BY u.full_name"));
+                }
                 if(code.equals("EditClass")&&id!=null&&d.record("classes",id,u).get("courseId")!=null)out.put("lecturers",d.rows("SELECT user_id AS id,full_name AS name FROM m_user WHERE role_id=2 AND account_enabled=TRUE AND account_locked=FALSE AND user_id IN(SELECT lecturer_id FROM course_lecturers WHERE course_id=?) ORDER BY full_name",uuid(d.record("classes",id,u).get("courseId").toString())));
                 else out.put("lecturers",d.rows("SELECT user_id AS id,full_name AS name FROM m_user WHERE role_id=2 AND account_enabled=TRUE AND account_locked=FALSE ORDER BY full_name"));
             }
@@ -110,7 +115,7 @@ public class WorkspaceService {
                 String eligible="(f.status='CONTACTED' OR (r.id=? AND f.status='CONTRACTED'))";
                 out.put("admissions",d.rows("SELECT r.*,f.status FROM consultation_registrations r JOIN consultation_followups f ON f.consultation_id=r.id WHERE "+eligible+" ORDER BY r.created_date DESC,r.id",admission));
                 out.put("courses",d.rows("SELECT scoped.* FROM ("+d.base("courses",u)+") scoped WHERE status IN ('OPEN','ACTIVE') ORDER BY name"));
-                out.put("students",d.rows("SELECT DISTINCT s.user_id AS id,s.full_name AS name,s.email FROM m_user s JOIN consultation_registrations r ON LOWER(r.email)=LOWER(s.email) JOIN consultation_followups f ON f.consultation_id=r.id WHERE s.role_id=3 AND s.account_enabled=TRUE AND s.account_locked=FALSE AND "+eligible+" ORDER BY s.full_name",admission));
+                out.put("students",d.rows("SELECT DISTINCT s.user_id AS id,s.full_name AS name,s.email FROM m_user s JOIN consultation_registrations r ON LOWER(TRIM(r.email))=LOWER(TRIM(s.email)) JOIN consultation_followups f ON f.consultation_id=r.id WHERE s.role_id=3 AND s.account_enabled=TRUE AND s.account_locked=FALSE AND "+eligible+" ORDER BY s.full_name",admission));
             }
             case "ContractSignature"->out.put("accountants",d.rows("SELECT user_id AS id,full_name AS name FROM m_user WHERE role_id=4 AND account_enabled=TRUE AND account_locked=FALSE ORDER BY full_name"));
             case "TimeTable_EditSession","TimeTable_Manager","TimeTable_Conflict"->{out.put("classes",choices("classes",u));out.put("classrooms",masters.choices("classrooms"));}

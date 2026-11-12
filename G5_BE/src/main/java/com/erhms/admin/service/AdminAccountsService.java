@@ -50,6 +50,7 @@ public class AdminAccountsService {
                 UNION ALL SELECT student_id FROM equipment_loans WHERE student_id = :id
                 UNION ALL SELECT reported_by FROM equipment_incidents WHERE reported_by = :id
                 UNION ALL SELECT assigned_to FROM consultation_followups WHERE assigned_to = :id
+                UNION ALL SELECT imported_by FROM consultation_registrations WHERE imported_by = :id
                 UNION ALL SELECT manager_id FROM training_courses WHERE manager_id = :id
                 UNION ALL SELECT lecturer_id FROM course_lecturers WHERE lecturer_id = :id
                 UNION ALL SELECT user_id FROM student_profiles WHERE user_id = :id OR manager_id = :id

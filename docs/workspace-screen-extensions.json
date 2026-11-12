@@ -1,0 +1,15 @@
+[
+  {
+    "code": "ListStudentAccount",
+    "fe": "FE-06A",
+    "title": "Cấp tài khoản học viên",
+    "kind": "student_accounts",
+    "functionCode": "ListStudentAccount",
+    "roles": [
+      "MANAGER"
+    ],
+    "public": false,
+    "description": "Xem hồ sơ đã liên hệ và cấp tài khoản học viên bằng email đã cung cấp.",
+    "scope": "Quản lý học viên tiếp nhận hồ sơ ở trạng thái Đã liên hệ để cấp tài khoản STUDENT; thông tin đăng nhập được gửi tới email của hồ sơ."
+  }
+]

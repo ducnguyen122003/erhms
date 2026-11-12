@@ -68,6 +68,7 @@ public class WorkflowData {
     }
     public static void role(User user,String...allowed){if(!Arrays.asList(allowed).contains(user.getRoleCode()))throw new AccessDeniedException("Bạn chỉ được xem, không có quyền thực hiện thao tác này");}
     public static String courseScope(User u,String alias){return switch(u.getRoleCode()){
+        case "ADMIN"->"1=1";
         case "MANAGER"->alias+".manager_id="+u.id;
         case "LECTURER"->"EXISTS(SELECT 1 FROM training_classes scope_cl WHERE scope_cl.course_id="+alias+".id AND scope_cl.lecturer_id="+u.id+")";
         case "HR"->alias+".status IN ('OPEN','ACTIVE')";
@@ -86,9 +87,9 @@ public class WorkflowData {
     public String base(String resource,User u){
         long uid=u.id;
         return switch(resource){
-            case "admissions"->"SELECT r.*,COALESCE(f.status,'NEW') AS status,f.assigned_to,COALESCE(f.version,0) AS version,f.channel,f.notes,f.appointment_at FROM consultation_registrations r LEFT JOIN consultation_followups f ON f.consultation_id=r.id WHERE (f.assigned_to IS NULL OR f.assigned_to="+uid+")";
+            case "admissions"->"SELECT r.*,COALESCE(f.status,'NEW') AS status,f.assigned_to,COALESCE(f.version,0) AS version,f.channel,f.notes,f.appointment_at FROM consultation_registrations r LEFT JOIN consultation_followups f ON f.consultation_id=r.id WHERE r.intake_source='ADMISSION' AND (f.assigned_to IS NULL OR f.assigned_to="+uid+")";
             case "students"->"SELECT u.user_id AS id,u.full_name AS name,u.full_name,u.email,u.phone,p.date_of_birth,p.identity_number,p.address,p.emergency_name,p.emergency_phone,COALESCE(p.version,0) AS version,COALESCE((SELECT en.status FROM training_enrollments en JOIN training_classes sc ON sc.id=en.class_id WHERE en.student_id=u.user_id AND "+classScope(u,"sc")+" ORDER BY en.created_at DESC FETCH FIRST 1 ROW ONLY),'PENDING') AS status FROM m_user u LEFT JOIN student_profiles p ON p.user_id=u.user_id WHERE u.role_id=3 AND "+(u.getRoleCode().equals("STUDENT")?"u.user_id="+uid:"(p.manager_id="+uid+" OR EXISTS(SELECT 1 FROM training_contracts scope_c WHERE scope_c.student_id=u.user_id AND scope_c.manager_id="+uid+" AND scope_c.handed_over_at IS NOT NULL) OR EXISTS(SELECT 1 FROM training_enrollments scope_e JOIN training_classes scope_cl ON scope_cl.id=scope_e.class_id WHERE scope_e.student_id=u.user_id AND "+classScope(u,"scope_cl")+"))");
-            case "courses"->"SELECT c.*,(SELECT p.name FROM m_profession p WHERE p.id=c.profession_id) AS profession_label FROM training_courses c WHERE "+courseScope(u,"c");
+            case "courses"->"SELECT c.*,(SELECT p.name FROM m_profession p WHERE p.id=c.profession_id) AS profession_label,(SELECT m.full_name FROM m_user m WHERE m.user_id=c.manager_id) AS manager_name FROM training_courses c WHERE "+courseScope(u,"c");
             case "classes"->"SELECT cl.*,co.name AS course_name,co.code AS course_code,lect.full_name AS lecturer_name,(SELECT COUNT(*) FROM training_enrollments e WHERE e.class_id=cl.id AND e.status IN ('ACTIVE','PENDING')) AS student_count FROM training_classes cl LEFT JOIN training_courses co ON co.id=cl.course_id LEFT JOIN m_user lect ON lect.user_id=cl.lecturer_id WHERE "+classScope(u,"cl");
             case "assignments","closures"->"SELECT e.*,u.full_name AS student_name,cl.code AS class_code,cl.name AS class_name,co.name AS course_name,ct.code AS contract_code,"+(resource.equals("assignments")?"e.assignment_status":"COALESCE(e.closure_outcome,e.status)")+" AS state FROM training_enrollments e JOIN training_classes cl ON cl.id=e.class_id JOIN m_user u ON u.user_id=e.student_id LEFT JOIN training_courses co ON co.id=cl.course_id LEFT JOIN training_contracts ct ON ct.id=e.contract_id WHERE "+(List.of("ACCOUNTANT","IT_SUPPORT").contains(u.getRoleCode())?"ct.handed_over_at IS NOT NULL"+(u.getRoleCode().equals("ACCOUNTANT")?" AND "+contractScope(u,"ct"):""):classScope(u,"cl"));
             case "sessions"->"SELECT s.*,(SELECT m.name FROM m_classroom m WHERE m.id=s.classroom_id) AS room_label,cl.code AS class_code,cl.name AS class_name,cl.lecturer_id,l.full_name AS lecturer_name FROM training_sessions s JOIN training_classes cl ON cl.id=s.class_id LEFT JOIN m_user l ON l.user_id=cl.lecturer_id WHERE "+classScope(u,"cl");
@@ -116,7 +117,8 @@ public class WorkflowData {
     public static long numericId(String id){try{long n=Long.parseLong(id);if(n<=0)throw new NumberFormatException();return n;}catch(Exception e){throw invalid("id","Mã tài khoản không hợp lệ");}}
     public List<Map<String,Object>> page(String resource,User u,String q,String status,int page){
         String sql=filtered(resource,u,q,status);List<Object> args=filters(q,status);args.add(25);args.add(page*25);
-        return rows(sql+" ORDER BY id LIMIT ? OFFSET ?",args.toArray());
+        String order=resource.equals("admissions")?"created_date DESC, id":"id";
+        return rows(sql+" ORDER BY "+order+" LIMIT ? OFFSET ?",args.toArray());
     }
     public long total(String resource,User u,String q,String status){return count("SELECT COUNT(*) FROM ("+filtered(resource,u,q,status)+") results",filters(q,status).toArray());}
     public List<Map<String,Object>> statistics(String resource,User user,String q,String status){

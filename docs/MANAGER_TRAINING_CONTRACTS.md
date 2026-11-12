@@ -24,7 +24,7 @@ HR tiếp tục tiếp nhận đăng ký, xác minh email, tư vấn và cập n
 
 1. Khách gửi đăng ký tư vấn/tuyển sinh.
 2. HR mở **Đăng ký tư vấn & tuyển sinh → Ghi nhận tư vấn**, xác minh email và lưu trạng thái **Đã liên hệ** (`CONTACTED`).
-3. Admin tạo tài khoản Student với đúng email đã xác minh, nếu học viên chưa có tài khoản.
+3. Manager mở **Cấp tài khoản học viên** để tạo tài khoản Student với đúng email đã xác minh, nếu học viên chưa có tài khoản. Hệ thống gửi mật khẩu ban đầu qua email. Chi tiết: [STUDENT_ACCOUNT_PROVISIONING.md](STUDENT_ACCOUNT_PROVISIONING.md).
 4. Manager vào **Hợp đồng đào tạo → Tạo hợp đồng**, chọn **Hồ sơ đã tư vấn**. Chỉ hồ sơ ở trạng thái **Đã liên hệ** xuất hiện khi tạo mới; hồ sơ mới tiếp nhận, hẹn tư vấn, đã đóng hoặc đã lập hợp đồng không xuất hiện.
 5. Chọn tài khoản học viên khớp email và khóa học đang mở/hoạt động thuộc Manager, nhập ngày bắt đầu, học phí, cọc, hạn thanh toán và điều khoản.
 6. Lưu hợp đồng. Hệ thống chuyển hồ sơ đăng ký sang **Đã lập hợp đồng** (`CONTRACTED`). HR không tự chọn trạng thái này khi chưa có hợp đồng.

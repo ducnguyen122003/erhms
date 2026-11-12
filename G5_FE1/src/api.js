@@ -5,13 +5,15 @@ export async function refreshCsrf(){
  csrf=await response.json();
 }
 export async function api(path,options={}){
+ const {responseType='json',...requestOptions}=options;
  const method=options.method || 'GET';
  if(method!=='GET' && !csrf)await refreshCsrf();
  const headers={...options.headers};
  if(method!=='GET')headers[csrf.headerName]=csrf.token;
  if(options.body && !(options.body instanceof URLSearchParams) && !(options.body instanceof FormData))headers['Content-Type']='application/json';
- const response=await fetch(path,{credentials:'same-origin',...options,headers});
+ const response=await fetch(path,{credentials:'same-origin',...requestOptions,headers});
  if(response.status===204)return null;
+ if(response.ok && responseType==='blob')return response.blob();
  const data=await response.json().catch(()=>({message:'Phản hồi máy chủ không hợp lệ'}));
  if(!response.ok){const error=new Error(data.message || 'Không thể thực hiện thao tác');error.status=response.status;error.code=data.code;error.fields=data.fields;error.retryAfterSeconds=data.retryAfterSeconds;throw error;}
  return data;

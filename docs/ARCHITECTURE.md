@@ -44,4 +44,4 @@ erDiagram
 - https://docs.spring.io/spring-security/reference/servlet/authorization/method-security.html
 - https://vite.dev/guide/
 
-Spring Boot 3.5.16 được cố định trong pom, Java 17. FE cố định React 19.2.0, Vite 7.1.9 và có package-lock. Đây là lựa chọn phiên bản cho starter, không phải tuyên bố phiên bản mới nhất.
+Spring Boot 3.5.16 được cố định trong pom, Java 25 (LTS). FE cố định React 19.2.0, Vite 7.1.9 và có package-lock. Đây là lựa chọn phiên bản cho starter, không phải tuyên bố phiên bản mới nhất.

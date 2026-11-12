@@ -44,7 +44,8 @@ class ScreenWorkflowIntegrationTest {
  JsonNode action(User user,String code,String id,String action,Map<String,Object> input)throws Exception{return body(act(user,code,id,action,input).andExpect(status().isOk()).andReturn());}
  Map<String,Object> values(Object...pairs){Map<String,Object> result=new LinkedHashMap<>();for(int i=0;i<pairs.length;i+=2)result.put((String)pairs[i],pairs[i+1]);return result;}
  long version(User u,String code,String id)throws Exception{return view(u,code,id).path("record").path("version").asLong();}
- String createCourse()throws Exception{return save(manager,"AddCourse",null,values("name","Khóa thực hành","code","KH-"+UUID.randomUUID().toString().substring(0,8),"professionId",PROFESSION,"durationMonths",3,"totalSessions",2,"classCapacity",10,"tuitionFee",1000,"objectives","Kỹ năng thực hành","entryRequirements","Theo hồ sơ","status","OPEN","assessments",List.of(values("title","Thực hành","weight",100)),"lecturers",List.of(values("id",lecturer.id)))).path("id").asText();}
+ Map<String,Object> courseInput(){return values("name","Khóa thực hành","code","KH-"+UUID.randomUUID().toString().substring(0,8),"professionId",PROFESSION,"managerId",manager.id,"durationMonths",3,"totalSessions",2,"classCapacity",10,"tuitionFee",1000,"objectives","Kỹ năng thực hành","entryRequirements","Theo hồ sơ","status","OPEN","assessments",List.of(values("title","Thực hành","weight",100)),"lecturers",List.of(values("id",lecturer.id)));}
+ String createCourse()throws Exception{return save(admin,"AddCourse",null,courseInput()).path("id").asText();}
  String createContract(String course)throws Exception{
   String admission=body(mvc.perform(post("/api/public/consultations").with(csrf()).contentType("application/json").content(json.writeValueAsString(values("fullName",student.fullName,"phone","0912345678","email",student.email,"contactTime","any","program_name","Khóa thực hành")))).andExpect(status().isCreated()).andReturn()).path("id").asText();
   save(hr,"AdmissionConsultation",admission,values("version",0,"channel","PHONE","status","CONTACTED","notes","Đã tư vấn thông tin khóa học","appointmentAt",""));
@@ -57,7 +58,7 @@ class ScreenWorkflowIntegrationTest {
  }
  @Test void everyImportedBusinessScreenHasAWorkingEndpointAndDefaultsMatchTheWorkbook()throws Exception{
   var source=json.readValue(new ClassPathResource("workspace/screen-catalog.json").getInputStream(),new TypeReference<List<Map<String,Object>>>(){});int checked=0;
-  for(var screen:source){String code=(String)screen.get("code");if(screen.containsKey("masterType")||Boolean.TRUE.equals(screen.get("public"))||!code.equals(screen.get("functionCode")))continue;
+  for(var screen:source){String code=(String)screen.get("code");if(screen.containsKey("masterType")||"student_accounts".equals(screen.get("kind"))||Boolean.TRUE.equals(screen.get("public"))||!code.equals(screen.get("functionCode")))continue;
    @SuppressWarnings("unchecked")List<String> permitted=(List<String>)screen.get("roles");
    for(String role:actors.keySet()){
     var request=read(actors.get(role),code,null);
@@ -70,10 +71,46 @@ class ScreenWorkflowIntegrationTest {
   String course=createCourse();var published=body(mvc.perform(get("/api/public/training-courses/"+course)).andExpect(status().isOk()).andReturn());assertFalse(published.has("managerId"));assertFalse(published.has("version"));
   jdbc.update("UPDATE training_courses SET status='DRAFT' WHERE id=?",UUID.fromString(course));mvc.perform(get("/api/public/training-courses/"+course)).andExpect(status().isNotFound());
  }
- @Test void scopedManagementAndTechnicalAdminNeverInheritBusinessActions()throws Exception{
-  String course=createCourse();read(otherManager,"CourseDetail",course).andExpect(status().isNotFound());read(admin,"CourseDetail",course).andExpect(status().isForbidden());
-  jdbc.update("INSERT INTO role_function(role_id,function_code) VALUES (1,'AddCourse')");write(admin,"AddCourse",null,Map.of()).andExpect(status().isForbidden());
-  mvc.perform(post(path("AddCourse",null)).with(user(manager.email).roles("MANAGER")).contentType("application/json").content("{}")).andExpect(status().isForbidden());
+ @Test void onlyAdminCanManageCoursesEvenIfAnotherRoleHasAnAccidentalGrant()throws Exception{
+  String course=createCourse();read(admin,"CourseDetail",course).andExpect(status().isOk());
+  for(User actor:actors.values())if(!actor.equals(admin)){
+   for(String code:List.of("ListCourse","AddCourse","EditCourse","CourseDetail")){
+    read(actor,code,code.equals("EditCourse")||code.equals("CourseDetail")?course:null).andExpect(status().isForbidden());
+    jdbc.update("INSERT INTO role_function(role_id,function_code) VALUES (?,?)",actor.getRoleId(),code);
+    read(actor,code,code.equals("EditCourse")||code.equals("CourseDetail")?course:null).andExpect(status().isForbidden());
+   }
+   write(actor,"AddCourse",null,courseInput()).andExpect(status().isForbidden());
+   write(actor,"EditCourse",course,courseInput()).andExpect(status().isForbidden());
+  }
+  mvc.perform(post(path("AddCourse",null)).with(user(admin.email).roles("ADMIN")).contentType("application/json").content("{}")).andExpect(status().isForbidden());
+ }
+ @Test void adminCoursesRetainManagerOwnershipAndCanBeEditedAcrossAdministrators()throws Exception{
+  String course=createCourse();var detail=view(admin,"CourseDetail",course).path("record");
+  assertEquals(manager.id,detail.path("managerId").asLong());assertEquals(manager.fullName,detail.path("managerName").asText());
+  assertTrue(view(admin,"AddCourse",null).path("canWrite").asBoolean());
+  assertTrue(view(admin,"EditCourse",course).path("options").path("managers").toString().contains(manager.id.toString()));
+  assertTrue(view(manager,"AddTrainingContract",null).path("options").path("courses").toString().contains(course));
+  assertFalse(view(otherManager,"AddTrainingContract",null).path("options").path("courses").toString().contains(course));
+  var edit=courseInput();edit.put("version",0);edit.put("name","Khóa đã chỉnh sửa");save(create("ADMIN"),"EditCourse",course,edit);
+  assertEquals("Khóa đã chỉnh sửa",view(admin,"CourseDetail",course).path("record").path("name").asText());
+  String contract=createContract(course);assertEquals(manager.id,view(manager,"TrainingContractDetail",contract).path("record").path("managerId").asLong());
+  edit.put("version",1);edit.put("managerId",otherManager.id);
+  write(admin,"EditCourse",course,edit).andExpect(status().isBadRequest()).andExpect(jsonPath("$.fields.managerId").exists());
+  assertEquals(manager.id,view(admin,"CourseDetail",course).path("record").path("managerId").asLong());
+  importAndConfirm(contract,"TUITION",1000);
+  assertEquals(1,view(admin,"CourseDetail",course).path("related").path("classes").size());
+  read(admin,"ListClass",null).andExpect(status().isForbidden());
+ }
+ @Test void courseManagerMustBeActiveAndHaveTheManagerRole()throws Exception{
+  var input=courseInput();input.remove("managerId");write(admin,"AddCourse",null,input).andExpect(status().isBadRequest()).andExpect(jsonPath("$.fields.managerId").exists());
+  for(User actor:List.of(admin,lecturer,hr,student)){
+   input.put("managerId",actor.id);write(admin,"AddCourse",null,input).andExpect(status().isBadRequest()).andExpect(jsonPath("$.fields.managerId").exists());
+  }
+  for(String flag:List.of("account_enabled=FALSE","account_enabled=TRUE,account_locked=TRUE")){
+   jdbc.update("UPDATE m_user SET "+flag+" WHERE user_id=?",otherManager.id);input.put("managerId",otherManager.id);
+   write(admin,"AddCourse",null,input).andExpect(status().isBadRequest()).andExpect(jsonPath("$.fields.managerId").exists());
+   for(JsonNode option:view(admin,"AddCourse",null).path("options").path("managers"))assertNotEquals(otherManager.id,option.path("id").asLong());
+  }
  }
  @Test void confirmationCreatesOneScopedEnrollmentAndDuplicateSignalsNeverCollectTwice()throws Exception{
   String ct=createContract(createCourse());String payment=importAndConfirm(ct,"TUITION",1000);
@@ -150,7 +187,7 @@ class ScreenWorkflowIntegrationTest {
   mvc.perform(multipart("/api/workspace/files").file(new MockMultipartFile("file","bad.html","text/html","<script>test</script>".getBytes())).param("screen","ContractSignature").with(user(manager.email).roles("MANAGER")).with(csrf())).andExpect(status().isBadRequest());
  }
  @Test void screenRevocationAppliesToReadsAndWritesAndInvalidIdentifiersFailClearly()throws Exception{
-  jdbc.update("DELETE FROM role_function WHERE role_id=6 AND function_code='AddCourse'");write(manager,"AddCourse",null,Map.of()).andExpect(status().isForbidden());read(manager,"AddCourse",null).andExpect(status().isForbidden());read(it,"AssetDetail","not-a-uuid").andExpect(status().isBadRequest());read(it,"UnknownScreen",null).andExpect(status().isNotFound());
+  jdbc.update("DELETE FROM role_function WHERE role_id=1 AND function_code='AddCourse'");write(admin,"AddCourse",null,Map.of()).andExpect(status().isForbidden());read(admin,"AddCourse",null).andExpect(status().isForbidden());read(it,"AssetDetail","not-a-uuid").andExpect(status().isBadRequest());read(it,"UnknownScreen",null).andExpect(status().isNotFound());
  }
  Map<String,String> loanFixture()throws Exception{
   String ct=createContract(createCourse());importAndConfirm(ct,"TUITION",1000);importAndConfirm(ct,"DEPOSIT",200);String cl=view(manager,"ListClass",null).path("items").get(0).path("id").asText();String en=view(manager,"AutoAssignmentReview",null).path("items").get(0).path("id").asText();

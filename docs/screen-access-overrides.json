@@ -35,6 +35,31 @@
     "actions": "Manager ghi nhận minh chứng ký và bàn giao cho Kế toán.",
     "scope": "Manager theo hợp đồng và khóa học được phân công; Kế toán theo hồ sơ đã bàn giao."
   },
+  "ListCourse": {
+    "roles": [
+      "ADMIN"
+    ],
+    "scope": "Chỉ quản trị viên được truy cập và quản lý danh mục khóa học toàn trung tâm.",
+    "actions": "Quản trị viên xem, tạo và cập nhật khóa học."
+  },
+  "AddCourse": {
+    "roles": [
+      "ADMIN"
+    ],
+    "scope": "Chỉ quản trị viên được truy cập và quản lý danh mục khóa học toàn trung tâm."
+  },
+  "EditCourse": {
+    "roles": [
+      "ADMIN"
+    ],
+    "scope": "Chỉ quản trị viên được truy cập và quản lý danh mục khóa học toàn trung tâm."
+  },
+  "CourseDetail": {
+    "roles": [
+      "ADMIN"
+    ],
+    "scope": "Chỉ quản trị viên được truy cập và quản lý danh mục khóa học toàn trung tâm."
+  },
   "ListAdmissionApplicationDetail": {
     "actions": [
       [

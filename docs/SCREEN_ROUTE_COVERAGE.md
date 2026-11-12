@@ -1,8 +1,10 @@
-# Đối chiếu 120 mã màn với mã nguồn
+# Đối chiếu 121 mã màn với mã nguồn
 
-Gồm 108 mã từ bộ thiết kế và 12 màn danh mục bổ sung theo yêu cầu.
+Gồm 108 mã từ bộ thiết kế, 12 màn danh mục và 1 màn cấp tài khoản học viên bổ sung theo yêu cầu.
 
 Quyền hợp đồng được cập nhật theo V12: [MANAGER_TRAINING_CONTRACTS.md](MANAGER_TRAINING_CONTRACTS.md).
+
+V13 chuyển toàn bộ màn quản lý ngành nghề và khóa học sang Admin: [MASTER_DATA.md](MASTER_DATA.md). Khởi động lại backend để áp dụng migration, rồi tải lại frontend.
 
 Nguồn: ma trận Excel và `Screen_Manifest.json` trong bộ SVG. Mỗi mã dưới đây có route/component; tab, popup và trạng thái dùng chung bộ xử lý nghiệp vụ. Đăng nhập và khôi phục giữ luồng OTP 6 số đã triển khai theo yêu cầu trước đó.
 
@@ -49,10 +51,10 @@ Nguồn: ma trận Excel và `Screen_Manifest.json` trong bộ SVG. Mỗi mã d�
 | FE-07 | `EditTrainingContract` | `/screens/EditTrainingContract/{id}` | [EditTrainingContract.jsx](../G5_FE1/src/screens/pages/EditTrainingContract.jsx) | MANAGER |
 | FE-07 | `TrainingContractDetail` | `/screens/TrainingContractDetail/{id}` | [TrainingContractDetail.jsx](../G5_FE1/src/screens/pages/TrainingContractDetail.jsx) | ACCOUNTANT, MANAGER |
 | FE-07 | `ContractSignature` | `/screens/ContractSignature/{id}` | [ContractSignature.jsx](../G5_FE1/src/screens/pages/ContractSignature.jsx) | MANAGER |
-| FE-08 | `ListCourse` | `/screens/ListCourse` | [ListCourse.jsx](../G5_FE1/src/screens/pages/ListCourse.jsx) | MANAGER, HR |
-| FE-08 | `AddCourse` | `/screens/AddCourse` | [AddCourse.jsx](../G5_FE1/src/screens/pages/AddCourse.jsx) | MANAGER |
-| FE-08 | `EditCourse` | `/screens/EditCourse/{id}` | [EditCourse.jsx](../G5_FE1/src/screens/pages/EditCourse.jsx) | MANAGER |
-| FE-08 | `CourseDetail` | `/screens/CourseDetail/{id}` | [CourseDetail.jsx](../G5_FE1/src/screens/pages/CourseDetail.jsx) | LECTURER, MANAGER, HR |
+| FE-08 | `ListCourse` | `/screens/ListCourse` | [ListCourse.jsx](../G5_FE1/src/screens/pages/ListCourse.jsx) | ADMIN |
+| FE-08 | `AddCourse` | `/screens/AddCourse` | [AddCourse.jsx](../G5_FE1/src/screens/pages/AddCourse.jsx) | ADMIN |
+| FE-08 | `EditCourse` | `/screens/EditCourse/{id}` | [EditCourse.jsx](../G5_FE1/src/screens/pages/EditCourse.jsx) | ADMIN |
+| FE-08 | `CourseDetail` | `/screens/CourseDetail/{id}` | [CourseDetail.jsx](../G5_FE1/src/screens/pages/CourseDetail.jsx) | ADMIN |
 | FE-09 | `ListClass` | `/screens/ListClass` | [ListClass.jsx](../G5_FE1/src/screens/pages/ListClass.jsx) | MANAGER |
 | FE-09 | `ClassDetail` | `/screens/ClassDetail/{id}` | [ClassDetail.jsx](../G5_FE1/src/screens/pages/ClassDetail.jsx) | MANAGER |
 | FE-09 | `EditClass` | `/screens/EditClass/{id}` | [EditClass.jsx](../G5_FE1/src/screens/pages/EditClass.jsx) | MANAGER |
@@ -119,7 +121,7 @@ Nguồn: ma trận Excel và `Screen_Manifest.json` trong bộ SVG. Mỗi mã d�
 
 `EditUser` sử dụng thêm `/admin/users/new` và `UserCreatePage.jsx` để tạo tài khoản. Với `ClassGradebook`, ID là lớp; với `ClassAttendance`/`Attendance_Correction`, ID là buổi học; với các màn đóng hồ sơ, ID là ghi danh; với receipt/thu hồi, ID là lượt bàn giao. Các trang chi tiết chưa chọn ID có thể mở danh sách để chọn hồ sơ trong phạm vi.
 
-Mã màn mới được cấp đúng quyền ✓. Số màn có thể mở theo workbook (tính cả trang công khai và xác thực chung): Admin 25, Lecturer 30, Student 26, Accountant 41, IT Support 38, Manager 50, HR 31. Quyền ĐX chưa mặc định bật.
+Số màn theo quyền hiện tại (tính cả trang công khai, xác thực chung và các màn bổ sung): Admin 35, Lecturer 29, Student 26, Accountant 41, IT Support 44, Manager 50, HR 24. Quyền ngành nghề và khóa học chỉ dành cho Admin; quyền ĐX chưa mặc định bật.
 
 ## Danh mục dùng chung bổ sung
 
@@ -133,9 +135,17 @@ Chi tiết cấu hình và thao tác: [MASTER_DATA.md](MASTER_DATA.md). Các mà
 | MD-02 | `ListStorageLocation` | `/screens/ListStorageLocation` | [ListStorageLocation.jsx](../G5_FE1/src/screens/pages/ListStorageLocation.jsx) | IT_SUPPORT |
 | MD-02 | `AddStorageLocation` | `/screens/AddStorageLocation` | [AddStorageLocation.jsx](../G5_FE1/src/screens/pages/AddStorageLocation.jsx) | IT_SUPPORT |
 | MD-02 | `EditStorageLocation` | `/screens/EditStorageLocation/{id}` | [EditStorageLocation.jsx](../G5_FE1/src/screens/pages/EditStorageLocation.jsx) | IT_SUPPORT |
-| MD-03 | `ListProfession` | `/screens/ListProfession` | [ListProfession.jsx](../G5_FE1/src/screens/pages/ListProfession.jsx) | MANAGER |
-| MD-03 | `AddProfession` | `/screens/AddProfession` | [AddProfession.jsx](../G5_FE1/src/screens/pages/AddProfession.jsx) | MANAGER |
-| MD-03 | `EditProfession` | `/screens/EditProfession/{id}` | [EditProfession.jsx](../G5_FE1/src/screens/pages/EditProfession.jsx) | MANAGER |
+| MD-03 | `ListProfession` | `/screens/ListProfession` | [ListProfession.jsx](../G5_FE1/src/screens/pages/ListProfession.jsx) | ADMIN |
+| MD-03 | `AddProfession` | `/screens/AddProfession` | [AddProfession.jsx](../G5_FE1/src/screens/pages/AddProfession.jsx) | ADMIN |
+| MD-03 | `EditProfession` | `/screens/EditProfession/{id}` | [EditProfession.jsx](../G5_FE1/src/screens/pages/EditProfession.jsx) | ADMIN |
 | MD-04 | `ListClassroom` | `/screens/ListClassroom` | [ListClassroom.jsx](../G5_FE1/src/screens/pages/ListClassroom.jsx) | ADMIN |
 | MD-04 | `AddClassroom` | `/screens/AddClassroom` | [AddClassroom.jsx](../G5_FE1/src/screens/pages/AddClassroom.jsx) | ADMIN |
 | MD-04 | `EditClassroom` | `/screens/EditClassroom/{id}` | [EditClassroom.jsx](../G5_FE1/src/screens/pages/EditClassroom.jsx) | ADMIN |
+
+## Cấp tài khoản học viên bổ sung
+
+| FE | Mã màn | Route | File giao diện | Vai trò mặc định |
+| --- | --- | --- | --- | --- |
+| FE-06A | `ListStudentAccount` | `/screens/ListStudentAccount` | [ListStudentAccount.jsx](../G5_FE1/src/screens/pages/ListStudentAccount.jsx) | MANAGER |
+
+V14 cấp quyền riêng cho Manager; metadata bổ sung nằm trong `docs/workspace-screen-extensions.json`. Hướng dẫn và API: [STUDENT_ACCOUNT_PROVISIONING.md](STUDENT_ACCOUNT_PROVISIONING.md).

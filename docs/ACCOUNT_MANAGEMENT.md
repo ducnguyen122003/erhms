@@ -19,6 +19,10 @@ Quản trị viên đang đăng nhập giữ quyền `ADMIN` của chính mình.
 
 Sau khi tạo, sửa, xóa, bật/vô hiệu hóa hoặc khóa/mở khóa thành công, giao diện tải lại số liệu dashboard từ database. Chuyển về **Dashboard** cũng lấy số liệu mới, không cần tải lại cả trang. **Tổng tài khoản** đếm toàn bộ tài khoản; **Đang hoạt động** đếm tài khoản được kích hoạt và không bị khóa; **Tài khoản bị khóa** đếm cờ khóa; mục **Tài khoản bị vô hiệu hóa** đếm cờ vô hiệu hóa. Một tài khoản có thể vừa bị vô hiệu hóa vừa bị khóa nên xuất hiện trong cả hai mục cần chú ý; không cộng các mục này để suy ra tổng tài khoản.
 
+## Manager cấp tài khoản học viên
+
+Từ V14, role Quản lý học viên có trang **Cấp tài khoản học viên** riêng. Trang chỉ liệt kê hồ sơ **Đã liên hệ**; Manager dùng email trong hồ sơ để tạo tài khoản `STUDENT`, hệ thống sinh mật khẩu ngẫu nhiên và gửi thông tin đăng nhập qua SMTP. Đây là luồng cần cấu hình gửi email, cùng `STUDENT_LOGIN_URL` trỏ tới trang đăng nhập. Email đã có tài khoản không bị tạo lại hoặc đổi mật khẩu. Chi tiết: [STUDENT_ACCOUNT_PROVISIONING.md](STUDENT_ACCOUNT_PROVISIONING.md).
+
 ## Thông báo khi tài khoản không được đăng nhập
 
 Màn đăng nhập hiển thị thông báo theo trạng thái tài khoản do backend trả về:

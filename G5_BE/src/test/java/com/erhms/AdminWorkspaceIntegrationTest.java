@@ -114,11 +114,23 @@ class AdminWorkspaceIntegrationTest {
     }
 
     @Test void migratedFunctionsAndDefaultGrantsMatchSevenRoles() throws Exception {
-        JsonNode source=matrix();assertEquals(7,source.path("roles").size());assertEquals(99,source.path("functions").size());
+        JsonNode source=matrix();assertEquals(7,source.path("roles").size());assertEquals(100,source.path("functions").size());
         assertEquals(7,jdbc.queryForObject("SELECT COUNT(*) FROM role_function WHERE function_code='PROFILE'",Integer.class));
         assertEquals(1,jdbc.queryForObject("SELECT COUNT(*) FROM role_function WHERE function_code='USER_ACCOUNTS'",Integer.class));
         mvc.perform(get("/api/admin/settings").with(user(student.email).roles("ADMIN"))).andExpect(status().isForbidden());
         mvc.perform(get("/api/admin/audit-logs").with(user(student.email).roles("ADMIN"))).andExpect(status().isForbidden());
+    }
+    @Test void trainingCataloguePermissionsAreExclusiveToAdminAndCannotBeGrantedBack() throws Exception {
+        var codes=Set.of("ListProfession","AddProfession","EditProfession","ListCourse","AddCourse","EditCourse","CourseDetail");
+        JsonNode source=matrix();
+        for(JsonNode function:source.path("functions"))if(codes.contains(function.path("code").asText()))assertEquals(json.valueToTree(List.of(1)),function.path("allowedRoles"));
+        for(String code:codes){
+            assertEquals(List.of(1L),jdbc.queryForList("SELECT role_id FROM role_function WHERE function_code=?",Long.class,code));
+            for(long roleId:List.of(2L,3L,4L,5L,6L,7L)){
+                var input=matrixInput();((com.fasterxml.jackson.databind.node.ArrayNode)input.get("grants")).addObject().put("roleId",roleId).put("functionCode",code);
+                saveMatrix(input).andExpect(status().isBadRequest());
+            }
+        }
     }
     @Test void revokingAndRestoringDashboardAppliesToExistingSessionImmediately() throws Exception {
         var login=mvc.perform(post("/api/auth/login").with(csrf()).param("username",student.email).param("password",password)).andExpect(status().isNoContent()).andReturn();

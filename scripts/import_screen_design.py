@@ -61,6 +61,7 @@ for source in manifest['screens']:
                                for field in section['fields'] if field['label']!='Số serial']
     screens.append(item)
 extension_screens = json.loads((root/'docs/master-screen-catalog.json').read_text(encoding='utf8'))
+extension_screens += json.loads((root/'docs/workspace-screen-extensions.json').read_text(encoding='utf8'))
 overrides=json.loads((root/'docs/screen-access-overrides.json').read_text(encoding='utf8'))
 runtime_screens=copy.deepcopy(screens)
 for screen in runtime_screens:

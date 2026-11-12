@@ -1,0 +1,33 @@
+.student-account-guide{display:flex;align-items:center;gap:16px;padding:20px 24px;margin-bottom:22px;border:1px solid #d9e9e2;border-radius:12px;background:#edf6f1;color:#245342}
+.student-account-guide-icon{display:grid;place-items:center;flex:none;width:46px;height:46px;border-radius:12px;background:#fff;color:#26785c}
+.student-account-guide strong{font-size:14px}
+.student-account-guide p{margin:7px 0 0;font-size:12px;line-height:1.7;color:#627f71}
+.student-account-import-actions{display:flex;align-items:center;justify-content:flex-end;flex-wrap:wrap;gap:10px;flex-shrink:0}
+.student-account-source{display:inline-block;padding:3px 7px;border-radius:4px;background:#f1f4f3;color:#687f73;font-size:10px;line-height:1.5}
+.student-account-source.is-excel{background:#eaf4ee;color:#26785c}
+.student-account-toolbar{display:flex;align-items:center;gap:12px;padding:0 24px 20px}
+.student-account-search{position:relative;display:block;min-width:0;flex:1;margin:0}
+.student-account-search>svg{position:absolute;left:13px;top:50%;transform:translateY(-50%);pointer-events:none;color:#81938d}
+.admin-page .student-account-search>input{width:100%;height:42px;margin:0;padding-left:38px}
+.student-account-toolbar>button{height:42px;flex:none}
+.student-account-table{min-width:940px}
+.student-account-table td{overflow-wrap:anywhere}
+.student-account-table td:first-child{width:21%}
+.student-account-table td:nth-child(2){width:24%}
+.student-account-table td:nth-child(3){width:19%}
+.student-account-table td:nth-child(4){width:21%}
+.student-account-table .admin-badge{white-space:normal;line-height:1.5}
+.student-account-table .student-account-reason{max-width:240px;line-height:1.65;margin-top:8px}
+.student-account-missing{color:#a16b27}
+.student-account-table .student-account-uncreated{background:#f1f4f3;color:#687f73}
+.student-account-actions{display:flex;align-items:center;gap:8px}
+.student-account-actions>button{white-space:nowrap;font-size:11px}
+.student-account-actions>.admin-muted{font-size:11px}
+.student-account-confirm>p{font-size:13px;line-height:1.8}
+.student-account-confirm dl{display:grid;gap:18px;padding:20px;background:#f4f8f5;border:1px solid #e3ece6;border-radius:9px;margin:20px 0}
+.student-account-confirm dt{font-size:11px;color:#73897d;margin-bottom:7px}
+.student-account-confirm dd{display:flex;align-items:center;gap:8px;margin:0;overflow-wrap:anywhere;font-size:13px;color:#294e3d}
+.student-account-confirm dd>svg{flex:none}
+.student-account-confirm .admin-dialog-actions{margin-top:24px}
+@media(max-width:900px){.student-accounts-list .admin-card-heading{flex-wrap:wrap}.student-account-import-actions{justify-content:flex-start;flex-shrink:1}}
+@media(max-width:600px){.student-account-guide{padding:18px;align-items:flex-start;gap:12px}.student-account-guide-icon{width:36px;height:36px;border-radius:9px}.student-account-guide strong{font-size:13px}.student-account-toolbar{padding-inline:20px;flex-wrap:wrap}.student-account-search{flex-basis:100%}.student-accounts-list .admin-card-heading{align-items:flex-start;gap:12px}.student-account-confirm dd{align-items:flex-start}.student-account-confirm .admin-dialog-actions{flex-wrap:wrap}}

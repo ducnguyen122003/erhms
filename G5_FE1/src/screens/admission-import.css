@@ -1,0 +1,16 @@
+.admission-import-template{display:flex;align-items:flex-start;gap:12px;background:#f4f9f6;border:1px solid #dfe9e3;border-radius:8px;padding:16px;margin-bottom:22px;color:#326e54}
+.admission-import-template>svg{flex-shrink:0;margin-top:3px}
+.admission-import-template>div{flex:1;min-width:0}
+.admission-import-template strong{font-size:12px}
+.admission-import-template p{font-size:11px;line-height:1.8;color:#6f857c;margin:5px 0 0}
+.admission-import-template button{flex-shrink:0;white-space:nowrap}
+.admission-import-file{margin-bottom:8px}
+.admission-import-file input[type=file]{padding:10px;line-height:1.8}
+.admission-import-file input::file-selector-button{border:1px solid #dfe9e3;border-radius:5px;background:#f4f9f6;color:#326e54;padding:7px 10px;margin-right:10px;cursor:pointer;font:inherit}
+.admission-import-selected{display:flex;align-items:center;gap:8px;color:#326e54;font-size:12px;margin:0 0 16px}
+.admission-import-selected svg{flex-shrink:0}
+.admission-import-selected small{color:#81938d}
+.admission-import-errors{max-height:190px;overflow:auto;border:1px solid #efc5b9;border-radius:6px;background:#fff8f5;margin:-6px 0 18px;padding:10px 14px;font-size:12px;color:#a44634}
+.admission-import-errors ul{margin:0;padding-left:18px}
+.admission-import-errors li+li{margin-top:7px}
+@media(max-width:600px){.admission-import-template{flex-wrap:wrap}.admission-import-template>button{margin-left:39px}.admission-import .admin-dialog-actions{flex-wrap:wrap}}

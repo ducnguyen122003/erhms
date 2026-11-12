@@ -1348,13 +1348,12 @@
     "fe": "FE-08",
     "title": "Danh mục khóa học",
     "roles": [
-      "MANAGER",
-      "HR"
+      "ADMIN"
     ],
     "proposedRoles": [],
     "public": false,
-    "scope": "Học viên, khóa / lớp, lịch, xếp lớp và hồ sơ hoàn tất được phân công quản lý. Role xem chéo chỉ đọc dữ liệu liên quan nhiệm vụ; ẩn các nút thay đổi của role chủ trì.",
-    "actions": "Quản lý sinh viên quản lý khóa học. Tuyển dụng chỉ xem để tư vấn; ẩn nút thêm và sửa đối với Tuyển dụng.",
+    "scope": "Chỉ quản trị viên được truy cập và quản lý danh mục khóa học toàn trung tâm.",
+    "actions": "Quản trị viên xem, tạo và cập nhật khóa học.",
     "variant": "Màn hình chính",
     "kind": "list",
     "functionCode": "ListCourse",
@@ -1383,11 +1382,11 @@
     "fe": "FE-08",
     "title": "Thêm khóa học",
     "roles": [
-      "MANAGER"
+      "ADMIN"
     ],
     "proposedRoles": [],
     "public": false,
-    "scope": "Học viên, khóa / lớp, lịch, xếp lớp và hồ sơ hoàn tất được phân công quản lý.",
+    "scope": "Chỉ quản trị viên được truy cập và quản lý danh mục khóa học toàn trung tâm.",
     "actions": "Tạo khóa học.",
     "variant": "Màn hình chính",
     "kind": "form",
@@ -1449,11 +1448,11 @@
     "fe": "FE-08",
     "title": "Chỉnh sửa khóa học",
     "roles": [
-      "MANAGER"
+      "ADMIN"
     ],
     "proposedRoles": [],
     "public": false,
-    "scope": "Học viên, khóa / lớp, lịch, xếp lớp và hồ sơ hoàn tất được phân công quản lý.",
+    "scope": "Chỉ quản trị viên được truy cập và quản lý danh mục khóa học toàn trung tâm.",
     "actions": "Cập nhật khóa học.",
     "variant": "Màn hình chính",
     "kind": "form",
@@ -1515,13 +1514,11 @@
     "fe": "FE-08",
     "title": "Chi tiết khóa học",
     "roles": [
-      "LECTURER",
-      "MANAGER",
-      "HR"
+      "ADMIN"
     ],
     "proposedRoles": [],
     "public": false,
-    "scope": "Học viên, khóa / lớp, lịch, xếp lớp và hồ sơ hoàn tất được phân công quản lý. Role xem chéo chỉ đọc dữ liệu liên quan nhiệm vụ; ẩn các nút thay đổi của role chủ trì.",
+    "scope": "Chỉ quản trị viên được truy cập và quản lý danh mục khóa học toàn trung tâm.",
     "actions": [
       [
         "Chỉnh sửa khóa học",
@@ -3448,7 +3445,7 @@
     "kind": "master_list",
     "functionCode": "ListProfession",
     "roles": [
-      "MANAGER"
+      "ADMIN"
     ],
     "public": false,
     "description": "Quản lý danh mục ngành nghề dùng chung.",
@@ -3463,7 +3460,7 @@
     "kind": "master_add",
     "functionCode": "AddProfession",
     "roles": [
-      "MANAGER"
+      "ADMIN"
     ],
     "public": false,
     "description": "Quản lý danh mục ngành nghề dùng chung.",
@@ -3478,7 +3475,7 @@
     "kind": "master_edit",
     "functionCode": "EditProfession",
     "roles": [
-      "MANAGER"
+      "ADMIN"
     ],
     "public": false,
     "description": "Quản lý danh mục ngành nghề dùng chung.",
@@ -3530,5 +3527,18 @@
     "masterType": "classrooms",
     "masterSuffix": "Classroom",
     "nameLength": 100
+  },
+  {
+    "code": "ListStudentAccount",
+    "fe": "FE-06A",
+    "title": "Cấp tài khoản học viên",
+    "kind": "student_accounts",
+    "functionCode": "ListStudentAccount",
+    "roles": [
+      "MANAGER"
+    ],
+    "public": false,
+    "description": "Xem hồ sơ đã liên hệ và cấp tài khoản học viên bằng email đã cung cấp.",
+    "scope": "Quản lý học viên tiếp nhận hồ sơ ở trạng thái Đã liên hệ để cấp tài khoản STUDENT; thông tin đăng nhập được gửi tới email của hồ sơ."
   }
 ]

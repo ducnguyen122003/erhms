@@ -38,6 +38,8 @@ spring:
 app:
   mail:
     from: ${SMTP_FROM:${spring.mail.username:}}
+  student-accounts:
+    login-url: ${STUDENT_LOGIN_URL:http://localhost:8082/login}
 server:
   port: 8080
   servlet:

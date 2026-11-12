@@ -10,7 +10,7 @@ Dự án có hai website dùng chung backend và database:
 
 ## Chạy khi lập trình trên Windows
 
-Yêu cầu Java 17, Maven, Node.js 22.12+ hoặc 24 và PostgreSQL. Chạy các lệnh bên dưới từ thư mục gốc dự án trong các terminal riêng. Nếu backend đang chạy trong IDE, khởi động lại để nhận API và migration mới; nếu frontend đang chạy, dừng và chạy lại để nhận cấu hình cổng.
+Yêu cầu Java 25 (LTS), Maven, Node.js 22.12+ hoặc 24 và PostgreSQL. Chạy các lệnh bên dưới từ thư mục gốc dự án trong các terminal riêng. Nếu backend đang chạy trong IDE, khởi động lại để nhận API và migration mới; nếu frontend đang chạy, dừng và chạy lại để nhận cấu hình cổng.
 
 ### 1. Backend
 
@@ -64,7 +64,9 @@ Cả hai frontend chuyển tiếp `/api` tới `http://localhost:8080`. Nếu ba
 
 ## Dashboard theo vai trò
 
-Đã bổ sung các màn theo bộ SVG và ma trận Excel: tuyển sinh, hồ sơ học viên, hợp đồng, khóa/lớp/lịch, điểm danh/điểm, học phí/thanh toán/cọc, thiết bị/thu hồi/bồi thường, đóng hồ sơ, thông báo và báo cáo. Frontend nằm trong `G5_FE1`; trang công khai mới tại http://localhost:8082/public/HomePage. Khởi động lại backend để áp dụng migration **V9–V12**. Luồng sử dụng, quyền và API: [FULL_SCREEN_WORKSPACE.md](docs/FULL_SCREEN_WORKSPACE.md); danh mục 120 mã màn: [SCREEN_ROUTE_COVERAGE.md](docs/SCREEN_ROUTE_COVERAGE.md).
+Đã bổ sung các màn theo bộ SVG và ma trận Excel: tuyển sinh, hồ sơ học viên, hợp đồng, khóa/lớp/lịch, điểm danh/điểm, học phí/thanh toán/cọc, thiết bị/thu hồi/bồi thường, đóng hồ sơ, thông báo và báo cáo. Frontend nằm trong `G5_FE1`; trang công khai mới tại http://localhost:8082/public/HomePage. Khởi động lại backend để áp dụng migration **V9–V14**. Luồng sử dụng, quyền và API: [FULL_SCREEN_WORKSPACE.md](docs/FULL_SCREEN_WORKSPACE.md); danh mục 121 mã màn: [SCREEN_ROUTE_COVERAGE.md](docs/SCREEN_ROUTE_COVERAGE.md).
+
+Quản lý học viên mở **Cấp tài khoản học viên** để xem hồ sơ **Đã liên hệ**, tạo tài khoản `STUDENT` bằng email học viên đã cung cấp và gửi mật khẩu ban đầu qua email. Cần cấu hình SMTP và `STUDENT_LOGIN_URL` trỏ đến trang đăng nhập học viên truy cập được. Hướng dẫn: [STUDENT_ACCOUNT_PROVISIONING.md](docs/STUDENT_ACCOUNT_PROVISIONING.md).
 
 Sau khi đăng nhập, `G5_FE1` tự mở dashboard theo `m_user.role_id`, đồng thời kiểm tra `m_role.code` đúng với ID quy định. Tải lại trang giữ đúng dashboard; mở URL của role khác bị chặn ở cả giao diện và API. Mỗi dashboard có file React riêng:
 

@@ -16,7 +16,7 @@ public class MasterDataService {
     private static final Map<String,Definition> TYPES=Map.of(
         "equipmentGroups",new Definition("m_equipment_group","EquipmentGroup","IT_SUPPORT",120,List.of("equipment_assets:equipment_group_id","equipment_requests:equipment_group_id")),
         "storageLocations",new Definition("m_storage_location","StorageLocation","IT_SUPPORT",160,List.of("equipment_assets:storage_location_id")),
-        "professions",new Definition("m_profession","Profession","MANAGER",120,List.of("training_courses:profession_id")),
+        "professions",new Definition("m_profession","Profession","ADMIN",120,List.of("training_courses:profession_id")),
         "classrooms",new Definition("m_classroom","Classroom","ADMIN",100,List.of("training_sessions:classroom_id")),
         "banks",new Definition("m_bank","Bank","ACCOUNTANT",160,List.of("financial_transactions:bank_id")));
     final WorkflowData d;final CurrentUser current;final ScreenCatalog catalog;final ScreenPermissionsService permissions;
