@@ -34,4 +34,7 @@ public class ConsultationRegistration {
 
     @Column(name = "program_name", nullable = false, length = 255)
     public String programName;
+
+    @Column(name = "enrollment_course", length = 255)
+    public String enrollmentCourse;
 }

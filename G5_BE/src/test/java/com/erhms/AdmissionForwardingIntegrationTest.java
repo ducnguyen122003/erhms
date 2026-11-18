@@ -24,6 +24,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 @SpringBootTest(properties={"spring.datasource.url=jdbc:h2:mem:admission_forwarding;MODE=PostgreSQL;DB_CLOSE_DELAY=-1","logging.level.root=WARN","debug=false"})
 @AutoConfigureMockMvc @ActiveProfiles("test") @Transactional
 class AdmissionForwardingIntegrationTest {
+    static final List<String> COURSES=List.of("Sửa chữa máy tính Laptop chuyên nghiệp","Sửa chữa máy tính PC & máy in","Sửa chữa Điện tử - Điện gia dụng","Sửa chữa Điện lạnh, Điện gia dụng & Inverter");
     static final String PATH="/api/workspace/screens/ListAdmissionEnrollment/new/actions/forward-profiles";
     static final List<String> TYPES=List.of("IDENTITY_CARD","CURRICULUM_VITAE","BIRTH_CERTIFICATE","ID_PHOTO","APPLICATION_FORM");
     @Autowired MockMvc mvc;@Autowired JdbcTemplate jdbc;@Autowired ObjectMapper json;@Autowired UserRepository users;@Autowired RoleRepository roles;
@@ -32,6 +33,7 @@ class AdmissionForwardingIntegrationTest {
     @BeforeEach void setup(){hr=actor("HR");otherHr=actor("HR");manager=actor("MANAGER");term=UUID.randomUUID().toString();}
     UUID admission(User owner,int count){
         UUID id=UUID.randomUUID();jdbc.update("INSERT INTO consultation_registrations(id,full_name,phone,email,program_name,contact_time,created_date) VALUES (?,?,'0912345678',?,'Điện','any',CURRENT_TIMESTAMP)",id,term+" Học viên",id+"@gmail.com");
+        jdbc.update("UPDATE consultation_registrations SET enrollment_course=? WHERE id=?",COURSES.get(0),id);
         jdbc.update("INSERT INTO consultation_followups(id,consultation_id,assigned_to,status,profile_submitted_at) VALUES (?,?,?,'PROFILE_PENDING',CURRENT_TIMESTAMP)",UUID.randomUUID(),id,owner.id);
         for(int index=0;index<count;index++){
             UUID file=UUID.randomUUID();byte[] bytes="%PDF-1.4".getBytes(StandardCharsets.US_ASCII);
@@ -47,6 +49,10 @@ class AdmissionForwardingIntegrationTest {
     JsonNode page(String tab)throws Exception{return body(mvc.perform(get("/api/workspace/screens/ListAdmissionEnrollment").param("q",term).param("tab",tab).with(user(hr.email).roles("HR"))).andExpect(status().isOk()).andReturn());}
     JsonNode queue()throws Exception{return body(mvc.perform(get("/api/workspace/student-accounts").param("q",term).with(user(manager.email).roles("MANAGER"))).andExpect(status().isOk()).andReturn());}
     JsonNode detail(UUID id)throws Exception{return body(mvc.perform(get("/api/workspace/screens/ListAdmissionApplicationDetail/"+id).with(user(hr.email).roles("HR"))).andExpect(status().isOk()).andReturn());}
+    String coursePath(UUID id){return "/api/workspace/screens/ListAdmissionApplicationDetail/"+id+"/actions/update-course";}
+    ResultActions changeCourse(User actor,UUID id,Object course,long version)throws Exception{
+        return mvc.perform(post(coursePath(id)).with(user(actor.email).roles(actor.getRoleCode())).with(csrf()).contentType("application/json").content(json.writeValueAsString(Map.of("enrollmentCourse",course,"version",version))));
+    }
     Map<String,Object> contract(UUID admission){
         UUID course=UUID.randomUUID();jdbc.update("INSERT INTO training_courses(id,code,name,profession,duration_months,total_sessions,tuition_fee,objectives,status,manager_id,class_capacity) VALUES (?,?,?,'Điện',3,20,1000,'Training','OPEN',?,20)",course,course.toString(),term,manager.id);
         return Map.of("consultationId",admission.toString(),"courseId",course.toString(),"startsOn","2026-12-20","paymentDueOn","2026-12-19","tuitionDue",1000,"depositDue",0,"terms","Điều khoản");
@@ -62,8 +68,13 @@ class AdmissionForwardingIntegrationTest {
         forward(hr,input(item(id,0))).andExpect(status().isOk()).andExpect(jsonPath("$.forwardedCount").value(1));
         var record=detail(id).path("record");assertFalse(record.path("forwardedAt").isNull());assertEquals(hr.id.longValue(),record.path("forwardedBy").asLong());assertEquals(1,record.path("version").asLong());
         assertEquals(0,page("waiting").path("total").asInt());assertEquals(1,page("forwarded").path("total").asInt());assertEquals(1,queue().path("total").asInt());
+        assertEquals(COURSES.get(0),queue().path("items").get(0).path("enrollmentCourse").asText());
+        mvc.perform(get("/api/workspace/screens/AddTrainingContract").with(user(manager.email).roles("MANAGER")))
+                .andExpect(status().isOk()).andExpect(jsonPath("$.options.admissions[?(@.id == '"+id+"')].enrollmentCourse").value(org.hamcrest.Matchers.hasItem(COURSES.get(0))));
         mvc.perform(get("/api/workspace/files/"+file).with(user(manager.email).roles("MANAGER"))).andExpect(status().isOk());
-        mvc.perform(post("/api/workspace/screens/AddTrainingContract").with(user(manager.email).roles("MANAGER")).with(csrf()).contentType("application/json").content(json.writeValueAsString(contract))).andExpect(status().isOk());
+        var saved=body(mvc.perform(post("/api/workspace/screens/AddTrainingContract").with(user(manager.email).roles("MANAGER")).with(csrf()).contentType("application/json").content(json.writeValueAsString(contract))).andExpect(status().isOk()).andReturn());
+        mvc.perform(get("/api/workspace/screens/TrainingContractDetail/"+saved.path("id").asText()).with(user(manager.email).roles("MANAGER")))
+                .andExpect(status().isOk()).andExpect(jsonPath("$.record.enrollmentCourse").value(COURSES.get(0)));
         assertEquals(1,jdbc.queryForObject("SELECT COUNT(*) FROM consultation_notes WHERE consultation_id=? AND outcome='FORWARDED'",Integer.class,id));
     }
 
@@ -98,5 +109,60 @@ class AdmissionForwardingIntegrationTest {
         assertEquals(date,detail(id).path("record").path("forwardedAt").asText());assertEquals("DOCUMENTS_INCOMPLETE",detail(id).path("record").path("documentStatus").asText());
         assertEquals(1,page("forwarded").path("total").asInt());assertEquals(0,page("waiting").path("total").asInt());assertEquals(1,queue().path("total").asInt());
         mvc.perform(get("/api/workspace/screens/ListAdmissionApplication").param("q",term).with(user(hr.email).roles("HR"))).andExpect(status().isOk()).andExpect(jsonPath("$.total").value(0));
+    }
+
+    @Test void allFourCoursesCanBeChangedOnASubmittedProfileWithoutChangingItsOriginalInterestOrDocuments()throws Exception{
+        UUID id=admission(hr,5);jdbc.update("UPDATE consultation_registrations SET enrollment_course=NULL WHERE id=?",id);
+        var initial=detail(id);assertTrue(initial.path("canEditCourse").asBoolean());
+        assertEquals(json.valueToTree(COURSES),initial.path("options").path("enrollmentCourses"));
+        for(int index=0;index<COURSES.size();index++){
+            changeCourse(hr,id,"  "+COURSES.get(index)+"  ",index).andExpect(status().isOk());
+            var record=detail(id).path("record");assertEquals(COURSES.get(index),record.path("enrollmentCourse").asText());
+            assertEquals(index+1,record.path("version").asLong());assertEquals("PROFILE_PENDING",record.path("status").asText());
+            assertEquals("Điện",record.path("programName").asText());assertEquals("DOCUMENTS_COMPLETE",record.path("documentStatus").asText());
+        }
+        assertEquals(initial.path("related").path("documents"),detail(id).path("related").path("documents"));
+        assertEquals(4,jdbc.queryForObject("SELECT COUNT(*) FROM consultation_notes WHERE consultation_id=? AND outcome='COURSE_UPDATED'",Integer.class,id));
+        forward(hr,input(item(id,0))).andExpect(status().isConflict());
+        forward(hr,input(item(id,4))).andExpect(status().isOk());
+        assertEquals(COURSES.get(3),queue().path("items").get(0).path("enrollmentCourse").asText());
+        assertFalse(detail(id).path("canEditCourse").asBoolean());
+        changeCourse(hr,id,COURSES.get(0),5).andExpect(status().isConflict());
+        changeCourse(hr,id,COURSES.get(3),5).andExpect(status().isConflict());
+        assertEquals(COURSES.get(3),detail(id).path("record").path("enrollmentCourse").asText());
+    }
+
+    @Test void selectingCourseForANewRegistrationClaimsTheProfileAndPreservesItsStage()throws Exception{
+        UUID id=admission(hr,0);jdbc.update("DELETE FROM consultation_followups WHERE consultation_id=?",id);
+        jdbc.update("UPDATE consultation_registrations SET enrollment_course=NULL WHERE id=?",id);
+        changeCourse(hr,id,COURSES.get(1),0).andExpect(status().isOk());
+        var record=detail(id).path("record");assertEquals("NEW",record.path("status").asText());
+        assertEquals(hr.id.longValue(),record.path("assignedTo").asLong());assertEquals(1,record.path("version").asLong());
+        changeCourse(otherHr,id,COURSES.get(2),1).andExpect(status().isNotFound());
+        changeCourse(hr,id,COURSES.get(1),1).andExpect(status().isOk());assertEquals(1,detail(id).path("record").path("version").asLong());
+    }
+
+    @Test void courseChangesRejectInvalidStaleForeignAndUnauthorizedRequests()throws Exception{
+        UUID id=admission(hr,4);
+        for(Object invalid:List.of("","Khóa học không hỗ trợ",123))changeCourse(hr,id,invalid,0).andExpect(status().isBadRequest()).andExpect(jsonPath("$.fields.enrollmentCourse").exists());
+        changeCourse(hr,id,COURSES.get(1),1).andExpect(status().isConflict());
+        changeCourse(otherHr,id,COURSES.get(1),0).andExpect(status().isNotFound());
+        changeCourse(manager,id,COURSES.get(1),0).andExpect(status().isForbidden());
+        mvc.perform(post(coursePath(id)).with(user(hr.email).roles("HR")).contentType("application/json").content(json.writeValueAsString(Map.of("enrollmentCourse",COURSES.get(1),"version",0)))).andExpect(status().isForbidden());
+        jdbc.update("DELETE FROM role_function WHERE role_id=7 AND function_code='AdmissionConsultation'");
+        assertFalse(detail(id).path("canEditCourse").asBoolean());changeCourse(hr,id,COURSES.get(1),0).andExpect(status().isForbidden());
+        assertEquals(COURSES.get(0),detail(id).path("record").path("enrollmentCourse").asText());
+        assertEquals(0,jdbc.queryForObject("SELECT COUNT(*) FROM consultation_notes WHERE consultation_id=?",Integer.class,id));
+    }
+
+    @Test void missingCoursePreventsTheWholeBatchFromBeingForwardedAndKeepsTheProfileVisibleForCorrection()throws Exception{
+        UUID ready=admission(hr,5),missing=admission(hr,5);
+        jdbc.update("UPDATE consultation_registrations SET enrollment_course=NULL WHERE id=?",missing);
+        var page=page("waiting");assertEquals(2,page.path("total").asInt());
+        for(var row:page.path("items"))assertEquals(row.path("id").asText().equals(ready.toString()),row.path("canForward").asBoolean());
+        forward(hr,input(item(ready,0),item(missing,0))).andExpect(status().isBadRequest()).andExpect(jsonPath("$.fields.enrollmentCourse").exists());
+        assertEquals(0,queue().path("total").asInt());assertEquals(0,page("forwarded").path("total").asInt());
+        changeCourse(hr,missing,COURSES.get(2),0).andExpect(status().isOk());
+        forward(hr,input(item(ready,0),item(missing,1))).andExpect(status().isOk()).andExpect(jsonPath("$.forwardedCount").value(2));
     }
 }

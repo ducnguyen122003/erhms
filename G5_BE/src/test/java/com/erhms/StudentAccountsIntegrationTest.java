@@ -114,6 +114,7 @@ class StudentAccountsIntegrationTest {
         var documents=new ArrayList<Map<String,Object>>();documents.add(Map.of("type","IDENTITY_CARD","files",List.of(file.path("id").asText())));
         for(String type:List.of("CURRICULUM_VITAE","BIRTH_CERTIFICATE","ID_PHOTO","APPLICATION_FORM"))documents.add(Map.of("type",type,"files",List.of(scan(hr).path("id").asText())));
         mvc.perform(post("/api/workspace/screens/ListAdmissionApplicationDetail/"+id+"/actions/update-profile").with(user(hr.email).roles("HR")).with(csrf()).contentType("application/json").content(json.writeValueAsString(Map.of("version",1,"documents",documents)))).andExpect(status().isOk());
+        jdbc.update("UPDATE consultation_registrations SET enrollment_course=? WHERE id=?","Sửa chữa máy tính Laptop chuyên nghiệp",UUID.fromString(id));
         mvc.perform(post("/api/workspace/screens/ListAdmissionEnrollment/new/actions/forward-profiles").with(user(hr.email).roles("HR")).with(csrf()).contentType("application/json").content(json.writeValueAsString(Map.of("admissions",List.of(Map.of("id",id,"version",2)))))).andExpect(status().isOk());
         JsonNode pending=row(id);assertEquals("PROFILE_PENDING",pending.path("profileStatus").asText());assertFalse(pending.path("canCreate").asBoolean());
         assertEquals(file.path("reference").asText(),pending.path("profileEvidence").asText());assertFalse(pending.path("profileSubmittedAt").isNull());

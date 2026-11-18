@@ -68,7 +68,7 @@ public class AdmissionDashboards {
         var args=new ArrayList<Object>();
         String searchCondition="";
         if(!query.isBlank()){
-            searchCondition=" AND LOWER(COALESCE(full_name,'')||' '||COALESCE(email,'')||' '||COALESCE(phone,'')||' '||COALESCE(program_name,'')) LIKE ? ESCAPE '!'";
+            searchCondition=" AND LOWER(COALESCE(full_name,'')||' '||COALESCE(email,'')||' '||COALESCE(phone,'')||' '||COALESCE(program_name,'')||' '||COALESCE(enrollment_course,'')) LIKE ? ESCAPE '!'";
             args.add("%"+query.strip().toLowerCase(Locale.ROOT).replace("!","!!").replace("%","!%").replace("_","!_")+"%");
         }
         condition+=searchCondition;
@@ -83,7 +83,7 @@ public class AdmissionDashboards {
         long total=data.count("SELECT COUNT(*) FROM ("+selected+") selected",args.toArray());
         var pageArgs=new ArrayList<>(args);pageArgs.add(page*25);
         var rows=data.rows(selected+" ORDER BY created_date DESC,id LIMIT 25 OFFSET ?",pageArgs.toArray());
-        for(var row:rows)row.put("canForward",waiting&&canForward);
+        for(var row:rows)row.put("canForward",waiting&&canForward&&AdmissionProfiles.ENROLLMENT_COURSES.contains(Objects.toString(row.get("enrollmentCourse"),"")));
         String metrics=enrollment?
                 "SUM(CASE WHEN contract_progress IN ('NO_CONTRACT','WAIT_SIGNATURE') THEN 1 ELSE 0 END) AS first_count,SUM(CASE WHEN profile_student_id IS NULL THEN 1 ELSE 0 END) AS second_count,SUM(CASE WHEN tuition_progress<>'PAID' THEN 1 ELSE 0 END) AS third_count":
                 "SUM(CASE WHEN status IN ('NEW','CONTACTED','NEEDS_COUNSELING') THEN 1 ELSE 0 END) AS first_count,SUM(CASE WHEN status='DOCUMENT_APPOINTMENT' THEN 1 ELSE 0 END) AS second_count,SUM(CASE WHEN document_status='DOCUMENTS_INCOMPLETE' THEN 1 ELSE 0 END) AS third_count";

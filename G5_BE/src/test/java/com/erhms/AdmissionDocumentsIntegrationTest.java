@@ -73,6 +73,7 @@ class AdmissionDocumentsIntegrationTest {
         boolean supplemented=false;
         for(String type:List.of("IDENTITY_CARD","CURRICULUM_VITAE","BIRTH_CERTIFICATE","ID_PHOTO","APPLICATION_FORM"))if(!groups.containsKey(type)){groups.put(type,List.of(pdf(hr,type+".pdf").path("id").asText()));supplemented=true;}
         if(supplemented){var documents=new ArrayList<Map<String,Object>>();for(var group:groups.entrySet())documents.add(Map.of("type",group.getKey(),"files",group.getValue()));update(hr,revision(documents)).andExpect(status().isOk());}
+        jdbc.update("UPDATE consultation_registrations SET enrollment_course=? WHERE id=?","Sửa chữa máy tính Laptop chuyên nghiệp",admission);
         mvc.perform(post("/api/workspace/screens/ListAdmissionEnrollment/new/actions/forward-profiles").with(user(hr.email).roles("HR")).with(csrf()).contentType("application/json").content(json.writeValueAsString(Map.of("admissions",List.of(Map.of("id",admission.toString(),"version",detail().path("record").path("version").asLong())))))).andExpect(status().isOk());
     }
     ResultActions download(User actor,String file)throws Exception {

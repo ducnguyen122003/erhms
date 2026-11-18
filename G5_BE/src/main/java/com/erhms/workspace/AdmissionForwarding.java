@@ -27,6 +27,8 @@ public class AdmissionForwarding {
             if(((Number)record.get("version")).longValue()!=entry.getValue())throw conflict("Hồ sơ vừa thay đổi. Hãy cập nhật danh sách và chọn lại trước khi chuyển.");
             if(record.get("forwardedAt")!=null)throw conflict("Hồ sơ đã được chuyển quản lý học vụ. Hãy cập nhật danh sách.");
             if(!"DOCUMENTS_COMPLETE".equals(record.get("documentStatus")))throw conflict("Chỉ chuyển hồ sơ đã hoàn thành đủ cả 5 loại giấy tờ.");
+            if(!AdmissionProfiles.ENROLLMENT_COURSES.contains(Objects.toString(record.get("enrollmentCourse"),"")))
+                throw invalid("enrollmentCourse","Hồ sơ “"+record.get("fullName")+"” chưa chọn khóa học đăng ký. Hãy chọn khóa học trước khi chuyển học vụ.");
         }
         for(UUID id:selected.keySet()){
             data.jdbc.update("UPDATE consultation_followups SET forwarded_at=CURRENT_TIMESTAMP,forwarded_by=?,version=version+1,updated_at=CURRENT_TIMESTAMP WHERE consultation_id=?",actor.id,id);

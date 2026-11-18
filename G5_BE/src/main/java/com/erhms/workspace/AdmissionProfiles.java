@@ -7,6 +7,11 @@ import static com.erhms.workspace.WorkflowData.*;
 
 @Service
 public class AdmissionProfiles {
+    public static final List<String> ENROLLMENT_COURSES=List.of(
+            "Sửa chữa máy tính Laptop chuyên nghiệp",
+            "Sửa chữa máy tính PC & máy in",
+            "Sửa chữa Điện tử - Điện gia dụng",
+            "Sửa chữa Điện lạnh, Điện gia dụng & Inverter");
     private static final Set<String> TYPES=Set.of("IDENTITY_CARD","CURRICULUM_VITAE","BIRTH_CERTIFICATE","ID_PHOTO","APPLICATION_FORM");
     private static final int MAX_FILES=50;
     // Completeness is derived from the current categorized files, independently of contract/account progress.
@@ -14,6 +19,28 @@ public class AdmissionProfiles {
     private final WorkflowData data;
 
     public AdmissionProfiles(WorkflowData data) { this.data = data; }
+
+    public Map<String,Object> updateCourse(String id,Map<String,Object> input,User actor) {
+        role(actor,"HR");
+        UUID admission=uuid(id);
+        data.record("admissions",id,actor);
+        // Handoff takes this same lock, so a concurrent edit cannot change the handed-off course.
+        data.one("SELECT id FROM consultation_registrations WHERE id=? FOR UPDATE",admission);
+        var record=data.record("admissions",id,actor);
+        if(record.get("forwardedAt")!=null)throw conflict("Hồ sơ đã chuyển học vụ; không thể thay đổi khóa học đăng ký.");
+        if(number(input,"version",0,Long.MAX_VALUE)!=((Number)record.get("version")).longValue())
+            throw conflict("Hồ sơ vừa được cập nhật. Hãy tải lại trước khi đổi khóa học.");
+        String course=text(input,"enrollmentCourse",255,true);
+        if(!ENROLLMENT_COURSES.contains(course))throw invalid("enrollmentCourse","Chọn một trong 4 khóa học được hỗ trợ.");
+        if(course.equals(record.get("enrollmentCourse")))return TrainingWorkflows.saved("ListAdmissionApplicationDetail",id);
+        data.jdbc.update("UPDATE consultation_registrations SET enrollment_course=? WHERE id=?",course,admission);
+        if(data.count("SELECT COUNT(*) FROM consultation_followups WHERE consultation_id=?",admission)==0)
+            data.jdbc.update("INSERT INTO consultation_followups(id,consultation_id,assigned_to,status,version) VALUES (?,?,?,'NEW',1)",UUID.randomUUID(),admission,actor.id);
+        else data.jdbc.update("UPDATE consultation_followups SET assigned_to=COALESCE(assigned_to,?),version=version+1,updated_at=CURRENT_TIMESTAMP WHERE consultation_id=?",actor.id,admission);
+        String previous=Objects.toString(record.get("enrollmentCourse"),"Chưa chọn");
+        data.jdbc.update("INSERT INTO consultation_notes(id,consultation_id,actor_id,channel,outcome,content) VALUES (?,?,?,'IN_PERSON','COURSE_UPDATED',?)",UUID.randomUUID(),admission,actor.id,"Đổi khóa học đăng ký từ “"+previous+"” sang “"+course+"”.");
+        return Map.of("screen","ListAdmissionApplicationDetail","id",id,"notice","Đã lưu khóa học đăng ký.");
+    }
 
     public List<Map<String,Object>> documents(UUID admission) {
         return data.rows("SELECT d.id,d.document_type,d.display_order,d.created_at,w.id AS file_id,w.filename,w.content_type,w.file_size,CONCAT('file:',w.id,':',w.filename) AS reference FROM admission_profile_documents d JOIN workflow_files w ON w.id=d.file_id WHERE d.consultation_id=? ORDER BY d.display_order,d.id",admission);

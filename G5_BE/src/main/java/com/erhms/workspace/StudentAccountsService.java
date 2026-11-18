@@ -36,7 +36,7 @@ public class StudentAccountsService {
             FROM consultation_registrations r
             JOIN consultation_followups f ON f.consultation_id=r.id
             WHERE ((r.intake_source='EXCEL' OR f.forwarded_at IS NOT NULL) AND f.status IN ('PROFILE_PENDING','CONTRACTED','PROFILE_CREATED') OR (r.intake_source='EXCEL' AND f.status='CONTACTED'))
-            AND LOWER(r.full_name||' '||COALESCE(r.email,'')||' '||r.phone||' '||r.program_name) LIKE ? ESCAPE '!'
+            AND LOWER(r.full_name||' '||COALESCE(r.email,'')||' '||r.phone||' '||r.program_name||' '||COALESCE(r.enrollment_course,'')) LIKE ? ESCAPE '!'
             """;
     private final WorkflowData data;
     private final CurrentUser current;
@@ -72,7 +72,7 @@ public class StudentAccountsService {
         if(page<0||page>100000||size<1||size>100||term.length()>200)throw invalid("filter","Trang hoặc từ khóa tìm kiếm không hợp lệ");
         String search="%"+term.replace("!","!!").replace("%","!%").replace("_","!_")+"%";
         long total=data.count("SELECT COUNT(*) "+QUEUE,search);
-        var rows=data.rows("SELECT r.id,r.full_name,r.email,r.phone,r.program_name,r.created_date,r.contact_time,r.intake_source AS source,f.status AS profile_status,"+AdmissionProfiles.DOCUMENT_STATUS_SQL+" AS document_status,f.version,f.profile_submitted_at,f.profile_created_at,(SELECT CONCAT('file:',w.id,':',w.filename) FROM workflow_files w WHERE w.id=f.scan_file_id) AS profile_evidence "+QUEUE
+        var rows=data.rows("SELECT r.id,r.full_name,r.email,r.phone,r.program_name,r.enrollment_course,r.created_date,r.contact_time,r.intake_source AS source,f.status AS profile_status,"+AdmissionProfiles.DOCUMENT_STATUS_SQL+" AS document_status,f.version,f.profile_submitted_at,f.profile_created_at,(SELECT CONCAT('file:',w.id,':',w.filename) FROM workflow_files w WHERE w.id=f.scan_file_id) AS profile_evidence "+QUEUE
                 +" ORDER BY r.created_date DESC,r.id LIMIT ? OFFSET ?",search,size,page*size);
         for(var row:rows) {
             row.put("profileDocuments",profiles.documents(uuid(row.get("id").toString())));

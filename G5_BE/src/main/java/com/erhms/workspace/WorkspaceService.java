@@ -57,6 +57,7 @@ public class WorkspaceService {
                 boolean canUpload=u.getRoleCode().equals("HR")&&permissions.codes(u).contains("AdmissionConsultation");
                 result.put("canSubmitProfile",canUpload&&"DOCUMENT_APPOINTMENT".equals(record.get("status"))&&record.get("documentDueOn")!=null);
                 result.put("canEditProfile",canUpload&&AdmissionProfiles.submitted(record));
+                result.put("canEditCourse",canUpload&&record.get("forwardedAt")==null);
             }}
         else if(!Set.of("AddCourse","AddClass","AddTrainingContract","AddEquipmentRequest","AddAsset","SendNotification").contains(code)){
             long total;
@@ -117,6 +118,7 @@ public class WorkspaceService {
     Map<String,Object> options(String code,User u,String id){
         Map<String,Object> out=new LinkedHashMap<>();
         switch(code){
+            case "ListAdmissionApplicationDetail"->out.put("enrollmentCourses",AdmissionProfiles.ENROLLMENT_COURSES);
             case "AddClass"->{
                 out.put("courses",d.rows("SELECT scoped.* FROM ("+d.base("courses",u)+") scoped WHERE status IN ('OPEN','ACTIVE') ORDER BY name"));
                 out.put("lecturers",d.rows("SELECT l.lecturer_id AS id,teacher.full_name AS name,l.course_id FROM course_lecturers l JOIN training_courses c ON c.id=l.course_id JOIN m_user teacher ON teacher.user_id=l.lecturer_id WHERE "+courseScope(u,"c")+" AND c.status IN ('OPEN','ACTIVE') AND teacher.role_id=2 AND teacher.account_enabled=TRUE AND teacher.account_locked=FALSE ORDER BY teacher.full_name,l.course_id"));
@@ -179,6 +181,7 @@ public class WorkspaceService {
         return switch(code+":"+action){
             case "ListAdmissionApplicationDetail:submit-profile"->{permissions.require("AdmissionConsultation");yield profiles.submit(requiredId,p,u);}
             case "ListAdmissionApplicationDetail:update-profile"->{permissions.require("AdmissionConsultation");yield profiles.update(requiredId,p,u);}
+            case "ListAdmissionApplicationDetail:update-course"->{permissions.require("AdmissionConsultation");yield profiles.updateCourse(requiredId,p,u);}
             case "ListAdmissionEnrollment:forward-profiles"->{permissions.require("AdmissionConsultation");yield admissionForwarding.forward(p,u);}
             case "ClassDetail:add-students"->training.addClassStudents(requiredId,p,u);
             case "AutoAssignmentDetail:confirm"->training.assignment(requiredId,p,u);
