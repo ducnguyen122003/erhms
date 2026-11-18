@@ -79,12 +79,15 @@ class StudentAccountsIntegrationTest {
     }
     private String readyAdmission(String email) {
         String id=admission("CONTRACTED",email);UUID contract=UUID.randomUUID();
-        jdbc.update("INSERT INTO training_contracts(id,code,consultation_id,student_email,applicant_name,status,created_by,manager_id) VALUES (?,?,?,?,?,'DRAFT',?,?)",
-                contract,"HD-"+contract.toString().substring(0,8),UUID.fromString(id),email==null?"":email.strip().toLowerCase(Locale.ROOT),unique+" Học viên",manager.id,manager.id);
+        jdbc.update("INSERT INTO training_contracts(id,code,consultation_id,student_email,applicant_name,status,created_by,manager_id,accountant_id,signature_approved_at) VALUES (?,?,?,?,?,'SIGNED',?,?,?,CURRENT_TIMESTAMP)",
+                contract,"HD-"+contract.toString().substring(0,8),UUID.fromString(id),email==null?"":email.strip().toLowerCase(Locale.ROOT),unique+" Học viên",manager.id,manager.id,actors.get("ACCOUNTANT").id);
         return id;
     }
+    private void approveContractFixture(String contract) {
+        jdbc.update("UPDATE training_contracts SET status='SIGNED',signature_approved_at=CURRENT_TIMESTAMP,accountant_id=? WHERE id=?",actors.get("ACCOUNTANT").id,UUID.fromString(contract));
+    }
     private String createContract(String admission)throws Exception {
-        UUID course=UUID.randomUUID();jdbc.update("INSERT INTO training_courses(id,code,name,profession,duration_months,total_sessions,tuition_fee,objectives,status,manager_id,class_capacity) VALUES (?,?,?,?,3,20,1000,'Training','ACTIVE',?,20)",course,course.toString(),unique+" Course","Nghề",manager.id);
+        UUID course=UUID.randomUUID();jdbc.update("INSERT INTO training_courses(id,code,name,profession,duration_months,total_sessions,tuition_fee,objectives,status,manager_id,class_capacity) VALUES (?,?,?,?,3,20,1000,'Training','ACTIVE',?,20)",course,course.toString(),"Sửa chữa máy tính Laptop chuyên nghiệp","Nghề",manager.id);
         var input=Map.of("consultationId",admission,"courseId",course.toString(),"startsOn","2026-12-15","paymentDueOn","2026-12-14","tuitionDue",1000,"depositDue",0,"terms","Điều khoản đào tạo");
         return body(mvc.perform(post("/api/workspace/screens/AddTrainingContract").with(user(manager.email).roles("MANAGER")).with(csrf()).contentType("application/json").content(json.writeValueAsString(input)))
                 .andExpect(status().isOk()).andReturn()).path("id").asText();
@@ -102,6 +105,79 @@ class StudentAccountsIntegrationTest {
     private JsonNode scan(User actor)throws Exception {
         return body(mvc.perform(multipart("/api/workspace/files").file(new MockMultipartFile("file","ho-so.pdf","application/pdf","%PDF-1.4\nScanned application".getBytes(StandardCharsets.US_ASCII)))
                 .param("screen","AdmissionConsultation").with(user(actor.email).roles(actor.getRoleCode())).with(csrf())).andExpect(status().isOk()).andReturn());
+    }
+
+    private ResultActions workspaceWrite(User actor,String screen,String id,Map<String,Object> values)throws Exception {
+        return mvc.perform(post("/api/workspace/screens/"+screen+(id==null?"":"/"+id)).with(user(actor.email).roles(actor.getRoleCode())).with(csrf())
+                .contentType("application/json").content(json.writeValueAsString(values)));
+    }
+
+    private ResultActions workspaceAction(User actor,String screen,String id,String action,Map<String,Object> values)throws Exception {
+        return mvc.perform(post("/api/workspace/screens/"+screen+"/"+id+"/actions/"+action).with(user(actor.email).roles(actor.getRoleCode())).with(csrf())
+                .contentType("application/json").content(json.writeValueAsString(values)));
+    }
+
+    private JsonNode workspaceView(User actor,String screen,String id)throws Exception {
+        return body(mvc.perform(get("/api/workspace/screens/"+screen+"/"+id).with(user(actor.email).roles(actor.getRoleCode()))).andExpect(status().isOk()).andReturn());
+    }
+
+    private Map<String,String> classForRegisteredProgram(String program)throws Exception {
+        UUID course=UUID.randomUUID();
+        jdbc.update("INSERT INTO training_courses(id,code,name,profession,duration_months,total_sessions,tuition_fee,objectives,status,manager_id,class_capacity) VALUES (?,?,?,'Điện',4,20,14200000,'Training fixture','ACTIVE',?,10)",course,course.toString(),program,manager.id);
+        String classId=body(workspaceWrite(manager,"AddClass",null,Map.of("courseId",course.toString(),"name",unique+" Lớp học","capacity",10,"startsOn","2026-12-15","endsOn","2027-06-30"))
+                .andExpect(status().isOk()).andReturn()).path("id").asText();
+        return Map.of("courseId",course.toString(),"classId",classId);
+    }
+
+    @Test void registeredProgramContractCanCreateAnAccountReceivePaymentAndJoinItsMatchingClassWithoutAnInitialTrainingCourse()throws Exception {
+        String program="Sửa chữa máy tính Laptop chuyên nghiệp",email=unique+"-direct@student.test";
+        String admission=admission("PROFILE_PENDING",email);
+        jdbc.update("UPDATE consultation_registrations SET enrollment_course=? WHERE id=?",program,UUID.fromString(admission));
+        assertEquals(0,jdbc.queryForObject("SELECT COUNT(*) FROM training_courses WHERE manager_id=?",Integer.class,manager.id));
+
+        String contract=body(workspaceWrite(manager,"AddTrainingContract",null,Map.of("consultationId",admission,"startsOn","2026-12-15","paymentDueOn","2026-12-14","depositDue",0,"terms","Điều khoản theo hồ sơ tuyển sinh"))
+                .andExpect(status().isOk()).andReturn()).path("id").asText();
+        UUID contractId=UUID.fromString(contract);
+        var draft=workspaceView(manager,"TrainingContractDetail",contract).path("record");
+        assertTrue(draft.path("courseId").isNull());assertTrue(draft.path("studentId").isNull());
+        assertEquals(program,draft.path("courseName").asText());assertEquals(4,draft.path("durationMonths").asInt());
+        assertEquals(14200000,draft.path("tuitionDue").asLong());assertEquals(manager.id.longValue(),draft.path("managerId").asLong());
+        assertEquals(0,jdbc.queryForObject("SELECT COUNT(*) FROM training_courses WHERE manager_id=?",Integer.class,manager.id));
+
+        create(manager,admission,Map.of("expectedEmail",email,"version",row(admission).path("version").asLong())).andExpect(status().isConflict());
+        approveContractFixture(contract);
+        long student=body(create(manager,admission,Map.of("expectedEmail",email,"version",row(admission).path("version").asLong()))
+                .andExpect(status().isOk()).andReturn()).path("accountId").asLong();
+        assertEquals(student,jdbc.queryForObject("SELECT student_id FROM training_contracts WHERE id=?",Long.class,contractId));
+        verify(mailer).sendCredentials(eq(email),anyString(),anyString());
+        assertNotNull(jdbc.queryForObject("SELECT handed_over_at FROM training_contracts WHERE id=?",Object.class,contractId));
+
+        User accountant=actors.get("ACCOUNTANT");
+        String payment=body(workspaceAction(accountant,"ListPayment","new","import",Map.of("contractId",contract,"kind","TUITION","amount",14200000,"bankReference",UUID.randomUUID().toString(),"payerName",unique+" Học viên","bankId","55000000-0000-0000-0000-000000000001","memo","Đối chiếu học phí hợp đồng","evidence","Chứng từ đã kiểm tra"))
+                .andExpect(status().isOk()).andReturn()).path("id").asText();
+        workspaceAction(accountant,"PaymentDetail",payment,"confirm",Map.of("version",0,"identityVerified",true,"amountVerified",true,"referenceVerified",true,"changeNote","Đã khớp chứng từ"))
+                .andExpect(status().isOk());
+        var paid=workspaceView(manager,"TrainingContractDetail",contract).path("record");
+        assertEquals("ACTIVE",paid.path("status").asText());assertTrue(paid.path("courseId").isNull());assertEquals(14200000,paid.path("tuitionPaid").asLong());
+        assertEquals(1,jdbc.queryForObject("SELECT COUNT(*) FROM user_notifications WHERE recipient_id=? AND target_screen='ListClass'",Integer.class,manager.id));
+
+        var wrongClass=classForRegisteredProgram("Sửa chữa máy tính PC & máy in");
+        var wrongCandidates=workspaceView(manager,"ClassDetail",wrongClass.get("classId")).path("related").path("unassignedStudents");
+        for(var candidate:wrongCandidates)assertNotEquals(student,candidate.path("id").asLong());
+        workspaceAction(manager,"ClassDetail",wrongClass.get("classId"),"add-students",Map.of("version",0,"students",List.of(Map.of("id",student))))
+                .andExpect(status().isBadRequest()).andExpect(jsonPath("$.fields.students").exists());
+        assertEquals(0,jdbc.queryForObject("SELECT COUNT(*) FROM training_enrollments WHERE contract_id=?",Integer.class,contractId));
+
+        var matchingClass=classForRegisteredProgram(program);
+        var candidates=workspaceView(manager,"ClassDetail",matchingClass.get("classId")).path("related").path("unassignedStudents");
+        boolean listed=false;for(var candidate:candidates)if(candidate.path("id").asLong()==student)listed=true;assertTrue(listed);
+        workspaceAction(manager,"ClassDetail",matchingClass.get("classId"),"add-students",Map.of("version",0,"students",List.of(Map.of("id",student))))
+                .andExpect(status().isOk());
+        var assigned=workspaceView(manager,"TrainingContractDetail",contract).path("record");
+        assertEquals(matchingClass.get("courseId"),assigned.path("courseId").asText());
+        assertEquals(program,assigned.path("registeredCourseName").asText());assertEquals(4,assigned.path("registeredDurationMonths").asInt());
+        assertEquals(14200000,assigned.path("tuitionDue").asLong());
+        assertEquals(1,jdbc.queryForObject("SELECT COUNT(*) FROM training_enrollments WHERE contract_id=? AND class_id=? AND student_id=?",Integer.class,contractId,UUID.fromString(matchingClass.get("classId")),student));
     }
 
     @Test void scannedApplicationIsSentToManagerAndChangesStatusOnlyAfterProfileCreation()throws Exception {
@@ -132,6 +208,8 @@ class StudentAccountsIntegrationTest {
                 .andExpect(status().isOk()).andExpect(jsonPath("$.record.studentName").value(unique+" Học viên")).andExpect(jsonPath("$.record.studentId").isEmpty());
         mvc.perform(post("/api/workspace/screens/ContractSignature/"+contract).with(user(manager.email).roles("MANAGER")).with(csrf()).contentType("application/json").content("{\"version\":0}"))
                 .andExpect(status().isConflict());
+        create(manager,id,Map.of("expectedEmail",email,"version",row(id).path("version").asLong())).andExpect(status().isConflict());
+        approveContractFixture(contract);
         create(manager,id,Map.of("expectedEmail",email,"version",row(id).path("version").asLong())).andExpect(status().isOk());
         assertNotNull(jdbc.queryForObject("SELECT student_id FROM training_contracts WHERE id=?",Long.class,UUID.fromString(contract)));
         mvc.perform(post("/api/workspace/screens/EditTrainingContract/"+contract).with(user(manager.email).roles("MANAGER")).with(csrf()).contentType("application/json")
@@ -179,6 +257,53 @@ class StudentAccountsIntegrationTest {
         String another=readyAdmission(email);User otherManager=account("MANAGER",UUID.randomUUID()+"@actor.test");
         create(otherManager,another,Map.of("expectedEmail",email,"version",0)).andExpect(status().isConflict());
         assertEquals(manager.id,jdbc.queryForObject("SELECT manager_id FROM student_profiles WHERE user_id=?",Long.class,existing.id));
+    }
+
+    @Test void newAndExistingStudentAccountsRequireApprovalOfTheSignedContract()throws Exception {
+        for(boolean reuse:List.of(false,true)) {
+            String email=unique+(reuse?"-existing":"-new")+"@student.test",id=readyAdmission(email);
+            User existing=reuse?account("STUDENT",email):null;
+            for(String state:List.of("DRAFT","SENT_FOR_SIGNATURE","SIGNATURE_REVIEW","SIGNED")) {
+                jdbc.update("UPDATE training_contracts SET status=?,signature_approved_at=NULL WHERE consultation_id=?",state,UUID.fromString(id));
+                JsonNode blocked=row(id);
+                assertTrue(blocked.path("hasContract").asBoolean());assertFalse(blocked.path("hasApprovedContract").asBoolean());
+                assertEquals(state,blocked.path("contractSigningStatus").asText());assertFalse(blocked.path("canCreate").asBoolean());
+                assertTrue(blocked.path("blockedReason").asText().contains("xác nhận bản hợp đồng đã ký"));
+                create(id,email).andExpect(status().isConflict());
+                assertNull(jdbc.queryForObject("SELECT student_id FROM training_contracts WHERE consultation_id=?",Long.class,UUID.fromString(id)));
+                assertNull(jdbc.queryForObject("SELECT handed_over_at FROM training_contracts WHERE consultation_id=?",Object.class,UUID.fromString(id)));
+                if(reuse) {
+                    assertEquals(0,jdbc.queryForObject("SELECT COUNT(*) FROM student_profiles WHERE user_id=?",Long.class,existing.id));
+                    assertEquals("existing-hash",users.findById(existing.id).orElseThrow().passwordHash);
+                } else assertFalse(users.existsByEmailIgnoreCase(email));
+            }
+            jdbc.update("UPDATE training_contracts SET signature_approved_at=CURRENT_TIMESTAMP WHERE consultation_id=?",UUID.fromString(id));
+            assertTrue(row(id).path("hasApprovedContract").asBoolean());assertTrue(row(id).path("canCreate").asBoolean());
+        }
+        verifyNoInteractions(mailer);
+    }
+
+    @Test void everyNoncancelledContractMustBeApprovedOwnedAndMatchTheEmailBeforeProvisioning()throws Exception {
+        String email=unique+"@student.test",id=readyAdmission(email);UUID admission=UUID.fromString(id),extra=UUID.randomUUID();
+        jdbc.update("INSERT INTO training_contracts(id,code,consultation_id,student_email,applicant_name,status,manager_id) VALUES (?,?,?,?,?,'DRAFT',?)",extra,extra.toString(),admission,email,unique+" Học viên",manager.id);
+        assertFalse(row(id).path("canCreate").asBoolean());create(id,email).andExpect(status().isConflict());
+        jdbc.update("UPDATE training_contracts SET status='SIGNED',signature_approved_at=CURRENT_TIMESTAMP,manager_id=? WHERE id=?",actors.get("HR").id,extra);
+        assertFalse(row(id).path("hasContract").asBoolean());create(id,email).andExpect(status().isConflict());
+        jdbc.update("UPDATE training_contracts SET manager_id=?,student_email=? WHERE id=?",manager.id,unique+"-other@student.test",extra);
+        assertFalse(row(id).path("hasApprovedContract").asBoolean());create(id,email).andExpect(status().isConflict());
+        jdbc.update("UPDATE training_contracts SET status='CANCELLED' WHERE id=?",extra);
+        assertTrue(row(id).path("canCreate").asBoolean());
+        verifyNoInteractions(mailer);assertFalse(users.existsByEmailIgnoreCase(email));
+    }
+
+    @Test void approvedContractIsHandedToFinanceOnlyWhenTheStudentProfileIsCreated()throws Exception {
+        String email=unique+"@student.test",id=readyAdmission(email);
+        UUID contract=jdbc.queryForObject("SELECT id FROM training_contracts WHERE consultation_id=?",UUID.class,UUID.fromString(id));
+        assertNull(jdbc.queryForObject("SELECT handed_over_at FROM training_contracts WHERE id=?",Object.class,contract));
+        mvc.perform(get("/api/workspace/screens/TuitionDetail/"+contract).with(user(actors.get("ACCOUNTANT").email).roles("ACCOUNTANT"))).andExpect(status().isNotFound());
+        create(id,email).andExpect(status().isOk());
+        assertNotNull(jdbc.queryForObject("SELECT handed_over_at FROM training_contracts WHERE id=?",Object.class,contract));
+        mvc.perform(get("/api/workspace/screens/TuitionDetail/"+contract).with(user(actors.get("ACCOUNTANT").email).roles("ACCOUNTANT"))).andExpect(status().isOk());
     }
 
     @Test void accountCreationRejectsMismatchedCancelledOrAnotherManagersContract()throws Exception {
@@ -314,6 +439,7 @@ class StudentAccountsIntegrationTest {
         assertEquals(profiles,jdbc.queryForObject("SELECT COUNT(*) FROM student_profiles",Long.class));assertTrue(row(id).path("canCreate").asBoolean());
         assertEquals("CONTRACTED",row(id).path("profileStatus").asText());assertTrue(row(id).path("profileCreatedAt").isNull());
         assertNull(jdbc.queryForObject("SELECT student_id FROM training_contracts WHERE consultation_id=?",Long.class,UUID.fromString(id)));
+        assertNull(jdbc.queryForObject("SELECT handed_over_at FROM training_contracts WHERE consultation_id=?",Object.class,UUID.fromString(id)));
         assertEquals(0,jdbc.queryForObject("SELECT version FROM training_contracts WHERE consultation_id=?",Long.class,UUID.fromString(id)));
         reset(mailer);create(id,email).andExpect(status().isOk());assertTrue(users.existsByEmailIgnoreCase(email));
     }

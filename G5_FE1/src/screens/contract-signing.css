@@ -1,0 +1,14 @@
+.contract-signing-summary{margin:24px 0;padding:20px;background:var(--admin-soft,#f1f7f4);border:1px solid var(--admin-border,#dce7e1);border-radius:10px}
+.contract-signing-summary h3{margin:0 0 10px;font-size:15px}
+.contract-signing-summary p{line-height:1.65;font-size:14px}
+.contract-signing-summary .screen-facts{padding-bottom:0}
+.contract-signing-returned{padding:12px 14px;background:#fff6e4;border:1px solid #f0d194;border-radius:7px;color:#815500}
+.contract-scan-actions{display:flex;align-items:center;gap:14px;flex-wrap:wrap;margin-top:14px}
+.contract-scan-actions .screen-file-link{display:inline-flex;align-items:center;gap:6px}
+.contract-signing-upload{margin-top:24px;padding-top:24px;border-top:1px solid var(--admin-border,#dce7e1)}
+.contract-signing-upload .admin-field-grid{margin:16px 0}
+.contract-signing-upload input[type=file]{padding:12px;width:100%;box-sizing:border-box}
+.contract-signing-history{margin-top:24px}
+.contract-signing-history ol{padding-left:22px}
+.contract-signing-history li{padding:8px 0;line-height:1.6}
+.contract-signing-history li small{display:block;color:var(--admin-muted,#778b86)}

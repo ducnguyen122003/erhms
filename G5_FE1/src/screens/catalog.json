@@ -1281,7 +1281,7 @@
     "scope": "Manager theo hợp đồng và khóa học được phân công; Kế toán theo hồ sơ đã bàn giao.",
     "actions": [
       [
-        "Cập nhật minh chứng ký",
+        "Kiểm tra & xác nhận bản ký",
         "ContractSignature"
       ],
       [
@@ -1292,7 +1292,7 @@
     "variant": "Màn hình chính",
     "kind": "detail",
     "functionCode": "TrainingContractDetail",
-    "description": "Rà soát nội dung, minh chứng ký và trạng thái bàn giao.",
+    "description": "Rà soát hợp đồng, gửi tuyển sinh lấy chữ ký và xác nhận bản scan trước khi cấp tài khoản.",
     "tabs": [
       "Nội dung hợp đồng",
       "Minh chứng ký",
@@ -1305,60 +1305,25 @@
   {
     "code": "ContractSignature",
     "fe": "FE-07",
-    "title": "Ghi nhận ký & bàn giao hợp đồng",
+    "title": "Xác nhận bản hợp đồng đã ký",
     "roles": [
       "MANAGER"
     ],
     "proposedRoles": [],
     "public": false,
     "scope": "Manager theo hợp đồng và khóa học được phân công; Kế toán theo hồ sơ đã bàn giao.",
-    "actions": "Manager ghi nhận minh chứng ký và bàn giao cho Kế toán.",
-    "variant": "Tab ký và bàn giao của TrainingContractDetail",
+    "actions": "QLHV xác nhận bản ký trước khi cấp tài khoản học viên.",
+    "variant": "Kiểm tra bản ký của TrainingContractDetail",
     "kind": "form",
     "functionCode": "ContractSignature",
-    "description": "Đính kèm bản ký và xác nhận bàn giao hồ sơ đào tạo.",
+    "description": "Kiểm tra bản scan do tuyển sinh gửi; xác nhận hoặc yêu cầu ký / scan lại.",
     "notes": [
-      "Đây là ghi nhận minh chứng ký trực tiếp.",
-      "Trạng thái thanh toán do kế toán xác nhận."
+      "Tuyển sinh tải bản scan sau khi học viên ký.",
+      "Chỉ cấp tài khoản khi QLHV đã xác nhận bản ký."
     ],
     "back": "TrainingContractDetail",
-    "save": "Xác nhận ký & bàn giao",
-    "sections": [
-      {
-        "title": "Thông tin ký hợp đồng",
-        "fields": [
-          {
-            "label": "Hợp đồng",
-            "type": "readonly"
-          },
-          {
-            "label": "Ngày ký *",
-            "type": "text"
-          },
-          {
-            "label": "Hình thức ký *",
-            "type": "select"
-          },
-          {
-            "label": "Minh chứng ký *",
-            "type": "upload"
-          }
-        ]
-      },
-      {
-        "title": "Bàn giao",
-        "fields": [
-          {
-            "label": "Bộ phận tiếp nhận",
-            "type": "readonly"
-          },
-          {
-            "label": "Ghi chú bàn giao",
-            "type": "textarea"
-          }
-        ]
-      }
-    ]
+    "save": "Lưu kết quả kiểm tra",
+    "sections": []
   },
   {
     "code": "ListCourse",
@@ -3574,7 +3539,22 @@
       "MANAGER"
     ],
     "public": false,
-    "description": "Nhận hồ sơ được tuyển sinh chuyển sang học vụ, lập hợp đồng và cấp tài khoản theo email học viên.",
-    "scope": "Chỉ nhận hồ sơ tuyển sinh đã được chuyển học vụ hoặc nguồn Excel do Manager nhập. Manager lập hợp đồng trước, sau đó cấp tài khoản và liên kết theo email."
+    "description": "Cấp tài khoản sau khi QLHV xác nhận bản hợp đồng đã ký.",
+    "scope": "QLHV chỉ cấp tài khoản cho hồ sơ có hợp đồng đã được ký, scan và xác nhận."
+  },
+  {
+    "code": "AdmissionContractSigning",
+    "fe": "FE-07-TS",
+    "title": "In & ký hợp đồng",
+    "roles": [
+      "HR"
+    ],
+    "proposedRoles": [],
+    "public": false,
+    "kind": "list",
+    "functionCode": "AdmissionContractSigning",
+    "scope": "Chỉ hợp đồng được QLHV giao cho nhân viên tuyển sinh hiện tại.",
+    "description": "In hợp đồng, lấy chữ ký học viên và gửi bản scan cho QLHV xác nhận.",
+    "sections": []
   }
 ]

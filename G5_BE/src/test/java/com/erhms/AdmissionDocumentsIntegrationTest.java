@@ -148,7 +148,7 @@ class AdmissionDocumentsIntegrationTest {
         String first=pdf(hr,"ly-lich-1.pdf").path("id").asText(),second=pdf(hr,"ly-lich-2.pdf").path("id").asText();
         submit(hr,input(List.of(group("CURRICULUM_VITAE",first,second)))).andExpect(status().isOk());
         completeAndForward();
-        UUID course=UUID.randomUUID();jdbc.update("INSERT INTO training_courses(id,code,name,profession,duration_months,total_sessions,tuition_fee,objectives,status,manager_id,class_capacity) VALUES (?,?,?,'Điện',3,20,1000,'Training','OPEN',?,20)",course,course.toString(),"Khóa hồ sơ",manager.id);
+        UUID course=UUID.randomUUID();jdbc.update("INSERT INTO training_courses(id,code,name,profession,duration_months,total_sessions,tuition_fee,objectives,status,manager_id,class_capacity) VALUES (?,?,?,'Điện',3,20,1000,'Training','OPEN',?,20)",course,course.toString(),"Sửa chữa máy tính Laptop chuyên nghiệp",manager.id);
         var contractInput=Map.of("consultationId",admission.toString(),"courseId",course.toString(),"startsOn","2026-12-20","paymentDueOn","2026-12-19","tuitionDue",1000,"depositDue",0,"terms","Điều khoản");
         String contract=body(mvc.perform(post("/api/workspace/screens/AddTrainingContract").with(user(manager.email).roles("MANAGER")).with(csrf()).contentType("application/json").content(json.writeValueAsString(contractInput))).andExpect(status().isOk()).andReturn()).path("id").asText();
         mvc.perform(get("/api/workspace/screens/TrainingContractDetail/"+contract).with(user(manager.email).roles("MANAGER"))).andExpect(status().isOk()).andExpect(jsonPath("$.related.documents.length()").value(6));

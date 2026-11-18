@@ -54,7 +54,7 @@ class AdmissionForwardingIntegrationTest {
         return mvc.perform(post(coursePath(id)).with(user(actor.email).roles(actor.getRoleCode())).with(csrf()).contentType("application/json").content(json.writeValueAsString(Map.of("enrollmentCourse",course,"version",version))));
     }
     Map<String,Object> contract(UUID admission){
-        UUID course=UUID.randomUUID();jdbc.update("INSERT INTO training_courses(id,code,name,profession,duration_months,total_sessions,tuition_fee,objectives,status,manager_id,class_capacity) VALUES (?,?,?,'Điện',3,20,1000,'Training','OPEN',?,20)",course,course.toString(),term,manager.id);
+        UUID course=UUID.randomUUID();jdbc.update("INSERT INTO training_courses(id,code,name,profession,duration_months,total_sessions,tuition_fee,objectives,status,manager_id,class_capacity) VALUES (?,?,?,'Điện',3,20,1000,'Training','OPEN',?,20)",course,course.toString(),COURSES.get(0),manager.id);
         return Map.of("consultationId",admission.toString(),"courseId",course.toString(),"startsOn","2026-12-20","paymentDueOn","2026-12-19","tuitionDue",1000,"depositDue",0,"terms","Điều khoản");
     }
 
@@ -164,5 +164,86 @@ class AdmissionForwardingIntegrationTest {
         assertEquals(0,queue().path("total").asInt());assertEquals(0,page("forwarded").path("total").asInt());
         changeCourse(hr,missing,COURSES.get(2),0).andExpect(status().isOk());
         forward(hr,input(item(ready,0),item(missing,1))).andExpect(status().isOk()).andExpect(jsonPath("$.forwardedCount").value(2));
+    }
+
+    ResultActions saveContract(String code,String id,Map<String,Object> values)throws Exception{
+        return mvc.perform(post("/api/workspace/screens/"+code+(id==null?"":"/"+id)).with(user(manager.email).roles("MANAGER")).with(csrf()).contentType("application/json").content(json.writeValueAsString(values)));
+    }
+    JsonNode contractView(String id)throws Exception{
+        return body(mvc.perform(get("/api/workspace/screens/TrainingContractDetail/"+id).with(user(manager.email).roles("MANAGER"))).andExpect(status().isOk()).andReturn()).path("record");
+    }
+
+    @Test void registeredCourseAndBaseTuitionAreResolvedForAllFourProgramsWithoutTakingAnotherManagersCourses()throws Exception{
+        long[] prices={14200000,13000000,11000000,21900000};int[] months={4,4,4,7};
+        var options=body(mvc.perform(get("/api/workspace/screens/AddTrainingContract").with(user(manager.email).roles("MANAGER"))).andExpect(status().isOk()).andReturn()).path("options");
+        var catalog=options.path("enrollmentCourseCatalog");assertEquals(4,catalog.size());
+        for(int index=0;index<COURSES.size();index++){
+            assertEquals(COURSES.get(index),catalog.get(index).path("name").asText());assertEquals(prices[index],catalog.get(index).path("tuitionFee").asLong());assertEquals(months[index],catalog.get(index).path("durationMonths").asInt());
+            UUID admission=admission(hr,5);jdbc.update("UPDATE consultation_registrations SET enrollment_course=? WHERE id=?",COURSES.get(index),admission);
+            forward(hr,input(item(admission,0))).andExpect(status().isOk());
+            var values=new LinkedHashMap<>(contract(admission));String course=values.get("courseId").toString();
+            jdbc.update("UPDATE training_courses SET name=? WHERE id=?",COURSES.get(index),UUID.fromString(course));
+            values.remove("courseId");values.remove("tuitionDue");
+            var saved=body(saveContract("AddTrainingContract",null,values).andExpect(status().isOk()).andReturn());
+            var record=contractView(saved.path("id").asText());assertEquals(course,record.path("courseId").asText());assertEquals(prices[index],record.path("tuitionDue").asLong());
+            assertEquals(COURSES.get(index),record.path("enrollmentCourse").asText());
+            assertEquals(COURSES.get(index),record.path("courseName").asText());assertEquals(months[index],record.path("durationMonths").asInt());
+        }
+    }
+
+    @Test void negotiatedTuitionIsPreservedWhenTheDraftIsOpenedAndEdited()throws Exception{
+        UUID admission=admission(hr,5);forward(hr,input(item(admission,0))).andExpect(status().isOk());
+        var values=new LinkedHashMap<>(contract(admission));values.put("tuitionDue",13500000);
+        String id=body(saveContract("AddTrainingContract",null,values).andExpect(status().isOk()).andReturn()).path("id").asText();
+        // Historical drafts keep their agreed price and course even if the catalog name later changes.
+        jdbc.update("UPDATE training_courses SET name='Legacy course name' WHERE id=?",UUID.fromString(values.get("courseId").toString()));
+        mvc.perform(get("/api/workspace/screens/EditTrainingContract/"+id).with(user(manager.email).roles("MANAGER")))
+                .andExpect(status().isOk()).andExpect(jsonPath("$.record.tuitionDue").value(13500000));
+        values.remove("tuitionDue");values.put("version",0);values.put("terms","Điều khoản được bổ sung");
+        saveContract("EditTrainingContract",id,values).andExpect(status().isOk());assertEquals(13500000,contractView(id).path("tuitionDue").asLong());
+        assertEquals(COURSES.get(0),contractView(id).path("courseName").asText());
+    }
+
+    @Test void mismatchedCoursesAndCoursesOutsideTheManagerScopeCannotBeUsedForTheRegisteredProgram()throws Exception{
+        UUID admission=admission(hr,5);forward(hr,input(item(admission,0))).andExpect(status().isOk());
+        var values=new LinkedHashMap<>(contract(admission));UUID course=UUID.fromString(values.get("courseId").toString());
+        jdbc.update("UPDATE training_courses SET name=? WHERE id=?",COURSES.get(1),course);
+        saveContract("AddTrainingContract",null,values).andExpect(status().isBadRequest()).andExpect(jsonPath("$.fields.courseId").exists());
+        jdbc.update("UPDATE training_courses SET name=?,manager_id=? WHERE id=?",COURSES.get(0),actor("MANAGER").id,course);
+        saveContract("AddTrainingContract",null,values).andExpect(status().isNotFound());
+        values.remove("courseId");String id=body(saveContract("AddTrainingContract",null,values).andExpect(status().isOk()).andReturn()).path("id").asText();
+        assertTrue(contractView(id).path("courseId").isNull());assertEquals(manager.id.longValue(),contractView(id).path("managerId").asLong());
+        assertEquals(COURSES.get(0),contractView(id).path("courseName").asText());
+    }
+
+    @Test void duplicateOperationalNamesDoNotBlockDirectContractsAndDuplicateContractsAreStillRejected()throws Exception{
+        UUID admission=admission(hr,5);forward(hr,input(item(admission,0))).andExpect(status().isOk());
+        var values=new LinkedHashMap<>(contract(admission));contract(admission);
+        values.remove("courseId");values.put("tuitionDue",0);
+        String id=body(saveContract("AddTrainingContract",null,values).andExpect(status().isOk()).andReturn()).path("id").asText();
+        assertEquals(0,contractView(id).path("tuitionDue").asLong());assertTrue(contractView(id).path("courseId").isNull());
+        // Leave the intake stage eligible, so this specifically exercises duplicate detection for a null course_id.
+        jdbc.update("UPDATE consultation_followups SET status='PROFILE_PENDING' WHERE consultation_id=?",admission);
+        saveContract("AddTrainingContract",null,values).andExpect(status().isBadRequest()).andExpect(jsonPath("$.fields.consultationId").exists());
+    }
+
+    @Test void allFourAdmissionProgramsCanCreateContractsWithAnEmptyOperationalCourseCatalog()throws Exception{
+        long[] prices={14200000,13000000,11000000,21900000};int[] months={4,4,4,7};
+        assertEquals(0,jdbc.queryForObject("SELECT COUNT(*) FROM training_courses WHERE manager_id=?",Integer.class,manager.id));
+        for(int index=0;index<COURSES.size();index++){
+            UUID admission=admission(hr,5);jdbc.update("UPDATE consultation_registrations SET enrollment_course=? WHERE id=?",COURSES.get(index),admission);
+            forward(hr,input(item(admission,0))).andExpect(status().isOk());
+            var values=new LinkedHashMap<String,Object>(Map.of("consultationId",admission.toString(),"startsOn","2026-12-20","paymentDueOn","2026-12-19","depositDue",0,"terms","Điều khoản"));
+            values.put("registeredCourseName","Client must not choose the snapshot");values.put("registeredDurationMonths",99);
+            String id=body(saveContract("AddTrainingContract",null,values).andExpect(status().isOk()).andReturn()).path("id").asText();
+            var record=contractView(id);assertTrue(record.path("courseId").isNull());assertEquals(COURSES.get(index),record.path("courseName").asText());
+            assertEquals(months[index],record.path("durationMonths").asInt());assertEquals(prices[index],record.path("tuitionDue").asLong());assertEquals(manager.id.longValue(),record.path("managerId").asLong());
+            mvc.perform(get("/api/workspace/screens/TrainingContractDetail/"+id).with(user(actor("MANAGER").email).roles("MANAGER"))).andExpect(status().isNotFound());
+            values.put("version",0);values.put("tuitionDue",prices[index]-1000000);
+            saveContract("EditTrainingContract",id,values).andExpect(status().isOk());
+            values.remove("tuitionDue");values.put("version",1);
+            saveContract("EditTrainingContract",id,values).andExpect(status().isOk());assertEquals(prices[index]-1000000,contractView(id).path("tuitionDue").asLong());
+        }
+        assertEquals(0,jdbc.queryForObject("SELECT COUNT(*) FROM training_courses WHERE manager_id=?",Integer.class,manager.id));
     }
 }

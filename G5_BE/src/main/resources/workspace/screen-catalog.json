@@ -1,5 +1,16 @@
 [
   {
+    "code": "AdmissionContractSigning",
+    "fe": "FE-07-TS",
+    "title": "In & ký hợp đồng",
+    "roles": ["HR"],
+    "public": false,
+    "scope": "Hợp đồng QLHV gửi cho tuyển sinh phụ trách in và lấy chữ ký.",
+    "kind": "list",
+    "functionCode": "AdmissionContractSigning",
+    "description": "In bản hợp đồng đã nhận, lấy chữ ký học viên và tải bản scan để QLHV xác nhận."
+  },
+  {
     "code": "Dashboard_Admin",
     "fe": "FE-21",
     "title": "Dashboard Admin",
@@ -1281,7 +1292,7 @@
     "scope": "Manager theo hợp đồng và khóa học được phân công; Kế toán theo hồ sơ đã bàn giao.",
     "actions": [
       [
-        "Cập nhật minh chứng ký",
+        "Kiểm tra bản scan & xác nhận",
         "ContractSignature"
       ],
       [
@@ -1305,24 +1316,24 @@
   {
     "code": "ContractSignature",
     "fe": "FE-07",
-    "title": "Ghi nhận ký & bàn giao hợp đồng",
+    "title": "Xác nhận hợp đồng đã ký",
     "roles": [
       "MANAGER"
     ],
     "proposedRoles": [],
     "public": false,
     "scope": "Manager theo hợp đồng và khóa học được phân công; Kế toán theo hồ sơ đã bàn giao.",
-    "actions": "Manager ghi nhận minh chứng ký và bàn giao cho Kế toán.",
+    "actions": "QLHV kiểm tra bản scan tuyển sinh gửi; xác nhận hoặc yêu cầu bổ sung trước khi cấp tài khoản.",
     "variant": "Tab ký và bàn giao của TrainingContractDetail",
     "kind": "form",
     "functionCode": "ContractSignature",
-    "description": "Đính kèm bản ký và xác nhận bàn giao hồ sơ đào tạo.",
+    "description": "Đối chiếu bản scan với hợp đồng đã gửi trước khi xác nhận và cấp tài khoản học viên.",
     "notes": [
-      "Đây là ghi nhận minh chứng ký trực tiếp.",
+      "Tuyển sinh tải bản scan đã ký lên để QLHV kiểm tra.",
       "Trạng thái thanh toán do kế toán xác nhận."
     ],
     "back": "TrainingContractDetail",
-    "save": "Xác nhận ký & bàn giao",
+    "save": "Lưu kết quả kiểm tra",
     "sections": [
       {
         "title": "Thông tin ký hợp đồng",

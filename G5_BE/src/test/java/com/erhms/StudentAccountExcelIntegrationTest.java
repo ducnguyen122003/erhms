@@ -120,7 +120,7 @@ class StudentAccountExcelIntegrationTest {
                 .andExpect(status().isOk()).andExpect(jsonPath("$.total").value(0));
     }
 
-    @Test void importedLearnerRequiresAContractBeforeAccountCreationAndLinksByProvidedEmail() throws Exception {
+    @Test void importedLearnerRequiresAnApprovedSignedContractBeforeAccountCreationAndLinksByProvidedEmail() throws Exception {
         try (var workbook = workbook()) {
             valid(workbook.getSheetAt(0), 1, 1);
             upload(workbook).andExpect(status().isOk());
@@ -138,6 +138,10 @@ class StudentAccountExcelIntegrationTest {
         UUID contractId=UUID.fromString(contract.path("id").asText());
         assertNull(jdbc.queryForObject("SELECT student_id FROM training_contracts WHERE id=?",Long.class,contractId));
         assertEquals(email(1),jdbc.queryForObject("SELECT student_email FROM training_contracts WHERE id=?",String.class,contractId));
+        assertFalse(row(email(1)).path("canCreate").asBoolean());
+        mvc.perform(post(API+"/"+id).with(user(manager.email).roles("MANAGER")).with(csrf()).contentType("application/json")
+                .content(json.writeValueAsString(Map.of("expectedEmail",email(1),"version",row(email(1)).path("version").asLong())))).andExpect(status().isConflict());
+        jdbc.update("UPDATE training_contracts SET status='SIGNED',signature_approved_at=CURRENT_TIMESTAMP,signature_approved_by=? WHERE id=?",manager.id,contractId);
         JsonNode ready=row(email(1));assertTrue(ready.path("canCreate").asBoolean());
         JsonNode account=body(mvc.perform(post(API+"/"+id).with(user(manager.email).roles("MANAGER")).with(csrf()).contentType("application/json")
                 .content(json.writeValueAsString(Map.of("expectedEmail",email(1),"version",ready.path("version").asLong())))).andExpect(status().isOk()).andReturn());

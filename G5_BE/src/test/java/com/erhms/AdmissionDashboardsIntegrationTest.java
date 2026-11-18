@@ -90,6 +90,16 @@ class AdmissionDashboardsIntegrationTest {
         assertEquals("WAIT_HANDOVER",row(ENROLLMENT,awaitingHandover).path("tuitionProgress").asText());
     }
 
+    @Test void waitingSignatureIncludesContractsSentToAdmissionsAndScansAwaitingManagerReview()throws Exception{
+        var waiting=new HashSet<String>();
+        for(String state:List.of("DRAFT","SENT_FOR_SIGNATURE","SIGNATURE_REVIEW")){
+            UUID admission=admission(hr,"CONTRACTED",5);contract(admission,state,false,14200000,0);waiting.add(admission.toString());
+            var record=row(ENROLLMENT,admission);assertEquals("WAIT_SIGNATURE",record.path("contractProgress").asText());assertEquals(1,record.path("unsignedContractCount").asInt());assertTrue(record.path("tuitionDue").isNull());
+        }
+        assertEquals(waiting,ids(tracking("WAIT_SIGNATURE")));
+        assertEquals(3,tracking("").path("stats").get(1).path("value").asInt());
+    }
+
     @Test void searchPaginationFiltersAndRevokedOrSpoofedGrantsStayWithinTheChosenDashboard()throws Exception{
         for(int index=0;index<27;index++)admission(hr,"PROFILE_PENDING",5);
         var first=body(request(hr,ENROLLMENT,term,"",0).andExpect(status().isOk()).andReturn());

@@ -18,17 +18,17 @@ test('only managers can open and discover student account provisioning, with an 
  assert.notEqual(screens[code].fe,screens.ListStudent.fe);
 });
 test('all workbook, master data and extended workspace screens have implementations',()=>{
- assert.equal(Object.keys(screens).length,123);
+ assert.equal(Object.keys(screens).length,124);
  let business=0,pages=0;
  for(const screen of Object.values(screens)){
   if(screen.code===screen.functionCode&&!screen.public){assert.ok(fs.existsSync(new URL('../src/screens/pages/'+screen.code+'.jsx',import.meta.url)));business++;}
   else if(screen.public&&screen.fe==='FE-03'){assert.ok(fs.existsSync(new URL('../src/screens/public/'+screen.code+'.jsx',import.meta.url)));pages++;}
   else assert.ok(screenPath(screen.code).startsWith('/'));
  }
- assert.equal(business,95);assert.equal(pages,9);
+ assert.equal(business,96);assert.equal(pages,9);
 });
 test('screen access matches the current seven role totals including public and shared screens',()=>{
- const totals=[35,29,26,41,44,51,25];
+ const totals=[35,29,26,41,44,51,26];
  roles.forEach((role,index)=>{const user={role,roleId:index+1};assert.equal(Object.keys(screens).filter(code=>canScreen(code,user,grants(role))).length,totals[index],role);});
 });
 test('proposed rights and grants outside the declared role do not enable business screens',()=>{

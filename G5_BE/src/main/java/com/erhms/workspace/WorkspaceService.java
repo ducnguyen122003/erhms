@@ -15,9 +15,39 @@ import static com.erhms.workspace.WorkflowData.*;
 public class WorkspaceService {
     final WorkflowData d;final CurrentUser current;final ScreenCatalog catalog;final ScreenPermissionsService permissions;
     final TrainingWorkflows training;final FinanceWorkflows finance;final EquipmentWorkflows equipment;final MasterDataService masters;final AdmissionProfiles profiles;
-    final AdmissionDashboards admissionDashboards;final AdmissionForwarding admissionForwarding;
-    public WorkspaceService(WorkflowData d,CurrentUser current,ScreenCatalog catalog,ScreenPermissionsService permissions,TrainingWorkflows training,FinanceWorkflows finance,EquipmentWorkflows equipment,MasterDataService masters,AdmissionProfiles profiles,AdmissionDashboards admissionDashboards,AdmissionForwarding admissionForwarding){this.admissionForwarding=admissionForwarding;this.admissionDashboards=admissionDashboards;this.profiles=profiles;this.masters=masters;this.d=d;this.current=current;this.catalog=catalog;this.permissions=permissions;this.training=training;this.finance=finance;this.equipment=equipment;}
+    final AdmissionDashboards admissionDashboards;final AdmissionForwarding admissionForwarding;final ContractTemplateData contractTemplate;final ContractSigningWorkflow signing;
+    public WorkspaceService(WorkflowData d,CurrentUser current,ScreenCatalog catalog,ScreenPermissionsService permissions,TrainingWorkflows training,FinanceWorkflows finance,EquipmentWorkflows equipment,MasterDataService masters,AdmissionProfiles profiles,AdmissionDashboards admissionDashboards,AdmissionForwarding admissionForwarding,ContractTemplateData contractTemplate,ContractSigningWorkflow signing){this.signing=signing;this.contractTemplate=contractTemplate;this.admissionForwarding=admissionForwarding;this.admissionDashboards=admissionDashboards;this.profiles=profiles;this.masters=masters;this.d=d;this.current=current;this.catalog=catalog;this.permissions=permissions;this.training=training;this.finance=finance;this.equipment=equipment;}
     User access(String code){var screen=catalog.get(code);User u=current.get();catalog.requireRole(screen,u.getRoleCode());permissions.require(screen.functionCode());return u;}
+    private String pdfScreen(User actor){return switch(actor.getRoleCode()){
+        case "MANAGER"->permissions.codes(actor).contains("TrainingContractDetail")?"TrainingContractDetail":"ContractSignature";
+        case "ACCOUNTANT"->"TuitionDetail";
+        case "STUDENT"->"TuitionDetail_Student";
+        case "HR"->"PaymentStatus_Admissions";
+        default->null;
+    };}
+    @Transactional(readOnly=true)
+    public Map<String,Object> contractPdfValues(String id){
+        User actor=current.get();var record=pdfRecord(id,actor);
+        var values=contractTemplate.values(record,actor);contractTemplate.requireComplete(values);
+        values.put("additionalTerms",Objects.toString(record.get("terms"),""));return values;
+    }
+    private Map<String,Object> pdfRecord(String id,User actor){
+        if(actor.getRoleCode().equals("HR")&&permissions.codes(actor).contains("AdmissionContractSigning")
+                &&d.count("SELECT COUNT(*) FROM training_contracts WHERE id=? AND signature_admissions_id=? AND signature_sent_at IS NOT NULL",uuid(id),actor.id)>0){
+            access("AdmissionContractSigning");return signing.admissionRecord(id,actor);
+        }
+        String screen=pdfScreen(actor);
+        if(screen==null)throw new AccessDeniedException("Bạn không có quyền xuất hợp đồng đào tạo.");
+        access(screen);return d.record("contracts",id,actor);
+    }
+    @Transactional(readOnly=true)
+    public Map<String,Object> contractDocument(String id){
+        User actor=current.get();var record=pdfRecord(id,actor);
+        Map<String,Object> out=new LinkedHashMap<>();out.put("code",record.get("code"));
+        if(record.get("printFileId")!=null)out.put("pdf",d.jdbc.queryForObject("SELECT file_data FROM workflow_files WHERE id=?",byte[].class,uuid(record.get("printFileId").toString())));
+        else{var values=contractTemplate.values(record,actor);contractTemplate.requireComplete(values);values.put("additionalTerms",Objects.toString(record.get("terms"),""));out.put("values",values);}
+        return out;
+    }
     public static String resource(String code){return switch(code){
         case "ListAdmissionApplication","ListAdmissionEnrollment","ListAdmissionApplicationDetail","AdmissionConsultation"->"admissions";
         case "ListStudent","StudentProfileDetail","EditStudentProfile","StudentProfileDetail_Student"->"students";
@@ -40,6 +70,7 @@ public class WorkspaceService {
     @Transactional(readOnly=true)
     public Map<String,Object> view(String code,String id,String q,String status,int page,String from,String to,String tab){
         User u=access(code);if(code.startsWith("Reports_"))return report(code,u,from,to);
+        if(code.equals("AdmissionContractSigning"))return signing.view(id,q,status,page,u);
         String resource=resource(code);if(page<0||page>100000||q.length()>200||status.length()>40)throw invalid("filter","Bộ lọc không hợp lệ");
         if(Set.of("ListAdmissionApplication","ListAdmissionEnrollment").contains(code)){
             if(id!=null)throw missing();
@@ -49,6 +80,9 @@ public class WorkspaceService {
         Map<String,Object> result=new LinkedHashMap<>();result.put("resource",resource);result.put("canWrite",canWrite(code,u));
         if(code.equals("ListAdmissionApplication"))result.put("canImport",u.getRoleCode().equals("HR"));
         if(id!=null){var record=d.record(resource,id,u);result.put("record",record);result.put("related",related(code,resource,record,u));
+            if(code.equals("ContractSignature"))result.put("canWrite","SIGNATURE_REVIEW".equals(record.get("status"))&&record.get("signedScanFileId")!=null);
+            if(Set.of("TrainingContractDetail","ContractSignature").contains(code)&&u.getRoleCode().equals("MANAGER")&&record.get("consultationId")!=null){var assigned=d.rows("SELECT assigned_to FROM consultation_followups WHERE consultation_id=?",uuid(record.get("consultationId").toString()));record.put("defaultAdmissionsId",assigned.isEmpty()?null:assigned.get(0).get("assignedTo"));}
+            if(Set.of("contracts","tuition","deposits").contains(resource)){contractTemplate.attachRecord(record,u);result.put("canExportContract",pdfScreen(u)!=null&&permissions.codes(u).contains(pdfScreen(u)));}
             if(resource.equals("admissions")){
                 boolean canConsult=u.getRoleCode().equals("HR")&&!"NOT_PROCEEDING".equals(record.get("status"))&&!AdmissionProfiles.submitted(record)&&permissions.codes(u).contains("AdmissionConsultation");
                 result.put("canConsult",canConsult);if(code.equals("AdmissionConsultation"))result.put("canWrite",canConsult);
@@ -103,6 +137,7 @@ public class WorkspaceService {
                 if(code.equals("ClassGradebook")){related.put("assessments",d.rows("SELECT title,weight FROM course_assessments WHERE course_id=? ORDER BY title",record.get("courseId")==null?null:uuid(record.get("courseId").toString())));related.put("grades",d.rows("SELECT g.* FROM training_grades g JOIN training_enrollments e ON e.id=g.enrollment_id WHERE e.class_id=?",key));}}
             case "sessions"->related.put("attendance",d.rows("SELECT e.student_id,u.full_name AS student_name,a.id,a.status,a.note,a.version FROM training_enrollments e JOIN m_user u ON u.user_id=e.student_id LEFT JOIN training_attendance a ON a.student_id=e.student_id AND a.session_id=? WHERE e.class_id=? AND e.status='ACTIVE'"+(u.getRoleCode().equals("STUDENT")?" AND e.student_id="+u.id:"")+" ORDER BY u.full_name",key,uuid(record.get("classId").toString())));
             case "contracts","tuition","deposits"->{
+                if(u.getRoleCode().equals("MANAGER"))related.put("signingHistory",signing.history(key));
                 if(u.getRoleCode().equals("MANAGER")&&record.get("consultationId")!=null)related.put("documents",profiles.documents(uuid(record.get("consultationId").toString())));
                 related.put("transactions",d.rows("SELECT t.id,t.kind,t.amount,t.status,t.created_at,t.confirmed_at FROM financial_transactions t WHERE t.contract_id=?"+(u.getRoleCode().equals("STUDENT")?" AND t.status='CONFIRMED'":"")+" ORDER BY t.created_at DESC",key));
                 related.put("instruction",d.rows("SELECT content,version,updated_at FROM payment_instructions WHERE contract_id=?",key));
@@ -117,6 +152,7 @@ public class WorkspaceService {
     List<Map<String,Object>> choices(String resource,User u){return d.rows("SELECT scoped.* FROM ("+d.base(resource,u)+") scoped ORDER BY id LIMIT 1000");}
     Map<String,Object> options(String code,User u,String id){
         Map<String,Object> out=new LinkedHashMap<>();
+        if(Set.of("contracts","tuition","deposits").contains(resource(code)))out.put("contractTemplate",contractTemplate.metadata());
         switch(code){
             case "ListAdmissionApplicationDetail"->out.put("enrollmentCourses",AdmissionProfiles.ENROLLMENT_COURSES);
             case "AddClass"->{
@@ -132,14 +168,16 @@ public class WorkspaceService {
                 else out.put("lecturers",d.rows("SELECT user_id AS id,full_name AS name FROM m_user WHERE role_id=2 AND account_enabled=TRUE AND account_locked=FALSE ORDER BY full_name"));
             }
             case "AddTrainingContract","EditTrainingContract"->{
+                out.put("enrollmentCourseCatalog",EnrollmentCourses.CATALOG);
                 Object currentAdmission=id==null?null:d.record("contracts",id,u).get("consultationId");
                 UUID admission=currentAdmission==null?null:uuid(currentAdmission.toString());
                 String eligible="(r.intake_source='EXCEL' OR f.forwarded_at IS NOT NULL) AND (f.status IN ('PROFILE_PENDING','PROFILE_CREATED') OR (r.intake_source='EXCEL' AND f.status='CONTACTED') OR (r.id=? AND f.status='CONTRACTED'))";
                 out.put("admissions",d.rows("SELECT r.*,f.status,(SELECT CONCAT('file:',w.id,':',w.filename) FROM workflow_files w WHERE w.id=f.scan_file_id) AS profile_evidence FROM consultation_registrations r JOIN consultation_followups f ON f.consultation_id=r.id WHERE "+eligible+" ORDER BY r.created_date DESC,r.id",admission));
                 @SuppressWarnings("unchecked") var applications=(List<Map<String,Object>>)out.get("admissions");
-                for(var application:applications)application.put("profileDocuments",profiles.documents(uuid(application.get("id").toString())));
+                for(var application:applications){application.put("profileDocuments",profiles.documents(uuid(application.get("id").toString())));application.put("contractTemplateDefaults",contractTemplate.admissionDefaults(application,u));}
                 out.put("courses",d.rows("SELECT scoped.* FROM ("+d.base("courses",u)+") scoped WHERE status IN ('OPEN','ACTIVE') ORDER BY name"));
             }
+            case "TrainingContractDetail"->out.put("admissionsStaff",d.rows("SELECT user_id AS id,full_name AS name FROM m_user u WHERE role_id=7 AND account_enabled=TRUE AND account_locked=FALSE AND EXISTS(SELECT 1 FROM role_function rf WHERE rf.role_id=u.role_id AND rf.function_code='AdmissionContractSigning') ORDER BY full_name"));
             case "ContractSignature"->out.put("accountants",d.rows("SELECT user_id AS id,full_name AS name FROM m_user WHERE role_id=4 AND account_enabled=TRUE AND account_locked=FALSE ORDER BY full_name"));
             case "TimeTable_EditSession","TimeTable_Manager","TimeTable_Conflict"->{out.put("classes",d.rows("SELECT scoped.* FROM ("+d.base("classes",u)+") scoped WHERE status IN ('PLANNED','ACTIVE') ORDER BY code"));out.put("classrooms",masters.choices("classrooms"));}
             case "AddEquipmentRequest"->{out.put("equipmentGroups",masters.choices("equipmentGroups"));out.put("classes",choices("classes",u));out.put("students",d.rows("SELECT DISTINCT s.user_id AS id,s.full_name AS name,e.class_id FROM training_enrollments e JOIN m_user s ON s.user_id=e.student_id JOIN training_classes c ON c.id=e.class_id WHERE e.status='ACTIVE' AND "+classScope(u,"c")));}
@@ -160,7 +198,7 @@ public class WorkspaceService {
             case "AddCourse"->training.course(null,p,u);case "EditCourse"->training.course(required(id),p,u);
             case "AdmissionConsultation"->training.consultation(required(id),p,u);
             case "EditStudentProfile"->training.student(required(id),p,u);
-            case "AddTrainingContract"->training.contract(null,p,u);case "EditTrainingContract"->training.contract(required(id),p,u);case "ContractSignature"->training.signature(required(id),p,u);
+            case "AddTrainingContract"->training.contract(null,p,u);case "EditTrainingContract"->training.contract(required(id),p,u);case "ContractSignature"->signing.review(required(id),p,u);
             case "AddClass"->training.createClass(p,u);case "EditClass"->training.classroom(required(id),p,u);
             case "TimeTable_EditSession"->training.session(id,p,u);
             case "Attendance_Correction"->training.attendance(required(id),p,u,true);
@@ -179,6 +217,8 @@ public class WorkspaceService {
     public Map<String,Object> action(String code,String id,String action,Map<String,Object> p){
         User u=access(code);String requiredId=required(id);
         return switch(code+":"+action){
+            case "TrainingContractDetail:send-for-signature"->{permissions.require("ContractSignature");yield signing.send(requiredId,p,u);}
+            case "AdmissionContractSigning:submit-scan"->signing.submit(requiredId,p,u);
             case "ListAdmissionApplicationDetail:submit-profile"->{permissions.require("AdmissionConsultation");yield profiles.submit(requiredId,p,u);}
             case "ListAdmissionApplicationDetail:update-profile"->{permissions.require("AdmissionConsultation");yield profiles.update(requiredId,p,u);}
             case "ListAdmissionApplicationDetail:update-course"->{permissions.require("AdmissionConsultation");yield profiles.updateCourse(requiredId,p,u);}

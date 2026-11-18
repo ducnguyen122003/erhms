@@ -51,7 +51,9 @@ class ScreenWorkflowIntegrationTest {
   save(hr,"AdmissionConsultation",admission,values("version",0,"channel","PHONE","status","DOCUMENT_APPOINTMENT","notes","Đã tư vấn thông tin khóa học","documentDueOn","2026-12-15"));
   jdbc.update("UPDATE consultation_followups SET status='PROFILE_PENDING',forwarded_at=CURRENT_TIMESTAMP,forwarded_by=? WHERE consultation_id=?",hr.id,UUID.fromString(admission));
   String contract=save(manager,"AddTrainingContract",null,values("consultationId",admission,"courseId",course,"studentId",student.id,"startsOn","2026-11-15","paymentDueOn","2026-11-14","tuitionDue",1000,"depositDue",200,"terms","Điều khoản theo hồ sơ xác nhận","paymentSchedule","")).path("id").asText();
-  save(manager,"ContractSignature",contract,values("version",0,"signedOn","2026-11-01","signatureMethod","PAPER","signatureEvidence","Biên bản ký đã xác minh","accountantId",accountant.id,"handoverNote","Bàn giao đào tạo và kế toán"));return contract;
+  // Finance and class tests start from an existing, approved paper contract.
+  // ContractSigningIntegrationTest covers sending, scanning and review through the API.
+  jdbc.update("UPDATE training_contracts SET status='SIGNED',student_id=?,signed_on=DATE '2026-11-01',signature_method='PAPER',signature_evidence='Existing approved paper contract',accountant_id=?,handed_over_at=CURRENT_TIMESTAMP,signature_approved_at=CURRENT_TIMESTAMP,signature_approved_by=?,version=version+1 WHERE id=?",student.id,accountant.id,manager.id,UUID.fromString(contract));return contract;
  }
  String importAndConfirm(String contract,String kind,int amount)throws Exception{
   String id=action(accountant,"ListPayment","new","import",values("contractId",contract,"kind",kind,"amount",amount,"bankReference",UUID.randomUUID().toString(),"payerName",student.fullName,"bankId",BANK,"memo","Đối chiếu theo hợp đồng","evidence","Chứng từ đã kiểm tra")).path("id").asText();
@@ -74,7 +76,7 @@ class ScreenWorkflowIntegrationTest {
     var request=read(actors.get(role),code,null);
     if(permitted.contains(role))request.andExpect(status().isOk());else request.andExpect(status().isForbidden());
    }checked++;
-  }assertEquals(82,checked);
+  }assertEquals(83,checked);
   assertEquals(0,jdbc.queryForObject("SELECT COUNT(*) FROM role_function WHERE function_code='SendNotification' AND role_id IN(1,2,7)",Integer.class));
  }
  @Test void publicCourseCatalogueOnlyExposesPublishedContentAndNoInternalAssignment()throws Exception{
@@ -190,11 +192,11 @@ class ScreenWorkflowIntegrationTest {
  void saveNotificationToOutsider()throws Exception{write(manager,"SendNotification",null,values("title","Không được gửi","content","Kiểm tra","recipients",List.of(values("id",otherStudent.id)),"scheduledAt","")).andExpect(status().isNotFound());}
  @Test void evidenceFilesAreAuthenticatedValidatedAndPrivateUntilLinkedToAScopedRecord()throws Exception{
   MockMultipartFile file=new MockMultipartFile("file","bien-ban.pdf","application/pdf","%PDF-1.4\nTest evidence".getBytes(StandardCharsets.US_ASCII));
-  String id=body(mvc.perform(multipart("/api/workspace/files").file(file).param("screen","ContractSignature").with(user(manager.email).roles("MANAGER")).with(csrf())).andExpect(status().isOk()).andReturn()).path("id").asText();
+  String id=body(mvc.perform(multipart("/api/workspace/files").file(file).param("screen","RecordWithdrawal").with(user(manager.email).roles("MANAGER")).with(csrf())).andExpect(status().isOk()).andReturn()).path("id").asText();
   mvc.perform(get("/api/workspace/files/"+id)).andExpect(status().isUnauthorized());mvc.perform(get("/api/workspace/files/"+id).with(user(student.email).roles("STUDENT"))).andExpect(status().isNotFound());mvc.perform(get("/api/workspace/files/"+id).with(user(manager.email).roles("MANAGER"))).andExpect(status().isOk()).andExpect(header().string("X-Content-Type-Options","nosniff"));
   String contract=createContract(createCourse());jdbc.update("UPDATE training_contracts SET signature_evidence=? WHERE id=?","file:"+id+":bien-ban.pdf",UUID.fromString(contract));
   mvc.perform(get("/api/workspace/files/"+id).with(user(student.email).roles("STUDENT"))).andExpect(status().isOk());mvc.perform(get("/api/workspace/files/"+id).with(user(otherStudent.email).roles("STUDENT"))).andExpect(status().isNotFound());
-  mvc.perform(multipart("/api/workspace/files").file(new MockMultipartFile("file","bad.html","text/html","<script>test</script>".getBytes())).param("screen","ContractSignature").with(user(manager.email).roles("MANAGER")).with(csrf())).andExpect(status().isBadRequest());
+  mvc.perform(multipart("/api/workspace/files").file(new MockMultipartFile("file","bad.html","text/html","<script>test</script>".getBytes())).param("screen","RecordWithdrawal").with(user(manager.email).roles("MANAGER")).with(csrf())).andExpect(status().isBadRequest());
  }
  @Test void screenRevocationAppliesToReadsAndWritesAndInvalidIdentifiersFailClearly()throws Exception{
   jdbc.update("DELETE FROM role_function WHERE role_id=1 AND function_code='AddCourse'");write(admin,"AddCourse",null,Map.of()).andExpect(status().isForbidden());read(admin,"AddCourse",null).andExpect(status().isForbidden());read(it,"AssetDetail","not-a-uuid").andExpect(status().isBadRequest());read(it,"UnknownScreen",null).andExpect(status().isNotFound());
@@ -254,7 +256,7 @@ class ScreenWorkflowIntegrationTest {
   assertFalse(view(manager,"AddTrainingContract",null).path("options").path("admissions").toString().contains(id));
   write(manager,"AddTrainingContract",null,contractInput(course,id)).andExpect(status().isBadRequest());
  }
- @Test void managerCanEditAndSignAnOwnedDraftWhileHrAndOtherManagersCannotManageIt()throws Exception{
+ @Test void managerCanEditAnOwnedDraftWhileHrAndOtherManagersCannotManageItOrSkipSignatureReview()throws Exception{
   String course=createCourse(),admission=registration("PROFILE_PENDING"),ct=save(manager,"AddTrainingContract",null,contractInput(course,admission)).path("id").asText();
   assertEquals(1,view(manager,"ListTrainingContract",null).path("total").asInt());assertEquals(0,view(accountant,"ListTrainingContract",null).path("total").asInt());
   assertTrue(view(manager,"EditTrainingContract",ct).path("options").path("admissions").toString().contains(admission));
@@ -263,9 +265,8 @@ class ScreenWorkflowIntegrationTest {
   write(hr,"AddTrainingContract",null,contractInput(course,admission)).andExpect(status().isForbidden());write(hr,"EditTrainingContract",ct,edit).andExpect(status().isForbidden());write(hr,"ContractSignature",ct,Map.of()).andExpect(status().isForbidden());
   read(otherManager,"TrainingContractDetail",ct).andExpect(status().isNotFound());write(otherManager,"EditTrainingContract",ct,edit).andExpect(status().isNotFound());
   jdbc.update("INSERT INTO role_function(role_id,function_code) VALUES (7,'AddTrainingContract')");write(hr,"AddTrainingContract",null,Map.of()).andExpect(status().isForbidden());
-  save(manager,"ContractSignature",ct,values("version",1,"signedOn","2026-11-01","signatureMethod","PAPER","signatureEvidence","Biên bản ký","accountantId",accountant.id,"handoverNote","Bàn giao"));
-  assertEquals(1,view(accountant,"ListTrainingContract",null).path("total").asInt());assertEquals(1,view(hr,"PaymentStatus_Admissions",null).path("total").asInt());
-  write(manager,"EditTrainingContract",ct,edit).andExpect(status().isConflict());
+  write(manager,"ContractSignature",ct,values("version",1,"signedOn","2026-11-01","signatureMethod","PAPER","signatureEvidence","Biên bản ký","accountantId",accountant.id,"handoverNote","Bàn giao")).andExpect(status().isConflict());
+  assertEquals(0,view(accountant,"ListTrainingContract",null).path("total").asInt());assertEquals(0,view(hr,"PaymentStatus_Admissions",null).path("total").asInt());
  }
  @Test void contactStatusIsRecheckedAtSubmitAndManagersOnlySelectTheirOwnCourses()throws Exception{
   String course=createCourse(),id=registration("PROFILE_PENDING");assertTrue(view(manager,"AddTrainingContract",null).path("options").path("admissions").toString().contains(id));

@@ -7,11 +7,7 @@ import static com.erhms.workspace.WorkflowData.*;
 
 @Service
 public class AdmissionProfiles {
-    public static final List<String> ENROLLMENT_COURSES=List.of(
-            "Sửa chữa máy tính Laptop chuyên nghiệp",
-            "Sửa chữa máy tính PC & máy in",
-            "Sửa chữa Điện tử - Điện gia dụng",
-            "Sửa chữa Điện lạnh, Điện gia dụng & Inverter");
+    public static final List<String> ENROLLMENT_COURSES=EnrollmentCourses.NAMES;
     private static final Set<String> TYPES=Set.of("IDENTITY_CARD","CURRICULUM_VITAE","BIRTH_CERTIFICATE","ID_PHOTO","APPLICATION_FORM");
     private static final int MAX_FILES=50;
     // Completeness is derived from the current categorized files, independently of contract/account progress.

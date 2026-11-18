@@ -32,7 +32,7 @@ public class AdmissionDashboards {
             """+data.base("admissions",actor)+"""
             ) a LEFT JOIN (
               SELECT consultation_id,COUNT(*) AS contract_count,
-                SUM(CASE WHEN status='DRAFT' THEN 1 ELSE 0 END) AS unsigned_count,
+                SUM(CASE WHEN status IN ('DRAFT','SENT_FOR_SIGNATURE','SIGNATURE_REVIEW') THEN 1 ELSE 0 END) AS unsigned_count,
                 SUM(CASE WHEN handed_over_at IS NOT NULL THEN 1 ELSE 0 END) AS handed_over_count,
                 SUM(CASE WHEN handed_over_at IS NOT NULL THEN tuition_due ELSE 0 END) AS tuition_due,
                 SUM(CASE WHEN handed_over_at IS NOT NULL THEN tuition_paid ELSE 0 END) AS tuition_paid,

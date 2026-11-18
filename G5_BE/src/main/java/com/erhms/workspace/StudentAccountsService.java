@@ -81,11 +81,15 @@ public class StudentAccountsService {
             var accounts=matchingAccounts(email);
             Map<String,Object> account=accounts.isEmpty()?null:accounts.get(0);
             String status=accountStatus(email,account);
-            var contracts=data.rows("SELECT id,code,student_email FROM training_contracts WHERE consultation_id=? AND manager_id=? AND status<>'CANCELLED' ORDER BY id",uuid(row.get("id").toString()),actor.id);
-            boolean hasContract=!contracts.isEmpty()&&contracts.stream().allMatch(c->email.equals(normalizedEmail(c.get("studentEmail"))));
+            var contracts=data.rows("SELECT id,code,student_email,manager_id,status,signature_approved_at FROM training_contracts WHERE consultation_id=? AND status<>'CANCELLED' ORDER BY id",uuid(row.get("id").toString()));
+            var ownedContracts=contracts.stream().filter(c->ownedContract(c,actor)).toList();
+            boolean hasContract=!ownedContracts.isEmpty()&&contracts.stream().allMatch(c->ownedContract(c,actor)&&email.equals(normalizedEmail(c.get("studentEmail"))));
+            String contractIssue=contractIssue(contracts,email,actor);
             row.put("hasContract",hasContract);
-            row.put("contractId",contracts.isEmpty()?null:contracts.get(0).get("id"));
-            row.put("contractCode",contracts.isEmpty()?null:contracts.get(0).get("code"));
+            row.put("hasApprovedContract",contractIssue.isEmpty());
+            row.put("contractSigningStatus",ownedContracts.isEmpty()?null:ownedContracts.get(0).get("status"));
+            row.put("contractId",ownedContracts.isEmpty()?null:ownedContracts.get(0).get("id"));
+            row.put("contractCode",ownedContracts.isEmpty()?null:ownedContracts.get(0).get("code"));
             row.put("canContract",List.of("PROFILE_PENDING","PROFILE_CREATED").contains(row.get("profileStatus"))||("EXCEL".equals(row.get("source"))&&"CONTACTED".equals(row.get("profileStatus"))));
             boolean pending=!"PROFILE_CREATED".equals(row.get("profileStatus"));
             boolean reuse=pending&&status.equals("STUDENT")&&canUseExistingProfile(((Number)account.get("id")).longValue(),actor);
@@ -93,10 +97,10 @@ public class StudentAccountsService {
             if(status.equals("STUDENT")&&pending&&!reuse)reason="Hồ sơ học viên đã thuộc quản lý khác. Vui lòng liên hệ quản lý phụ trách.";
             if(!pending)reason="Đã tạo hồ sơ học viên.";
             if(reason.isEmpty())reason=profileIssue(row);
-            if(pending&&!hasContract)reason="Cần lập hợp đồng bằng email học viên trước khi tạo tài khoản.";
+            if(pending&&!contractIssue.isEmpty())reason=contractIssue;
             row.put("accountId",account==null?null:account.get("id"));
             row.put("accountStatus",status);
-            row.put("canCreate",pending&&hasContract&&(status.equals("NONE")||reuse)&&reason.isEmpty());
+            row.put("canCreate",pending&&contractIssue.isEmpty()&&(status.equals("NONE")||reuse)&&reason.isEmpty());
             row.put("blockedReason",reason);
         }
         return Map.of("items",rows,"total",total,"totalPages",(total+size-1)/size,"page",page,"size",size);
@@ -126,11 +130,9 @@ public class StudentAccountsService {
         if(((Number)registration.get("version")).longValue()!=version||!email.equals(expectedEmail))
             throw conflict("Hồ sơ hoặc email vừa được cập nhật. Hãy tải lại và kiểm tra trước khi tạo tài khoản.");
         if(!validEmail(email))throw invalid("email","Hồ sơ chưa có email hợp lệ. Bộ phận tuyển sinh cần cập nhật trước khi tạo tài khoản.");
-        var contracts=data.rows("SELECT id,student_id,student_email,manager_id FROM training_contracts WHERE consultation_id=? AND status<>'CANCELLED' ORDER BY id FOR UPDATE",admission);
-        if(contracts.isEmpty()||contracts.stream().noneMatch(c->c.get("managerId") instanceof Number owner&&owner.longValue()==actor.id))
-            throw conflict("Cần có hợp đồng do bạn quản lý trước khi tạo tài khoản học viên.");
-        if(contracts.stream().anyMatch(c->!email.equals(normalizedEmail(c.get("studentEmail")))))
-            throw conflict("Email hồ sơ không khớp email đã cung cấp trên hợp đồng. Hãy kiểm tra lại hồ sơ.");
+        var contracts=data.rows("SELECT id,student_id,student_email,manager_id,status,signature_approved_at FROM training_contracts WHERE consultation_id=? AND status<>'CANCELLED' ORDER BY id FOR UPDATE",admission);
+        String contractIssue=contractIssue(contracts,email,actor);
+        if(!contractIssue.isEmpty())throw conflict(contractIssue);
         String profileIssue=profileIssue(registration);
         if(!profileIssue.isEmpty())throw invalid("admission",profileIssue);
         var matches=matchingAccounts(email);
@@ -181,10 +183,23 @@ public class StudentAccountsService {
         return data.count("SELECT COUNT(*) FROM student_profiles WHERE user_id=? AND manager_id IS NOT NULL AND manager_id<>?",student,actor.id)==0;
     }
 
+    private static boolean ownedContract(Map<String,Object> contract,User actor) {
+        return contract.get("managerId") instanceof Number owner&&owner.longValue()==actor.id;
+    }
+
+    private static String contractIssue(List<Map<String,Object>> contracts,String email,User actor) {
+        if(contracts.isEmpty())return "Cần lập hợp đồng bằng email học viên trước khi tạo tài khoản.";
+        if(contracts.stream().anyMatch(c->!ownedContract(c,actor)))return "Hợp đồng của hồ sơ đang thuộc quản lý khác. Vui lòng liên hệ quản lý phụ trách.";
+        if(contracts.stream().anyMatch(c->!email.equals(normalizedEmail(c.get("studentEmail")))))return "Email hồ sơ không khớp email đã cung cấp trên hợp đồng. Hãy kiểm tra lại hồ sơ.";
+        if(contracts.stream().anyMatch(c->!List.of("SIGNED","ACTIVE","COMPLETED").contains(c.get("status"))||c.get("signatureApprovedAt")==null))
+            return "Cần quản lý học vụ xác nhận bản hợp đồng đã ký trước khi tạo tài khoản.";
+        return "";
+    }
+
     private void completeProfile(UUID admission,long student,String email,User actor) {
         if(data.count("SELECT COUNT(*) FROM training_contracts WHERE consultation_id=? AND status<>'CANCELLED' AND student_id IS NOT NULL AND student_id<>?",admission,student)>0)
             throw conflict("Hợp đồng đã gắn với tài khoản học viên khác. Cần kiểm tra lại email.");
-        data.jdbc.update("UPDATE training_contracts SET student_id=?,version=version+1 WHERE consultation_id=? AND LOWER(TRIM(student_email))=? AND student_id IS NULL AND status<>'CANCELLED'",student,admission,email);
+        data.jdbc.update("UPDATE training_contracts SET student_id=?,handed_over_at=COALESCE(handed_over_at,CURRENT_TIMESTAMP),version=version+1 WHERE consultation_id=? AND manager_id=? AND LOWER(TRIM(student_email))=? AND (student_id IS NULL OR student_id=?) AND status IN ('SIGNED','ACTIVE','COMPLETED') AND signature_approved_at IS NOT NULL",student,admission,actor.id,email,student);
         data.jdbc.update("UPDATE consultation_followups SET status='PROFILE_CREATED',profile_student_id=?,profile_created_at=CURRENT_TIMESTAMP,version=version+1,updated_at=CURRENT_TIMESTAMP WHERE consultation_id=?",student,admission);
         data.jdbc.update("INSERT INTO consultation_notes(id,consultation_id,actor_id,channel,outcome,content) VALUES (?,?,?,'IN_PERSON','PROFILE_CREATED','Quản lý đã cấp tài khoản và gắn hợp đồng theo email học viên cung cấp.')",UUID.randomUUID(),admission,actor.id);
     }

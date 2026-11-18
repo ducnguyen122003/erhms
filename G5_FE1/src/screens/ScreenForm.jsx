@@ -5,6 +5,11 @@ import {AdminAside,AdminMessage} from '../admin/AdminUI';
 import {defaults,display} from './definitions';
 import ProfileDocuments from './ProfileDocuments';
 import {consultationFields,consultationPayload,newConsultationValues} from './admissionConsultation';
+import {changeTrainingContractValue,initialTrainingContractValues,isTrainingContract,trainingContractCourseField,trainingContractSelection} from './trainingContract';
+import ContractTemplateForm from './ContractTemplateForm';
+import {editableTemplateData} from './contractTemplate';
+import {signingReviewFields} from './contractSigning';
+import ContractSigningDetails from './ContractSigningDetails';
 
 export function useUnsavedChanges(){
  const dirty=useRef(false);
@@ -20,6 +25,7 @@ export function Fields({fields,values,setValue,options={},errors={},code,disable
  async function upload(event,key){const file=event.target.files?.[0];if(!file)return;setUploadError('');onUploading?.(true);try{if(file.size>2097152)throw new Error('Tệp không được vượt quá 2 MB');const data=new FormData();data.append('file',file);data.append('screen',code);const saved=await api('/api/workspace/files',{method:'POST',body:data});setValue(key,saved.reference);}catch(error){setUploadError(error.message);}finally{onUploading?.(false);event.target.value='';}}
  return <><div className="admin-field-grid">{fields.map(f=>{
   const id='screen-field-'+f.key,error=errors[f.key];let value=values[f.key]??'',choices=Array.isArray(f.source)?f.source:options[f.source]||[];
+  if(f.displayValue!==undefined)value=f.displayValue;
   if(['AddTrainingContract','EditTrainingContract'].includes(code)&&f.key==='studentEmail')value=options.admissions?.find(row=>row.id===values.consultationId)?.email?.trim().toLowerCase()||value;
   if(f.source==='students'&&values.classId)choices=choices.filter(row=>!row.classId||row.classId===values.classId);
   if(f.source==='students'&&values.consultationId){const admission=options.admissions?.find(row=>row.id===values.consultationId);if(admission?.email)choices=choices.filter(row=>row.email?.trim().toLowerCase()===admission.email.trim().toLowerCase());}
@@ -37,7 +43,7 @@ export function Fields({fields,values,setValue,options={},errors={},code,disable
   </label>;
  })}</div>{uploadError&&<AdminMessage error={uploadError}/>}</>;
 }
-function initialValues(code,fields,record,related){const next=code==='AdmissionConsultation'?newConsultationValues(record):{...defaults,...record};for(const f of fields){if(f.type==='datetime-local')next[f.key]=localDateTime(next[f.key]);if(f.type==='checkbox')next[f.key]=Boolean(next[f.key]);}
+function initialValues(code,fields,record,related,options){const next=code==='AdmissionConsultation'?newConsultationValues(record):{...defaults,...record};for(const f of fields){if(f.type==='datetime-local')next[f.key]=localDateTime(next[f.key]);if(f.type==='checkbox')next[f.key]=Boolean(next[f.key]);}
   if(['AddAsset','EditAsset'].includes(code))next.status=record?.status||'AVAILABLE';
   if(code==='AddClass'){next.status='PLANNED';next.capacity='';}
   if(code==='TimeTable_EditSession'&&!record?.id)next.changeNote='Xếp lịch học mới';
@@ -46,14 +52,16 @@ function initialValues(code,fields,record,related){const next=code==='AdmissionC
   if(code==='Attendance_Correction'){next.sessionId=record?.id;next.studentId=new URLSearchParams(window.location.search).get('studentId')||'';}
   if(code==='PaymentInstruction'){next.content=related.instruction?.[0]?.content||'';next.version=related.instruction?.[0]?.version??0;}
   if(code==='DepositRefund')next.recipient=record?.studentName||'';
+  if(code==='ContractSignature'){next.decision='APPROVE';next.reviewNote='';}
   next.assessments=related.assessments||[];next.lecturers=(related.lecturers||[]).map(row=>({id:row.id}));
-  const params=new URLSearchParams(window.location.search);for(const key of ['classId','consultationId'])if(params.has(key))next[key]=params.get(key);
-  return next;
+  const params=new URLSearchParams(window.location.search);for(const key of ['classId','consultationId'])if(params.has(key)&&!(code==='EditTrainingContract'&&key==='consultationId'))next[key]=params.get(key);
+  return isTrainingContract(code)?initialTrainingContractValues(code,next,options):next;
 }
-export default function ScreenForm({code,fields,record,related={},options,user,busy,error,errors,notice,onSave,onBack,saveLabel,extra,submitDisabled=false}){
- const dirty=useUnsavedChanges(),[values,setValues]=useState(()=>initialValues(code,fields,record,related)),[uploading,setUploading]=useState(false);const ref=useRef(null);
+export default function ScreenForm({code,fields,record,related={},options,user,busy,error,errors,notice,onSave,onBack,saveLabel,extra,submitDisabled=false,onLogout}){
+ const dirty=useUnsavedChanges(),[values,setValues]=useState(()=>initialValues(code,fields,record,related,options)),[uploading,setUploading]=useState(false);const ref=useRef(null);
 
  const setValue=(key,value)=>{dirty.current=true;setValues(current=>{
+  if(isTrainingContract(code))return changeTrainingContractValue(current,key,value,options);
   const next={...current,[key]:value};
   if(code==='AdmissionConsultation'&&key==='status'){
    next.appointmentAt='';next.documentDueOn='';next.discontinuationReason='';
@@ -65,11 +73,13 @@ export default function ScreenForm({code,fields,record,related={},options,user,b
   }
   return next;
  });};
- async function submit(event){event.preventDefault();if(busy||uploading||submitDisabled)return;const data=prepareValues(code==='AdmissionConsultation'?consultationPayload(values):values,visibleFields);const ok=await onSave(data,()=>{dirty.current=false;});if(ok)dirty.current=false;}
- const formOptions={...options,attendanceStudents:(related.attendance||[]).map(row=>({id:row.studentId,name:row.studentName}))};
+ async function submit(event){event.preventDefault();if(busy||uploading||submitDisabled)return;const prepared=isTrainingContract(code)&&values.templateData?{...values,templateData:editableTemplateData(values.templateData,options.contractTemplate)}:values;const data=prepareValues(code==='AdmissionConsultation'?consultationPayload(prepared):prepared,visibleFields);const ok=await onSave(data,()=>{dirty.current=false;});if(ok)dirty.current=false;}
+ const contractSelection=isTrainingContract(code)?{...trainingContractSelection(values,options),savedRecord:record}:null;
+ const formOptions={...options,...(contractSelection?{courses:contractSelection.courses}:{}),attendanceStudents:(related.attendance||[]).map(row=>({id:row.studentId,name:row.studentName}))};
  const selectedClass=code==='TimeTable_EditSession'?options.classes?.find(row=>String(row.id)===String(values.classId)):null;
- const selectedAdmission=['AddTrainingContract','EditTrainingContract'].includes(code)?options.admissions?.find(row=>row.id===values.consultationId):null;
- const visibleFields=(code==='AdmissionConsultation'?consultationFields(fields,values):fields).map(field=>{
+ const selectedAdmission=contractSelection?.admission;
+ const visibleFields=(code==='AdmissionConsultation'?consultationFields(fields,values):code==='ContractSignature'?signingReviewFields(fields,values):fields).map(field=>{
+  if(contractSelection&&field.key==='courseId')return trainingContractCourseField(field,contractSelection);
   if(['AddClass','EditClass'].includes(code)&&field.key==='endsOn')return {...field,min:values.startsOn||undefined};
   if(code==='AddClass'&&field.key==='lecturerId')return {...field,disabled:!values.courseId};
   if(code==='TimeTable_EditSession'&&field.key==='classId'&&record.id)return {...field,disabled:true};
@@ -80,12 +90,13 @@ export default function ScreenForm({code,fields,record,related={},options,user,b
   {code==='AddClass'&&<div className="class-form-hint"><p>Mã lớp được cấp tự động theo thứ tự tăng dần, ví dụ L-000001, L-000002.</p><p>Sau khi tạo lớp, bạn có thể chọn học viên chưa được xếp lớp và thêm các buổi học.</p></div>}
   {code==='AdmissionConsultation'&&<p className="admin-muted">Ghi nhận một lượt tư vấn mới. Để trống email nếu giữ email đã có trong hồ sơ.</p>}
   {selectedClass&&<div className="class-form-hint"><p><strong>{selectedClass.code} · {selectedClass.name}</strong></p><p>Bắt đầu học: {display(selectedClass.startsOn,'startsOn')}{selectedClass.endsOn?' · Kết thúc dự kiến: '+display(selectedClass.endsOn,'endsOn'):''}</p><p>Giảng viên: {selectedClass.lecturerName||'Chưa phân công'}</p></div>}
-  <AdminMessage error={error} notice={notice}/>{selectedAdmission&&<div className="class-form-hint"><p><strong>Khóa học đăng ký: {selectedAdmission.enrollmentCourse||'Chưa cập nhật'}</strong></p><p>Khóa quan tâm ban đầu: {selectedAdmission.programName||'Chưa cập nhật'}</p><p>Đối chiếu khóa học đăng ký khi chọn khóa đào tạo và xác định học phí hợp đồng.</p></div>}<fieldset disabled={busy||uploading}><Fields fields={visibleFields} values={values} setValue={setValue} options={formOptions} errors={errors} code={code} disabled={busy} onUploading={setUploading}/>
+  <AdminMessage error={error} notice={notice}/>{selectedAdmission&&<div className="class-form-hint"><p><strong>Khóa học đăng ký: {selectedAdmission.enrollmentCourse||'Chưa cập nhật'}</strong></p><p>Khóa quan tâm ban đầu: {selectedAdmission.programName||'Chưa cập nhật'}</p>{(contractSelection.durationMonths||contractSelection.tuitionFee!==undefined)&&<p>{contractSelection.durationMonths?`Thời lượng tham khảo: ${contractSelection.durationMonths} tháng` :''}{contractSelection.durationMonths&&contractSelection.tuitionFee!==undefined?' · ':''}{contractSelection.tuitionFee!==undefined?`Học phí gốc: ${display(contractSelection.tuitionFee,'tuitionFee')}`:''}</p>}<p>{contractSelection.registeredName?(code==='EditTrainingContract'?'Khóa học lấy theo hồ sơ đăng ký; học phí đã lưu được giữ nguyên và có thể điều chỉnh theo thỏa thuận.':'Khóa học và học phí được điền theo hồ sơ đăng ký. Có thể điều chỉnh học phí theo thỏa thuận trước khi lưu hợp đồng.'):'Học phí được điền khi chọn khóa học; có thể điều chỉnh theo thỏa thuận.'}</p></div>}{code==='ContractSignature'&&<ContractSigningDetails record={record} onLogout={onLogout} showOriginal disabled={busy||uploading}/>}<fieldset disabled={busy||uploading}><Fields fields={visibleFields} values={values} setValue={setValue} options={formOptions} errors={errors} code={code} disabled={busy} onUploading={setUploading}/>
   {code==='AddClass'&&<p className="admin-muted">Có thể phân công giảng viên sau khi tạo lớp. Chọn giảng viên thuộc khóa học trước khi xếp lịch học.</p>}
   {['AddCourse','EditCourse'].includes(code)&&<><h3>Cấu hình đánh giá</h3><p className="admin-muted">Tổng trọng số bằng 100%. Cấu hình này dùng để nhập điểm và kiểm tra kết quả khóa học.</p><div className="screen-assessments">{(values.assessments||[]).map((item,index)=><div key={index}><input aria-label={'Tên đầu điểm '+(index+1)} value={item.title||''} maxLength={160} required onChange={e=>setValue('assessments',values.assessments.map((row,i)=>i===index?{...row,title:e.target.value}:row))}/><input aria-label={'Trọng số '+(index+1)} type="number" min="0.01" max="100" step="0.01" value={item.weight??''} required onChange={e=>setValue('assessments',values.assessments.map((row,i)=>i===index?{...row,weight:e.target.value}:row))}/><button type="button" className="admin-text-button" onClick={()=>setValue('assessments',values.assessments.filter((_,i)=>i!==index))}>Xóa</button></div>)}</div><button type="button" className="admin-secondary" onClick={()=>setValue('assessments',[...(values.assessments||[]),{title:'',weight:''}])}>Thêm đầu điểm</button>{errors.assessments&&<p className="field-error">{errors.assessments}</p>}<h3>Giảng viên đủ điều kiện phân công</h3><Fields fields={[{key:'lecturers',label:'Giảng viên',type:'multi',source:'lecturers'}]} values={values} setValue={setValue} options={options} errors={errors} code={code}/></>}
   {['AddCourse','EditCourse'].includes(code)&&<p className="admin-muted">Quản lý phụ trách sẽ chọn được khóa học này khi lập hợp đồng và điều phối lớp.</p>}
+  {contractSelection&&<ContractTemplateForm metadata={options.contractTemplate} values={values} selection={contractSelection} disabled={busy||uploading} errors={errors} onChange={(key,value)=>{dirty.current=true;setValues(current=>({...current,templateData:{...current.templateData,[key]:value}}));}}/>}
   {code==='SendNotification'&&<p className="admin-muted">Thông báo được gửi trong hệ thống; người nhận chỉ xem thông báo của mình.</p>}
-  {['AddTrainingContract','EditTrainingContract'].includes(code)&&<p className="admin-muted">Lập hợp đồng từ hồ sơ đã nhận, dùng đúng Gmail / email học viên đã cung cấp. Sau khi lưu hợp đồng, vào Cấp tài khoản học viên để tạo tài khoản; hệ thống tự gắn hợp đồng theo email này.</p>}
+  {['AddTrainingContract','EditTrainingContract'].includes(code)&&<p className="admin-muted">Sau khi lưu và hoàn tất thông tin, gửi hợp đồng cho tuyển sinh in và lấy chữ ký học viên. QLHV xác nhận bản scan đã ký rồi mới có thể cấp tài khoản theo email trên hợp đồng. Nội dung hợp đồng được chốt khi gửi tuyển sinh.</p>}
   {selectedAdmission&&<ProfileDocuments documents={selectedAdmission.profileDocuments||[]} legacyEvidence={selectedAdmission.profileEvidence} compact/>}
   {code==='EditStudentProfile'&&<p className="admin-muted">Email đăng nhập được quản trị tại phần Tài khoản người dùng.</p>}
   {extra}</fieldset></div><footer className="admin-form-footer"><button type="button" className="admin-secondary" disabled={busy||uploading} onClick={onBack}>Quay lại</button><button type="submit" disabled={busy||uploading||submitDisabled}><Check size={15}/>{uploading?'Đang tải minh chứng…':busy?'Đang lưu…':submitDisabled?'Chưa đủ điều kiện':saveLabel||'Lưu thông tin'}</button></footer></form><AdminAside user={user} tips={['Chỉ cập nhật dữ liệu trong phạm vi được phân công.','Kiểm tra thông tin và minh chứng trước khi lưu.']}/></div>;

@@ -18,7 +18,7 @@ export function screenRoute(path){
 export function canScreen(code,user,functions=[]){const s=screens[code];return Boolean(s&&(s.public||(s.roles.includes(user?.role)&&functions.includes(s.functionCode))));}
 const menu={
  ADMIN:['ListProfession','ListCourse','ListClassroom','Reports_Admin'],
- HR:['ListAdmissionApplication','ListAdmissionEnrollment','Reports_Admissions'],
+ HR:['ListAdmissionApplication','ListAdmissionEnrollment','AdmissionContractSigning','Reports_Admissions'],
  MANAGER:['ListStudentAccount','ListStudent','ListClass','AutoAssignmentReview','TimeTable_Manager','ListAttendance','ListTrainingContract','PaymentStatus_Admissions','ListAssetRecovery','ListTrainingClosure','Reports_Student_Manager'],
  LECTURER:['ListClass_Lecturer','TimeTable_Lecturer','ListAttendance','ListEquipmentRequest','Reports_Lecturer'],
  STUDENT:['StudentProfileDetail_Student','TimeTable_Student','StudentAttendance','StudentResults','TuitionDetail_Student','StudentAssets'],

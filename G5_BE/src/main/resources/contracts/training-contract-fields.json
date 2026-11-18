@@ -1,0 +1,167 @@
+{
+  "title": "Hợp đồng đào tạo nghề Bách Khoa",
+  "version": "BK-VTCOMS-2026-02",
+  "fixedValues": {
+    "centerName": "TRUNG TÂM DẠY NGHỀ BÁCH KHOA",
+    "centerAddress": "Hà Nội",
+    "centerTaxCode": "12423453246134123",
+    "centerPhone": "0944552988",
+    "centerEmail": "Ducnahe176071@fpt.edu.vn",
+    "centerBankAccount": "999912082003",
+    "centerBankAccountHolder": "NGUYEN ANH DUC",
+    "centerBankName": "MB Bank",
+    "trainingLocation": "Hà Nội",
+    "additionalPracticeLocation": "Hà Nội",
+    "complaintContactAddress": "Ducnahe176071@fpt.edu.vn"
+  },
+  "sections": [
+    {
+      "key": "agreement",
+      "title": "Thông tin lập hợp đồng",
+      "description": "Thông tin trung tâm và địa điểm đào tạo đã có sẵn trong mẫu. Có thể lưu nháp khi chưa hoàn tất các mục có dấu *.",
+      "fields": [
+        {
+          "key": "agreementDate",
+          "label": "Ngày lập hợp đồng",
+          "type": "date",
+          "requiredForPdf": true
+        },
+        {
+          "key": "agreementPlace",
+          "label": "Địa điểm lập hợp đồng",
+          "type": "text",
+          "requiredForPdf": true,
+          "maxLength": 255
+        },
+        {
+          "key": "effectiveOn",
+          "label": "Ngày hợp đồng có hiệu lực",
+          "type": "date",
+          "requiredForPdf": true
+        }
+      ]
+    },
+    {
+      "key": "student",
+      "title": "Thông tin học viên còn thiếu",
+      "description": "Họ tên, số điện thoại và email được lấy từ hồ sơ. Bổ sung các thông tin còn thiếu dưới đây.",
+      "fields": [
+        {
+          "key": "studentDateOfBirth",
+          "label": "Ngày sinh",
+          "type": "date",
+          "requiredForPdf": true
+        },
+        {
+          "key": "studentIdentityNumber",
+          "label": "Số định danh / Căn cước / Hộ chiếu",
+          "type": "text",
+          "requiredForPdf": true,
+          "maxLength": 100
+        },
+        {
+          "key": "studentAddress",
+          "label": "Địa chỉ liên hệ",
+          "type": "textarea",
+          "requiredForPdf": true,
+          "maxLength": 1000
+        },
+        {
+          "key": "studentExperience",
+          "label": "Trình độ, kinh nghiệm liên quan",
+          "type": "textarea",
+          "requiredForPdf": true,
+          "maxLength": 2000
+        },
+        {
+          "key": "emergencyContactName",
+          "label": "Người liên hệ khi cần",
+          "type": "text",
+          "requiredForPdf": true,
+          "maxLength": 120
+        },
+        {
+          "key": "emergencyRelationship",
+          "label": "Quan hệ với người liên hệ",
+          "type": "text",
+          "requiredForPdf": true,
+          "maxLength": 120
+        },
+        {
+          "key": "emergencyContactPhone",
+          "label": "Điện thoại người liên hệ",
+          "type": "tel",
+          "requiredForPdf": true,
+          "maxLength": 30
+        }
+      ]
+    },
+    {
+      "key": "trainingSchedule",
+      "title": "Thời gian tổ chức đào tạo",
+      "description": "Tên khóa, thời lượng và ngày bắt đầu lấy từ hợp đồng. Địa điểm đào tạo đã được điền sẵn trong mẫu.",
+      "fields": [
+        {
+          "key": "endsOn",
+          "label": "Ngày kết thúc dự kiến",
+          "type": "date",
+          "requiredForPdf": true
+        },
+        {
+          "key": "latestOpeningOn",
+          "label": "Ngày khai giảng muộn nhất",
+          "type": "date",
+          "requiredForPdf": true
+        }
+      ]
+    },
+    {
+      "key": "contacts",
+      "title": "Đầu mối liên hệ",
+      "fields": [
+        {
+          "key": "academicContact",
+          "label": "Đầu mối học vụ",
+          "type": "text",
+          "requiredForPdf": true,
+          "maxLength": 255
+        },
+        {
+          "key": "accountingContact",
+          "label": "Đầu mối kế toán",
+          "type": "text",
+          "requiredForPdf": true,
+          "maxLength": 255
+        },
+        {
+          "key": "equipmentContact",
+          "label": "Đầu mối bộ phận thiết bị",
+          "type": "text",
+          "requiredForPdf": true,
+          "maxLength": 255
+        }
+      ]
+    },
+    {
+      "key": "financialSummary",
+      "title": "Tổng tiền trong hợp đồng",
+      "description": "Tự tính từ học phí và tiền cọc mượn thiết bị.",
+      "fields": [
+        {
+          "key": "initialTotal",
+          "label": "Tổng học phí và tiền cọc",
+          "type": "number",
+          "readOnly": true,
+          "money": true
+        },
+        {
+          "key": "initialTotalInWords",
+          "label": "Bằng chữ",
+          "type": "text",
+          "readOnly": true,
+          "wide": true
+        }
+      ]
+    }
+  ]
+}

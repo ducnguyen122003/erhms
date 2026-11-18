@@ -95,7 +95,7 @@ public class WorkflowData {
             case "sessions"->"SELECT s.*,(SELECT m.name FROM m_classroom m WHERE m.id=s.classroom_id) AS room_label,cl.code AS class_code,cl.name AS class_name,cl.lecturer_id,l.full_name AS lecturer_name FROM training_sessions s JOIN training_classes cl ON cl.id=s.class_id LEFT JOIN m_user l ON l.user_id=cl.lecturer_id WHERE "+classScope(u,"cl");
             case "grades"->"SELECT g.*,e.student_id,e.class_id,u.full_name AS student_name,cl.code AS class_code FROM training_grades g JOIN training_enrollments e ON e.id=g.enrollment_id JOIN training_classes cl ON cl.id=e.class_id JOIN m_user u ON u.user_id=e.student_id WHERE "+(u.getRoleCode().equals("STUDENT")?"e.student_id="+uid+" AND g.published_at IS NOT NULL":classScope(u,"cl"));
             case "student-attendance"->"SELECT a.*,s.title,s.starts_at,cl.code AS class_code FROM training_attendance a JOIN training_sessions s ON s.id=a.session_id JOIN training_classes cl ON cl.id=s.class_id WHERE a.student_id="+uid;
-            case "contracts","tuition","deposits"->"SELECT c.*,COALESCE(c.applicant_name,u.full_name) AS student_name,co.name AS course_name,co.duration_months,(SELECT r.enrollment_course FROM consultation_registrations r WHERE r.id=c.consultation_id) AS enrollment_course,"+
+            case "contracts","tuition","deposits"->"SELECT c.*,COALESCE(c.applicant_name,u.full_name) AS student_name,COALESCE(c.registered_course_name,co.name) AS course_name,COALESCE(c.registered_duration_months,co.duration_months) AS duration_months,(SELECT r.enrollment_course FROM consultation_registrations r WHERE r.id=c.consultation_id) AS enrollment_course,"+
                     "COALESCE((SELECT SUM(t.amount) FROM financial_transactions t WHERE t.contract_id=c.id AND t.kind='TUITION' AND t.status='CONFIRMED'),0) AS tuition_paid,"+
                     "COALESCE((SELECT SUM(t.amount) FROM financial_transactions t WHERE t.contract_id=c.id AND t.kind='DEPOSIT' AND t.status='CONFIRMED'),0) AS deposit_paid,"+
                     "COALESCE((SELECT SUM(t.amount) FROM financial_transactions t WHERE t.contract_id=c.id AND t.kind='REFUND' AND t.status='CONFIRMED'),0) AS refund_paid "+
@@ -126,7 +126,7 @@ public class WorkflowData {
         var groups=rows("SELECT "+state+" AS metric_state,COUNT(*) AS count FROM ("+filtered(resource,user,q,status)+") metrics GROUP BY "+state,filters(q,status).toArray());
         long total=0,pending=0,active=0,closed=0;
         for(var group:groups){long n=((Number)group.get("count")).longValue();String code=Objects.toString(group.get("metricState"),"");total+=n;
-            if(Set.of("NEW","PENDING","PLANNED","PREPARING","READY","MISMATCH","RETURN_DUE","UNREAD","IN_PROGRESS","APPOINTMENT").contains(code))pending+=n;
+            if(Set.of("NEW","DRAFT","SENT_FOR_SIGNATURE","SIGNATURE_REVIEW","PENDING","PLANNED","PREPARING","READY","MISMATCH","RETURN_DUE","UNREAD","IN_PROGRESS","APPOINTMENT").contains(code))pending+=n;
             else if(Set.of("COMPLETED","WITHDRAWN","RETURNED","RESOLVED","RETIRED","CLOSED","REJECTED","CANCELLED").contains(code))closed+=n;else active+=n;
         }
         return List.of(Map.of("label","Tổng bản ghi","value",total),Map.of("label","Chờ xử lý","value",pending),Map.of("label","Đang hoạt động / đã xác nhận","value",active),Map.of("label","Đã kết thúc","value",closed));
