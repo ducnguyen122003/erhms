@@ -2,7 +2,7 @@
 
 Nguồn đối chiếu: `ERHMS_Ma_Tran_Quyen_Truy_Cap.xlsx` và thư mục `ERHMS_Full_Screens_and_Screen_Flow_SVG/ERHMS_Full_UI_SVG`. Ma trận có **108 mã màn/biến thể**; 3 bản tham chiếu HTML và 8 sơ đồ flow không phải route nghiệp vụ.
 
-Frontend mới nằm trong `G5_FE1`, backend trong `G5_BE`. Có 80 component nghiệp vụ riêng tại `src/screens/pages`, một component riêng cho đổi mật khẩu và 9 component công khai tại `src/screens/public`. Các component dùng chung bảng, biểu mẫu, lịch tuần và xử lý lỗi; dữ liệu mẫu trong SVG không được đưa vào database hoặc giao diện vận hành. Các màn tài khoản, đăng nhập/khôi phục và 7 dashboard hiện có được nối lại vào luồng mới. Danh mục đầy đủ: [SCREEN_ROUTE_COVERAGE.md](SCREEN_ROUTE_COVERAGE.md).
+Frontend mới nằm trong `G5_FE1`, backend trong `G5_BE`. Các component nghiệp vụ riêng nằm tại `src/screens/pages`, một component riêng cho đổi mật khẩu và 9 component công khai tại `src/screens/public`. Các component dùng chung bảng, biểu mẫu, lịch tuần và xử lý lỗi; dữ liệu mẫu trong SVG không được đưa vào database hoặc giao diện vận hành. Các màn tài khoản, đăng nhập/khôi phục và 7 dashboard hiện có được nối lại vào luồng mới. Danh mục đầy đủ: [SCREEN_ROUTE_COVERAGE.md](SCREEN_ROUTE_COVERAGE.md).
 
 ## Chạy
 
@@ -28,9 +28,9 @@ Migration bổ sung schema và quyền; không tạo học viên, lớp, hợp �
 
 1. **Cấu hình khóa học:** Admin quản lý ngành nghề, tạo khóa và chọn Manager phụ trách; cấu hình thời lượng, sức chứa lớp, học phí tham khảo, các đầu điểm/trọng số tổng 100% và danh sách giảng viên đủ điều kiện. Khóa nháp chưa công khai. Sau khi mở tuyển sinh, nội dung xuất hiện ở trang công khai.
 2. **Tiếp nhận:** khách gửi Contact → lưu vào bảng đăng ký thực tế → HR xem chi tiết, ghi kết quả tư vấn, lịch hẹn và email đã xác minh nếu cần bổ sung. Có lịch sử từng lần tư vấn. Không có trang tra cứu đăng ký công khai.
-3. **Hợp đồng:** HR xác minh email và chuyển hồ sơ sang **Đã liên hệ**. Manager mở **Cấp tài khoản học viên** để tạo tài khoản Student khớp email và gửi mật khẩu ban đầu qua mail. Manager liên kết hồ sơ này, chọn khóa mình quản lý và thỏa thuận học phí/cọc; chỉ sửa bản nháp. Manager ghi ngày ký, minh chứng và kế toán tiếp nhận để bàn giao. HR không truy cập các màn hợp đồng. Accountant xem hợp đồng đã bàn giao trong phạm vi được phân công. Chi tiết: [MANAGER_TRAINING_CONTRACTS.md](MANAGER_TRAINING_CONTRACTS.md).
+3. **Hợp đồng:** HR xác minh email, ghi nhận **Hẹn nộp hồ sơ** kèm ngày hẹn nộp, rồi tải và gửi bản scan hồ sơ giấy để chuyển sang **Tạo hồ sơ**. Manager kiểm tra bản scan, lập hợp đồng với Gmail / email học viên đã cung cấp, chọn khóa mình quản lý và thỏa thuận học phí/cọc. Sau khi đã lập hợp đồng, Manager mới cấp tài khoản; hợp đồng tự gắn theo email và hồ sơ chuyển sang **Đã tạo hồ sơ**. Chỉ sửa hợp đồng bản nháp. Manager ghi ngày ký, minh chứng và kế toán tiếp nhận để bàn giao. HR không truy cập các màn hợp đồng. Accountant xem hợp đồng đã bàn giao trong phạm vi được phân công. Chi tiết: [MANAGER_TRAINING_CONTRACTS.md](MANAGER_TRAINING_CONTRACTS.md).
 4. **Đối soát:** Accountant tiếp nhận chứng từ ngân hàng, đối chiếu hợp đồng/người học, mục đích, số tiền và mã ngân hàng. Giao dịch chưa xác nhận không làm giảm công nợ. Sai lệch phải được làm rõ; tín hiệu trùng mở bản ghi gốc và không thu lần hai. Màn này chưa tự kết nối ngân hàng bên ngoài; không giả lập trạng thái Banking đã tích hợp.
-5. **Xếp lớp:** khi học phí đã được xác nhận đủ nghĩa vụ hợp đồng, hệ thống xếp lớp theo khóa/ngày bắt đầu/sức chứa và danh sách giảng viên đủ điều kiện. Nếu chưa có giảng viên khả dụng, lớp giữ chờ phân công để Manager kiểm tra. Hợp đồng học phí bằng 0 cần Accountant xác nhận căn cứ miễn phí, không tạo giao dịch tiền bằng 0. Manager kiểm tra và điều chỉnh lớp, giảng viên, sĩ số/lịch trong phạm vi được giao.
+5. **Xếp lớp:** khi kế toán xác nhận đủ học phí, học viên chờ Manager chọn lớp. Manager tạo lớp với mã tự tăng, ngày bắt đầu và sĩ số; tại chi tiết lớp chọn học viên đã đóng đủ học phí của cùng khóa học, chưa có lớp đang học/chờ học, rồi thêm vào lớp và lập lịch từng buổi. Hợp đồng học phí bằng 0 cần Accountant xác nhận căn cứ miễn phí, không tạo giao dịch tiền bằng 0. Lớp cần được phân công giảng viên trước khi xếp lịch. Xem [CLASS_MANAGEMENT.md](CLASS_MANAGEMENT.md) cho luồng từ V16.
 6. **Giảng dạy:** Manager lập lịch, server chặn trùng lớp/phòng/giảng viên. Lecturer điểm danh, lưu tạm hoặc chốt đủ học viên; dữ liệu đã chốt không tự mở lại. Điều chỉnh trước khi chốt phải có lý do. Bảng điểm dùng cấu hình khóa, điểm 0–10; công bố khi đủ đầu điểm. Student chỉ thấy điểm đã công bố.
 7. **Thiết bị:** Lecturer tạo yêu cầu cho học viên trong lớp; IT tiếp nhận, chuẩn bị và bàn giao thiết bị khả dụng khi đủ điều kiện cọc. Lưu biên bản ký nhận và lịch trả; không cấp một thiết bị đồng thời cho hai lượt đang hiệu lực. Student xem biên bản của mình. IT có thể chủ động lập và hoàn tất phiếu bảo trì.
 8. **Thu hồi/quyết toán:** IT xác nhận thực nhận đúng thiết bị, hiện trạng và minh chứng; có hỏng/mất thì tạo hồ sơ sự cố. IT ghi kỹ thuật và đề xuất; Accountant ghi khoản đã được duyệt, căn cứ phê duyệt và thu riêng hoặc khấu trừ cọc. Số tiền phê duyệt/căn cứ phải đến từ quy trình của trung tâm, không lấy giá trị minh họa trong bản vẽ. Chỉ hoàn cọc một lần sau thu hồi và rà soát nghĩa vụ, có chứng từ thực tế.
@@ -74,7 +74,7 @@ BK-VTCMS có thêm 12 màn danh mục riêng, đưa tổng số mã màn lên 12
 
 ## Chuyển trách nhiệm hợp đồng (V12)
 
-Khởi động lại backend để áp dụng V12. Phần tài khoản/đăng xuất được ghim ở đáy menu; năm màn hợp đồng đào tạo do Manager quản lý, HR không còn truy cập. Danh sách hồ sơ khi tạo hợp đồng mới chỉ nhận trạng thái CONTACTED. Xem [MANAGER_TRAINING_CONTRACTS.md](MANAGER_TRAINING_CONTRACTS.md).
+Khởi động lại backend để áp dụng V12. Phần tài khoản/đăng xuất được ghim ở đáy menu; năm màn hợp đồng đào tạo do Manager quản lý, HR không còn truy cập. Từ V18, Manager lập hợp đồng từ hồ sơ đã nhận trước khi cấp tài khoản; hợp đồng tự gắn theo Gmail / email khi cấp tài khoản. Xem [MANAGER_TRAINING_CONTRACTS.md](MANAGER_TRAINING_CONTRACTS.md).
 
 ## Chuyển danh mục ngành nghề và khóa học sang Admin (V13)
 
@@ -82,4 +82,4 @@ Khởi động lại backend để áp dụng **V13__admin_training_catalogues.s
 
 ## Cấp tài khoản học viên từ hồ sơ đã liên hệ (V14)
 
-V14 bổ sung màn **Cấp tài khoản học viên** riêng cho Manager, nâng tổng số màn lên 121. Danh sách chỉ nhận hồ sơ `CONTACTED`; Manager tạo tài khoản `STUDENT` bằng email trong hồ sơ và hệ thống gửi mật khẩu ban đầu qua SMTP. Xem [STUDENT_ACCOUNT_PROVISIONING.md](STUDENT_ACCOUNT_PROVISIONING.md) để cấu hình địa chỉ đăng nhập trong email và xử lý trường hợp email đã có tài khoản.
+V14 bổ sung màn **Cấp tài khoản học viên** riêng cho Manager, nâng tổng số màn lên 121. Từ V18, danh sách nhận hồ sơ đã gửi scan, đã lập hợp đồng và đã hoàn tất; Manager lập hợp đồng trước khi tạo tài khoản `STUDENT` bằng email trong hồ sơ và hệ thống gửi mật khẩu ban đầu qua SMTP. Xem [STUDENT_ACCOUNT_PROVISIONING.md](STUDENT_ACCOUNT_PROVISIONING.md) để cấu hình địa chỉ đăng nhập trong email và xử lý trường hợp email đã có tài khoản.

@@ -1,6 +1,6 @@
 # Nhập học sinh đăng ký tư vấn từ Excel
 
-Tại `/screens/ListAdmissionApplication`, nhân viên tuyển sinh có quyền mở màn hình sẽ thấy hai nút **Tải mẫu Excel** và **Nhập từ Excel**.
+Tại dashboard **Tư vấn & tiếp nhận hồ sơ** (`/screens/ListAdmissionApplication`), nhân viên tuyển sinh có quyền mở màn hình sẽ thấy hai nút **Tải mẫu Excel** và **Nhập từ Excel**. Dashboard **Hoàn tất thủ tục nhập học** chỉ nhận hồ sơ đã đủ giấy tờ từ luồng gửi/bổ sung PDF, không có nhập Excel. Xem [ADMISSION_DASHBOARDS.md](ADMISSION_DASHBOARDS.md).
 
 Có thể dùng ngay [file Excel mẫu trong dự án](templates/mau-nhap-hoc-sinh.xlsx). Nút tải mẫu trên giao diện luôn tạo mẫu theo phiên bản backend đang chạy.
 
@@ -13,14 +13,18 @@ Có thể dùng ngay [file Excel mẫu trong dự án](templates/mau-nhap-hoc-si
 | --- | --- |
 | Họ và tên (*) | Bắt buộc, 2–120 ký tự. |
 | Số điện thoại (*) | Bắt buộc, số Việt Nam bắt đầu bằng `0`, `84` hoặc `+84`. Giữ định dạng Text để không mất số `0` đầu. |
-| Email | Không bắt buộc; nếu điền phải đúng định dạng, tối đa 190 ký tự. |
+| Email (*) | Bắt buộc, đúng định dạng, tối đa 190 ký tự. Không trùng trong file, tài khoản hoặc hồ sơ chưa kết thúc bằng Không tiếp tục đăng ký. |
 | Khóa quan tâm (*) | Bắt buộc, tối đa 255 ký tự. |
 | Thời gian liên hệ | Chọn Bất kỳ, Buổi sáng hoặc Buổi chiều. Để trống được hiểu là Bất kỳ. |
 | Nội dung tư vấn | Không bắt buộc, tối đa 2.000 ký tự. |
 
 Mỗi file phải là `.xlsx`, tối đa **2 MB** và **500 học sinh**. Bỏ qua các dòng trống. Không nhập công thức vào ô dữ liệu; hãy dán giá trị văn bản. Mẫu để trống phần nhập dữ liệu để tránh tạo nhầm hồ sơ ví dụ.
 
-Toàn bộ file được kiểm tra trước khi lưu. Nếu có dòng sai hoặc hồ sơ trùng, hệ thống trả lỗi kèm số dòng Excel và không lưu dòng nào. Sửa file rồi chọn lại để nhập. Hồ sơ trùng được xác định theo họ tên, số điện thoại và khóa quan tâm; không ghi đè hồ sơ hiện có.
+Toàn bộ file được kiểm tra trước khi lưu. Nếu có dòng sai, email trùng hoặc hồ sơ trùng, hệ thống trả lỗi kèm số dòng Excel và không lưu dòng nào. Email được bỏ khoảng trắng đầu/cuối và chuyển về chữ thường trước khi so sánh; kiểm tra cả hồ sơ tư vấn/tuyển sinh, học viên nhập trực tiếp bằng Excel và tài khoản hiện có, không giới hạn theo người phụ trách. Lỗi email được trả tại `fields.row.<dòng>.email`.
+
+Khi kiểm tra email và bộ họ tên–số điện thoại–khóa quan tâm trong database, bỏ qua hồ sơ ở trạng thái **Không tiếp tục đăng ký** (`NOT_PROCEEDING`). Học viên quay lại sẽ được tạo **hồ sơ mới**, mã mới, trạng thái **Mới tiếp nhận**; hồ sơ đã dừng và lịch sử được giữ nguyên, không mở lại hay ghi đè. Hồ sơ trùng còn hoạt động, email tài khoản và các dòng trùng trong cùng file vẫn bị chặn. Hồ sơ chưa có kết quả tư vấn được xem là Mới tiếp nhận và vẫn tham gia kiểm tra trùng.
+
+Mẫu cũ có tiêu đề cột `Email` vẫn được nhận, nhưng dữ liệu email là bắt buộc và phải đáp ứng quy tắc không trùng như mẫu mới.
 
 Chức năng tạo hồ sơ đăng ký tư vấn, không tự tạo tài khoản đăng nhập cho học sinh.
 

@@ -322,9 +322,9 @@ class DashboardIntegrationTest {
         UUID first = consultation("Current registration one", OffsetDateTime.now());
         UUID second = consultation("Current registration two", OffsetDateTime.now());
         UUID old = consultation("Old registration", OffsetDateTime.now().minusWeeks(1));
-        insert("consultation_followups", "consultation_id", first, "assigned_to", hr.id, "status", "CONTACTED");
-        insert("consultation_followups", "consultation_id", second, "assigned_to", hr.id, "status", "APPOINTMENT");
-        insert("consultation_followups", "consultation_id", old, "assigned_to", hr.id, "status", "CLOSED");
+        insert("consultation_followups", "consultation_id", first, "assigned_to", hr.id, "status", "NEEDS_COUNSELING");
+        insert("consultation_followups", "consultation_id", second, "assigned_to", hr.id, "status", "DOCUMENT_APPOINTMENT", "document_due_on", java.time.LocalDate.now(java.time.ZoneId.of("Asia/Ho_Chi_Minh")));
+        insert("consultation_followups", "consultation_id", old, "assigned_to", hr.id, "status", "NOT_PROCEEDING");
         contract("HR-DRAFT", student, "DRAFT", 1_000_000, 0);
         contract("HR-SIGNED", student, "SIGNED", 1_000_000, 0);
         contract("HR-ACTIVE", student, "ACTIVE", 1_000_000, 0);

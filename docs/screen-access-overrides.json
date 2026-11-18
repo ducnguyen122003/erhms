@@ -11,7 +11,7 @@
     "roles": [
       "MANAGER"
     ],
-    "actions": "Manager lập hợp đồng từ hồ sơ ở trạng thái Đã liên hệ và khóa học mình quản lý.",
+    "actions": "Manager lập hợp đồng từ hồ sơ đã nhận bằng email học viên, sau đó mới cấp tài khoản và gắn hợp đồng theo email.",
     "scope": "Manager theo hợp đồng và khóa học được phân công; Kế toán theo hồ sơ đã bàn giao."
   },
   "EditTrainingContract": {
@@ -67,5 +67,17 @@
         "AdmissionConsultation"
       ]
     ]
+  },
+  "AdmissionConsultation": {
+    "actions": "Lưu kết quả Cần tư vấn thêm, Hẹn nộp hồ sơ hoặc Không tiếp tục đăng ký.",
+    "description": "Ghi nhận nội dung tư vấn, ngày hẹn nộp hồ sơ hoặc lý do không tiếp tục theo kết quả đã chọn.",
+    "notes": [
+      "Ngày hẹn nộp hồ sơ hoặc lý do không tiếp tục là bắt buộc theo kết quả đã chọn.",
+      "Lưu lịch sử từng lần tư vấn; có thể ghi lịch liên hệ lại khi cần tư vấn thêm."
+    ]
+  },
+  "ListAdmissionApplication": {
+    "title": "Tư vấn & tiếp nhận hồ sơ",
+    "description": "Tư vấn người quan tâm khóa học, hẹn nộp và bổ sung các giấy tờ còn thiếu."
   }
 }

@@ -130,7 +130,7 @@ public class StudentAccountExcelService {
                     "Hồ sơ trùng họ tên, số điện thoại và khóa quan tâm trong file hoặc hệ thống cũng sẽ được báo lỗi.",
                     "Nếu có lỗi, toàn bộ file chưa được lưu. Sửa các dòng được thông báo rồi nhập lại.",
                     "Học viên nhập thành công xuất hiện ngay tại Cấp tài khoản học viên với nguồn Nhập từ Excel, không qua tuyển sinh.",
-                    "Import chỉ lưu thông tin. Chọn Tạo tài khoản tại danh sách để cấp tài khoản và gửi email cho từng học viên.",
+                    "Import chỉ lưu thông tin. Lập hợp đồng tại danh sách trước, sau đó chọn Tạo tài khoản để cấp tài khoản và gắn hợp đồng theo email.",
                     "Ví dụ dưới đây chỉ để tham khảo, không được nhập tự động:"
             };
             for (int index = 0; index < instructions.length; index++) {
@@ -222,7 +222,7 @@ public class StudentAccountExcelService {
                     VALUES (?,?,?,?,?,?,?,?,'EXCEL',?)
                     """, id, input.fullName(), input.phone(), input.email(), input.programName(),
                     input.contactTime(), input.description(), created, actor.id);
-            // CONTACTED is the existing ready-for-account/contract workflow state.
+            // Direct Excel intake remains CONTACTED until the manager creates the student profile.
             // The intake source distinguishes these profiles from HR-contacted admissions.
             data.jdbc.update("INSERT INTO consultation_followups(id,consultation_id,status) VALUES (?,?,'CONTACTED')",
                     UUID.randomUUID(), id);

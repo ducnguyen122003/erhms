@@ -114,7 +114,7 @@ class AdminWorkspaceIntegrationTest {
     }
 
     @Test void migratedFunctionsAndDefaultGrantsMatchSevenRoles() throws Exception {
-        JsonNode source=matrix();assertEquals(7,source.path("roles").size());assertEquals(100,source.path("functions").size());
+        JsonNode source=matrix();assertEquals(7,source.path("roles").size());assertEquals(102,source.path("functions").size());
         assertEquals(7,jdbc.queryForObject("SELECT COUNT(*) FROM role_function WHERE function_code='PROFILE'",Integer.class));
         assertEquals(1,jdbc.queryForObject("SELECT COUNT(*) FROM role_function WHERE function_code='USER_ACCOUNTS'",Integer.class));
         mvc.perform(get("/api/admin/settings").with(user(student.email).roles("ADMIN"))).andExpect(status().isForbidden());

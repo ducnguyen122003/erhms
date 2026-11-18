@@ -66,7 +66,9 @@ Cả hai frontend chuyển tiếp `/api` tới `http://localhost:8080`. Nếu ba
 
 Đã bổ sung các màn theo bộ SVG và ma trận Excel: tuyển sinh, hồ sơ học viên, hợp đồng, khóa/lớp/lịch, điểm danh/điểm, học phí/thanh toán/cọc, thiết bị/thu hồi/bồi thường, đóng hồ sơ, thông báo và báo cáo. Frontend nằm trong `G5_FE1`; trang công khai mới tại http://localhost:8082/public/HomePage. Khởi động lại backend để áp dụng migration **V9–V14**. Luồng sử dụng, quyền và API: [FULL_SCREEN_WORKSPACE.md](docs/FULL_SCREEN_WORKSPACE.md); danh mục 121 mã màn: [SCREEN_ROUTE_COVERAGE.md](docs/SCREEN_ROUTE_COVERAGE.md).
 
-Quản lý học viên mở **Cấp tài khoản học viên** để xem hồ sơ **Đã liên hệ**, tạo tài khoản `STUDENT` bằng email học viên đã cung cấp và gửi mật khẩu ban đầu qua email. Cần cấu hình SMTP và `STUDENT_LOGIN_URL` trỏ đến trang đăng nhập học viên truy cập được. Hướng dẫn: [STUDENT_ACCOUNT_PROVISIONING.md](docs/STUDENT_ACCOUNT_PROVISIONING.md).
+Quản lý học viên mở **Cấp tài khoản học viên** để xem bản scan đã gửi, **lập hợp đồng trước**, sau đó tạo tài khoản `STUDENT` bằng Gmail / email học viên đã cung cấp. Hợp đồng được tự gắn với tài khoản theo email; thông tin đăng nhập được gửi qua email. Cần cấu hình SMTP và `STUDENT_LOGIN_URL` trỏ đến trang đăng nhập học viên truy cập được. Hướng dẫn: [STUDENT_ACCOUNT_PROVISIONING.md](docs/STUDENT_ACCOUNT_PROVISIONING.md).
+
+Quản lý học viên có thể vào **Lớp học & giảng viên → Tạo lớp học** để chọn ngày bắt đầu, nhận mã lớp tự tăng, thêm học viên đã đóng đủ học phí của cùng khóa học nhưng chưa được xếp lớp và xếp lịch từng buổi. Khởi động lại backend để áp dụng **V16**. Hướng dẫn: [CLASS_MANAGEMENT.md](docs/CLASS_MANAGEMENT.md).
 
 Sau khi đăng nhập, `G5_FE1` tự mở dashboard theo `m_user.role_id`, đồng thời kiểm tra `m_role.code` đúng với ID quy định. Tải lại trang giữ đúng dashboard; mở URL của role khác bị chặn ở cả giao diện và API. Mỗi dashboard có file React riêng:
 
@@ -163,7 +165,7 @@ docker compose down
 
 ## Hợp đồng đào tạo và thanh điều hướng
 
-Manager quản lý tạo/sửa nháp/ký/bàn giao hợp đồng; HR chỉ tiếp nhận và tư vấn. Hồ sơ phải ở trạng thái **Đã liên hệ** mới được chọn khi tạo hợp đồng. Khởi động lại backend để áp dụng V12. Khối người dùng/đăng xuất được ghim ở đáy menu. Hướng dẫn: [MANAGER_TRAINING_CONTRACTS.md](docs/MANAGER_TRAINING_CONTRACTS.md).
+Manager quản lý tạo/sửa nháp/ký/bàn giao hợp đồng; HR tiếp nhận, tư vấn và quản lý bộ giấy tờ. HR chọn **Hẹn nộp hồ sơ**, nhập ngày hẹn rồi gửi bản scan. Đủ cả 5 loại giấy tờ thì hiển thị **Đã hoàn thành hồ sơ**, còn thiếu thì hiển thị **Hồ sơ còn thiếu**; HR dùng **Bổ sung / chỉnh sửa hồ sơ** thay cho ghi nhận tư vấn sau khi đã gửi. Manager lập hợp đồng bằng email học viên trước, sau đó mới tạo tài khoản và tự gắn hợp đồng theo email. Trạng thái sau khi cấp tài khoản là **Đã tạo hồ sơ**. Tuyển sinh có hai dashboard riêng: **Tư vấn & tiếp nhận hồ sơ** cho hồ sơ đang tư vấn/còn thiếu và **Hoàn tất thủ tục nhập học** cho hồ sơ đủ giấy tờ, theo dõi hợp đồng, tài khoản và học phí. Trong dashboard hoàn tất có hai trang **Chờ chuyển học vụ** và **Đã chuyển học vụ**. Tuyển sinh phải bấm **Chuyển quản lý học vụ** thì Manager mới nhận hồ sơ và được lập hợp đồng/cấp tài khoản. Khởi động lại backend để áp dụng migration V22. Hướng dẫn: [ADMISSION_DASHBOARDS.md](docs/ADMISSION_DASHBOARDS.md). Kết quả tư vấn: [ADMISSION_CONSULTATION.md](docs/ADMISSION_CONSULTATION.md). Hướng dẫn gửi scan: [ADMISSION_PROFILES.md](docs/ADMISSION_PROFILES.md). Khối người dùng/đăng xuất được ghim ở đáy menu. Hướng dẫn: [MANAGER_TRAINING_CONTRACTS.md](docs/MANAGER_TRAINING_CONTRACTS.md).
 
 ## Danh mục dùng chung BK-VTCMS
 
@@ -179,3 +181,5 @@ npm.cmd --prefix .\G5_FE2 run build
 ```
 
 Backend tests dùng H2 ở chế độ PostgreSQL, chạy các migration thật, kiểm tra đăng ký tư vấn, validation, CSRF, phân quyền và luồng tuyển dụng. Website `G5_FE2` build đầy đủ các trang HTML.
+
+Kết quả rà soát 41 bảng PostgreSQL đang chạy, các khóa ngoại và bằng chứng sử dụng từng bảng: [DATABASE_AUDIT.md](docs/DATABASE_AUDIT.md).

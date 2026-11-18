@@ -108,7 +108,7 @@ class StudentAccountExcelIntegrationTest {
         assertEquals("morning", first.path("contactTime").asText());
         assertEquals("EXCEL", first.path("source").asText());
         assertEquals("NONE", first.path("accountStatus").asText());
-        assertTrue(first.path("canCreate").asBoolean());
+        assertFalse(first.path("canCreate").asBoolean());assertTrue(first.path("canContract").asBoolean());
         assertEquals("any", row(email(2)).path("contactTime").asText());
         assertFalse(users.existsByEmailIgnoreCase(email(1)));
         assertFalse(users.existsByEmailIgnoreCase(email(2)));
@@ -120,34 +120,33 @@ class StudentAccountExcelIntegrationTest {
                 .andExpect(status().isOk()).andExpect(jsonPath("$.total").value(0));
     }
 
-    @Test void importedLearnerCanReceiveAnAccountAndContinueToTrainingContract() throws Exception {
+    @Test void importedLearnerRequiresAContractBeforeAccountCreationAndLinksByProvidedEmail() throws Exception {
         try (var workbook = workbook()) {
             valid(workbook.getSheetAt(0), 1, 1);
             upload(workbook).andExpect(status().isOk());
         }
+        JsonNode imported = row(email(1));String id=imported.path("id").asText();
+        assertFalse(imported.path("canCreate").asBoolean());
+        mvc.perform(post(API+"/"+id).with(user(manager.email).roles("MANAGER")).with(csrf()).contentType("application/json")
+                .content(json.writeValueAsString(Map.of("expectedEmail",email(1),"version",imported.path("version").asLong())))).andExpect(status().isConflict());
         verifyNoInteractions(mailer);
-        JsonNode imported = row(email(1));
-        String id = imported.path("id").asText();
-        JsonNode account = body(mvc.perform(post(API + "/" + id).with(user(manager.email).roles("MANAGER"))
-                        .with(csrf()).contentType("application/json")
-                        .content(json.writeValueAsString(Map.of("expectedEmail", email(1), "version", imported.path("version").asLong()))))
-                .andExpect(status().isOk()).andReturn());
-        long accountId = account.path("accountId").asLong();
-        assertEquals("STUDENT", users.findWithRoleById(accountId).orElseThrow().getRoleCode());
-        assertEquals(manager.id, jdbc.queryForObject("SELECT manager_id FROM student_profiles WHERE user_id=?", Long.class, accountId));
-        verify(mailer).requireConfigured();
-        verify(mailer).sendCredentials(eq(email(1)), eq(unique + " Học viên 1"), anyString());
-        assertEquals("STUDENT", row(email(1)).path("accountStatus").asText());
-
-        UUID course = UUID.randomUUID();
+        UUID course=UUID.randomUUID();
         jdbc.update("INSERT INTO training_courses(id,code,name,profession,duration_months,total_sessions,tuition_fee,objectives,status,manager_id,class_capacity) VALUES (?,?,?,?,3,20,1000,'Training','ACTIVE',?,20)",
-                course, course.toString(), unique + " Course", "Nghề", manager.id);
-        var contract = Map.of("consultationId", id, "courseId", course.toString(), "studentId", accountId,
-                "startsOn", "2026-12-15", "paymentDueOn", "2026-12-14", "tuitionDue", 1000, "depositDue", 0, "terms", "Điều khoản đào tạo");
-        mvc.perform(post("/api/workspace/screens/AddTrainingContract").with(user(manager.email).roles("MANAGER"))
-                        .with(csrf()).contentType("application/json").content(json.writeValueAsString(contract)))
-                .andExpect(status().isOk());
-        assertEquals(1, jdbc.queryForObject("SELECT COUNT(*) FROM training_contracts WHERE consultation_id=? AND student_id=?", Integer.class, UUID.fromString(id), accountId));
+                course,course.toString(),unique+" Course","Nghề",manager.id);
+        var input=Map.of("consultationId",id,"courseId",course.toString(),"startsOn","2026-12-15","paymentDueOn","2026-12-14","tuitionDue",1000,"depositDue",0,"terms","Điều khoản đào tạo");
+        JsonNode contract=body(mvc.perform(post("/api/workspace/screens/AddTrainingContract").with(user(manager.email).roles("MANAGER")).with(csrf()).contentType("application/json").content(json.writeValueAsString(input))).andExpect(status().isOk()).andReturn());
+        UUID contractId=UUID.fromString(contract.path("id").asText());
+        assertNull(jdbc.queryForObject("SELECT student_id FROM training_contracts WHERE id=?",Long.class,contractId));
+        assertEquals(email(1),jdbc.queryForObject("SELECT student_email FROM training_contracts WHERE id=?",String.class,contractId));
+        JsonNode ready=row(email(1));assertTrue(ready.path("canCreate").asBoolean());
+        JsonNode account=body(mvc.perform(post(API+"/"+id).with(user(manager.email).roles("MANAGER")).with(csrf()).contentType("application/json")
+                .content(json.writeValueAsString(Map.of("expectedEmail",email(1),"version",ready.path("version").asLong())))).andExpect(status().isOk()).andReturn());
+        long accountId=account.path("accountId").asLong();
+        assertEquals("STUDENT",users.findWithRoleById(accountId).orElseThrow().getRoleCode());
+        assertEquals(accountId,jdbc.queryForObject("SELECT student_id FROM training_contracts WHERE id=?",Long.class,contractId));
+        assertEquals(manager.id,jdbc.queryForObject("SELECT manager_id FROM student_profiles WHERE user_id=?",Long.class,accountId));
+        verify(mailer).sendCredentials(eq(email(1)),eq(unique+" Học viên 1"),anyString());
+        assertEquals("PROFILE_CREATED",row(email(1)).path("profileStatus").asText());
     }
 
     @Test void ordinaryPublicRegistrationStillBelongsToRecruitmentAfterSourceMigration() throws Exception {

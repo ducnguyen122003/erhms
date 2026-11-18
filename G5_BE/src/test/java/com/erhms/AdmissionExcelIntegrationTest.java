@@ -4,6 +4,7 @@ import com.erhms.consultation.repository.ConsultationRegistrationRepository;
 import com.erhms.role.repository.RoleRepository;
 import com.erhms.user.entity.User;
 import com.erhms.user.repository.UserRepository;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.nio.charset.StandardCharsets;
@@ -43,7 +44,7 @@ class AdmissionExcelIntegrationTest {
     private static final String IMPORT = "/api/workspace/admissions/import";
     private static final String TEMPLATE = "/api/workspace/admissions/import-template";
     private static final String MIME = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet";
-    private static final String[] HEADERS = {"Họ và tên (*)", "Số điện thoại (*)", "Email",
+    private static final String[] HEADERS = {"Họ và tên (*)", "Số điện thoại (*)", "Email (*)",
             "Khóa quan tâm (*)", "Thời gian liên hệ", "Nội dung tư vấn"};
 
     @Autowired MockMvc mvc;
@@ -51,6 +52,7 @@ class AdmissionExcelIntegrationTest {
     @Autowired RoleRepository roles;
     @Autowired ConsultationRegistrationRepository registrations;
     @Autowired JdbcTemplate jdbc;
+    @Autowired ObjectMapper json;
     private User hr;
 
     @BeforeEach
@@ -95,8 +97,8 @@ class AdmissionExcelIntegrationTest {
                 .andExpect(status().isOk()).andReturn().getResponse().getContentAsByteArray();
         try (var workbook = new XSSFWorkbook(new ByteArrayInputStream(template))) {
             put(workbook.getSheetAt(0), 1, "  Nguyễn Văn An  ", " 0912.345-678 ",
-                    " an@example.com ", " Điện công nghiệp ", "Buổi sáng", " Cần tư vấn học phí. ");
-            put(workbook.getSheetAt(0), 3, "Trần Thị Bình", "+84987654321", "", "May công nghiệp", "", "");
+                    " AN@EXAMPLE.COM ", " Điện công nghiệp ", "Buổi sáng", " Cần tư vấn học phí. ");
+            put(workbook.getSheetAt(0), 3, "Trần Thị Bình", "+84987654321", "binh@gmail.com", "May công nghiệp", "", "");
             upload(workbook).andExpect(status().isOk())
                     .andExpect(jsonPath("$.importedCount").value(2))
                     .andExpect(jsonPath("$.notice").isString());
@@ -111,7 +113,7 @@ class AdmissionExcelIntegrationTest {
         assertNotNull(saved.createdDate);
         var optional = registrations.findAll().stream().filter(row -> row.fullName.equals("Trần Thị Bình")).findFirst().orElseThrow();
         assertEquals("any", optional.contactTime);
-        assertNull(optional.email);
+        assertEquals("binh@gmail.com", optional.email);
         assertNull(optional.description);
         mvc.perform(get("/api/workspace/screens/ListAdmissionApplication").param("q", "Nguyễn Văn An")
                         .with(user(hr.email).roles("HR")))
@@ -140,7 +142,8 @@ class AdmissionExcelIntegrationTest {
     @Test
     void beanValidationRulesAlsoApplyToImportedNamesEmailsProgramsAndContactTimes() throws Exception {
         for (var invalid : List.of(Map.entry(0, "A"), Map.entry(0, "A".repeat(121)),
-                Map.entry(1, "09123abc78"), Map.entry(2, "invalid-email"), Map.entry(3, ""),
+                Map.entry(1, "09123abc78"), Map.entry(2, "invalid-email"), Map.entry(2, ""),
+                Map.entry(2, "   "), Map.entry(2, "student @gmail.com"), Map.entry(3, ""),
                 Map.entry(3, "Đ".repeat(256)), Map.entry(4, "midnight"), Map.entry(5, "A".repeat(2001)))) {
             try (var workbook = workbook()) {
                 valid(workbook.getSheetAt(0), 1);
@@ -162,6 +165,125 @@ class AdmissionExcelIntegrationTest {
                     .andExpect(jsonPath("$.fields['row.3.phone']").isString());
         }
         assertEquals(0, registrations.count());
+    }
+
+    @Test
+    void duplicateEmailsRejectDifferentPeopleAndTheEntireFileIgnoringCaseAndOuterWhitespace() throws Exception {
+        try (var workbook = workbook()) {
+            put(workbook.getSheetAt(0), 1, "Nguyễn Văn An", "0912345678", " Same@GMAIL.COM ", "Điện công nghiệp", "", "");
+            put(workbook.getSheetAt(0), 4, "Trần Thị Bình", "0987654321", "same@gmail.com", "May công nghiệp", "", "");
+            upload(workbook).andExpect(status().isBadRequest())
+                    .andExpect(jsonPath("$.code").value("EXCEL_VALIDATION"))
+                    .andExpect(jsonPath("$.fields['row.5.email']").value(org.hamcrest.Matchers.containsString("dòng 2")));
+        }
+        assertEquals(0, registrations.count());
+    }
+
+    @Test
+    void emailsAlreadyInAnyRegistrationSourceRejectTheWholeFileWithoutChangingExistingProfiles() throws Exception {
+        User otherHr = actor("HR");
+        for (String source : List.of("ADMISSION", "EXCEL")) {
+            UUID id = UUID.randomUUID();
+            String email = "existing-" + source.toLowerCase(java.util.Locale.ROOT) + "@gmail.com";
+            jdbc.update("INSERT INTO consultation_registrations(id,full_name,phone,email,contact_time,program_name,created_date,intake_source) VALUES (?,?,?,?,?,'Khóa cũ',CURRENT_TIMESTAMP,?)",
+                    id, "Hồ sơ hiện có", "0901111111", " " + email.toUpperCase(java.util.Locale.ROOT) + " ", "any", source);
+            jdbc.update("INSERT INTO consultation_followups(id,consultation_id,assigned_to,status) VALUES (?,?,?,'NEEDS_COUNSELING')", UUID.randomUUID(), id, otherHr.id);
+            long before = registrations.count();
+            try (var workbook = workbook()) {
+                valid(workbook.getSheetAt(0), 1);
+                put(workbook.getSheetAt(0), 4, "Học sinh mới", "0987654321", email, "Khóa mới", "", "");
+                upload(workbook).andExpect(status().isBadRequest())
+                        .andExpect(jsonPath("$.code").value("EXCEL_VALIDATION"))
+                        .andExpect(jsonPath("$.fields['row.5.email']").isString());
+            }
+            assertEquals(before, registrations.count());
+            assertEquals("Hồ sơ hiện có", jdbc.queryForObject("SELECT full_name FROM consultation_registrations WHERE id=?", String.class, id));
+        }
+    }
+
+    @Test
+    void emailsAlreadyUsedByAccountsAreRejectedEvenWithoutAnAdmissionOrAnEnabledStudentLogin() throws Exception {
+        for (String role : List.of("STUDENT", "HR")) {
+            User existing = actor(role);
+            String email = "existing-" + role.toLowerCase(java.util.Locale.ROOT) + "@gmail.com";
+            jdbc.update("UPDATE m_user SET email=?,account_enabled=FALSE WHERE user_id=?", " " + email.toUpperCase(java.util.Locale.ROOT) + " ", existing.id);
+            long accounts = users.count();
+            try (var workbook = workbook()) {
+                valid(workbook.getSheetAt(0), 1);
+                put(workbook.getSheetAt(0), 2, "Học sinh mới", "0987654321", email, "Khóa mới", "", "");
+                upload(workbook).andExpect(status().isBadRequest())
+                        .andExpect(jsonPath("$.fields['row.3.email']").value(org.hamcrest.Matchers.containsString("tài khoản")));
+            }
+            assertEquals(0, registrations.count());
+            assertEquals(accounts, users.count());
+        }
+    }
+
+    @Test
+    void stoppedAdmissionCanReturnAsANewRoundWhileTheOriginalAdmissionAndHistoryStayClosed() throws Exception {
+        try (var workbook = workbook()) {
+            valid(workbook.getSheetAt(0), 1);
+            upload(workbook).andExpect(status().isOk());
+            UUID old=registrations.findAll().get(0).id;
+            consult(old,Map.of("version",0,"channel","PHONE","status","NEEDS_COUNSELING","notes","Lượt đầu cần cân nhắc")).andExpect(status().isOk());
+            consult(old,Map.of("version",0,"channel","PHONE","status","NOT_PROCEEDING","discontinuationReason","Tạm thời không còn nhu cầu")).andExpect(status().isOk());
+            var history=jdbc.queryForList("SELECT * FROM consultation_notes WHERE consultation_id=? ORDER BY id",old);
+            upload(workbook).andExpect(status().isOk()).andExpect(jsonPath("$.importedCount").value(1));
+            assertEquals(2,registrations.count());
+            var fresh=registrations.findAll().stream().filter(row->!row.id.equals(old)).findFirst().orElseThrow();
+            assertEquals("an@example.com",fresh.email);assertEquals("0912345678",fresh.phone);
+            mvc.perform(get("/api/workspace/screens/ListAdmissionApplicationDetail/"+fresh.id).with(user(hr.email).roles("HR")))
+                    .andExpect(status().isOk()).andExpect(jsonPath("$.record.status").value("NEW")).andExpect(jsonPath("$.canConsult").value(true));
+            assertEquals("NOT_PROCEEDING",jdbc.queryForObject("SELECT status FROM consultation_followups WHERE consultation_id=?",String.class,old));
+            assertEquals(history,jdbc.queryForList("SELECT * FROM consultation_notes WHERE consultation_id=? ORDER BY id",old));
+            consult(old,Map.of("version",1,"channel","PHONE","status","NEEDS_COUNSELING","notes","Không được mở lại hồ sơ cũ")).andExpect(status().isConflict());
+            consult(fresh.id,Map.of("version",0,"channel","IN_PERSON","status","NEEDS_COUNSELING","notes","Lượt mới, học viên quay lại tìm hiểu")).andExpect(status().isOk());
+            upload(workbook).andExpect(status().isBadRequest()).andExpect(jsonPath("$.fields['row.2.email']").isString()).andExpect(jsonPath("$.fields['row.2.phone']").isString());
+            assertEquals(2,registrations.count());assertEquals(history,jdbc.queryForList("SELECT * FROM consultation_notes WHERE consultation_id=? ORDER BY id",old));
+        }
+    }
+
+    @Test
+    void anActiveAdmissionStillBlocksImportEvenWhenAnotherMatchingAdmissionWasDiscontinued() throws Exception {
+        storedRegistration("NOT_PROCEEDING"," AN@EXAMPLE.COM ");
+        storedRegistration(null,"an@example.com");
+        try (var workbook = workbook()) {
+            valid(workbook.getSheetAt(0), 1);
+            upload(workbook).andExpect(status().isBadRequest()).andExpect(jsonPath("$.fields['row.2.email']").isString()).andExpect(jsonPath("$.fields['row.2.phone']").isString());
+        }
+        assertEquals(2,registrations.count());
+    }
+
+    @Test
+    void aDiscontinuedAdmissionDoesNotPermitDuplicateEmailsInsideTheSameNewFile() throws Exception {
+        storedRegistration("NOT_PROCEEDING","an@example.com");
+        try (var workbook = workbook()) {
+            valid(workbook.getSheetAt(0), 1);
+            put(workbook.getSheetAt(0), 2, "Người khác", "0987654321", " AN@EXAMPLE.COM ", "Khóa khác", "", "");
+            upload(workbook).andExpect(status().isBadRequest()).andExpect(jsonPath("$.fields['row.3.email']").value(org.hamcrest.Matchers.containsString("dòng 2")));
+        }
+        assertEquals(1,registrations.count());
+    }
+
+    @Test
+    void accountsRemainUniqueWhenAnAdmissionWithTheSameEmailHasBeenDiscontinued() throws Exception {
+        storedRegistration("NOT_PROCEEDING","an@example.com");User existing=actor("STUDENT");
+        jdbc.update("UPDATE m_user SET email='an@example.com' WHERE user_id=?",existing.id);
+        try (var workbook = workbook()) {
+            valid(workbook.getSheetAt(0), 1);
+            upload(workbook).andExpect(status().isBadRequest()).andExpect(jsonPath("$.fields['row.2.email']").value(org.hamcrest.Matchers.containsString("tài khoản")));
+        }
+        assertEquals(1,registrations.count());
+    }
+
+    @Test
+    void previousTemplateHeaderStillWorksWithARequiredUniqueEmail() throws Exception {
+        try (var workbook = workbook()) {
+            workbook.getSheetAt(0).getRow(0).getCell(2).setCellValue("Email");
+            valid(workbook.getSheetAt(0), 1);
+            upload(workbook).andExpect(status().isOk()).andExpect(jsonPath("$.importedCount").value(1));
+        }
+        assertEquals(1, registrations.count());
     }
 
     @Test
@@ -271,6 +393,20 @@ class AdmissionExcelIntegrationTest {
         actor.passwordHash = "not-a-login-fixture";
         actor.role = roles.findByCode(role).orElseThrow();
         return users.saveAndFlush(actor);
+    }
+
+    private ResultActions consult(UUID admission,Map<String,Object> input)throws Exception {
+        return mvc.perform(post("/api/workspace/screens/AdmissionConsultation/"+admission).with(user(hr.email).roles("HR")).with(csrf()).contentType("application/json").content(json.writeValueAsString(input)));
+    }
+
+    private UUID storedRegistration(String state,String email) {
+        UUID id=UUID.randomUUID();
+        jdbc.update("INSERT INTO consultation_registrations(id,full_name,phone,email,program_name,contact_time,created_date) VALUES (?,'Nguyễn Văn An','84912345678',?,'Điện công nghiệp','any',CURRENT_TIMESTAMP)",id,email);
+        if(state!=null) {
+            jdbc.update("INSERT INTO consultation_followups(id,consultation_id,assigned_to,status,discontinuation_reason) VALUES (?,?,?,?,'Không còn nhu cầu')",UUID.randomUUID(),id,hr.id,state);
+            jdbc.update("INSERT INTO consultation_notes(id,consultation_id,actor_id,channel,outcome,content) VALUES (?,?,?,'PHONE',?,'Không còn nhu cầu')",UUID.randomUUID(),id,hr.id,state);
+        }
+        return id;
     }
 
     private XSSFWorkbook workbook() {

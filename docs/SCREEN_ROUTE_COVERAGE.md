@@ -38,6 +38,7 @@ Nguồn: ma trận Excel và `Screen_Manifest.json` trong bộ SVG. Mỗi mã d�
 | FE-03 | `PublicCourseDetail` | `/public/PublicCourseDetail/{id}` | [PublicCourseDetail.jsx](../G5_FE1/src/screens/public/PublicCourseDetail.jsx) | Công khai |
 | FE-03 | `Contact_Submitted` | `/public/Contact_Submitted` | [Contact_Submitted.jsx](../G5_FE1/src/screens/public/Contact_Submitted.jsx) | Công khai |
 | FE-04 | `ListAdmissionApplication` | `/screens/ListAdmissionApplication` | [ListAdmissionApplication.jsx](../G5_FE1/src/screens/pages/ListAdmissionApplication.jsx) | HR |
+| FE-04A | `ListAdmissionEnrollment` | `/screens/ListAdmissionEnrollment` | [ListAdmissionEnrollment.jsx](../G5_FE1/src/screens/pages/ListAdmissionEnrollment.jsx) | HR |
 | FE-04 | `ListAdmissionApplicationDetail` | `/screens/ListAdmissionApplicationDetail/{id}` | [ListAdmissionApplicationDetail.jsx](../G5_FE1/src/screens/pages/ListAdmissionApplicationDetail.jsx) | HR |
 | FE-04 | `AdmissionConsultation` | `/screens/AdmissionConsultation/{id}` | [AdmissionConsultation.jsx](../G5_FE1/src/screens/pages/AdmissionConsultation.jsx) | HR |
 | FE-05 | `ListStudent` | `/screens/ListStudent` | [ListStudent.jsx](../G5_FE1/src/screens/pages/ListStudent.jsx) | MANAGER |
@@ -121,7 +122,7 @@ Nguồn: ma trận Excel và `Screen_Manifest.json` trong bộ SVG. Mỗi mã d�
 
 `EditUser` sử dụng thêm `/admin/users/new` và `UserCreatePage.jsx` để tạo tài khoản. Với `ClassGradebook`, ID là lớp; với `ClassAttendance`/`Attendance_Correction`, ID là buổi học; với các màn đóng hồ sơ, ID là ghi danh; với receipt/thu hồi, ID là lượt bàn giao. Các trang chi tiết chưa chọn ID có thể mở danh sách để chọn hồ sơ trong phạm vi.
 
-Số màn theo quyền hiện tại (tính cả trang công khai, xác thực chung và các màn bổ sung): Admin 35, Lecturer 29, Student 26, Accountant 41, IT Support 44, Manager 50, HR 24. Quyền ngành nghề và khóa học chỉ dành cho Admin; quyền ĐX chưa mặc định bật.
+Số màn theo quyền hiện tại (tính cả trang công khai, xác thực chung và các màn bổ sung): Admin 35, Lecturer 29, Student 26, Accountant 41, IT Support 44, Manager 51, HR 25. Quyền ngành nghề và khóa học chỉ dành cho Admin; quyền ĐX chưa mặc định bật.
 
 ## Danh mục dùng chung bổ sung
 

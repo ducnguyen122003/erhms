@@ -1,0 +1,28 @@
+.admission-dashboard-switch{display:flex;gap:12px;flex-wrap:wrap;margin-bottom:24px}
+.admission-dashboard-switch button{min-height:42px}
+.admission-dashboard-switch .is-active{box-shadow:0 0 0 2px #155d4714}
+.admission-enrollment-tabs{display:flex;gap:8px;border-bottom:1px solid #dce7df;margin-bottom:24px}
+.admission-enrollment-tabs button{background:transparent;color:#71857b;border-radius:6px 6px 0 0;border:0;border-bottom:3px solid transparent;padding:13px 18px;font-size:12px}
+.admission-enrollment-tabs button[aria-selected=true]{color:#155d47;border-bottom-color:#155d47;background:#edf5f0}
+.admission-enrollment-tabs button span{padding:3px 7px;background:#e7efea;border-radius:5px;font-size:11px}
+.screen-toolbar.admission-dashboard-toolbar{grid-template-columns:minmax(0,2.4fr) minmax(180px,1fr) auto}
+.screen-toolbar.admission-dashboard-toolbar.has-no-filter{grid-template-columns:minmax(0,1fr) auto}
+.admission-dashboard-table .admission-forward-select{width:46px!important;min-width:46px;padding-inline:15px}
+.admission-forward-select input[type=checkbox]{width:17px;height:17px;min-height:0;padding:0;accent-color:#155d47}
+.admission-dashboard-table.is-waiting{min-width:900px}
+.admission-row-actions{display:flex;flex-direction:column;align-items:flex-start;gap:6px}
+.admission-forward-row{font-size:11px!important;white-space:nowrap;padding:8px 10px}
+.admission-forward-missing{color:#ad7b2a!important}
+.admission-forward-dialog ul{margin:15px 0 0;padding:0;list-style:none;display:grid;gap:8px;max-height:35vh;overflow-y:auto}
+.admission-forward-dialog li{background:#f5f9f6;border:1px solid #e0e9e3;border-radius:6px;padding:9px 12px}
+.admission-forward-dialog li small{display:block;color:#71857b;font-size:11px;overflow-wrap:anywhere}
+.admission-dashboard-table{white-space:normal}
+.admission-dashboard-table td:first-child{width:23%}
+.admission-dashboard-table td{min-width:120px}
+.admission-dashboard-table.is-enrollment{min-width:1000px}
+.admission-dashboard-table.is-enrollment td:first-child{width:22%}
+.admission-dashboard-table .admin-badge{white-space:normal}
+.admission-dashboard-table small{max-width:240px;overflow-wrap:anywhere}
+.admission-dashboard-table .admin-text-button{margin-top:6px}
+.admission-dashboard-table td:last-child{white-space:nowrap}
+@media(max-width:600px){.admission-dashboard-switch{gap:9px}.admission-dashboard-switch button{width:100%;justify-content:flex-start}.admission-dashboard-list .admin-card-heading{gap:15px}.admission-dashboard-list .admin-card-heading>div{width:100%}.admission-enrollment-tabs button{flex:1;padding:12px 8px;font-size:11px}.screen-toolbar.admission-dashboard-toolbar,.screen-toolbar.admission-dashboard-toolbar.has-no-filter{grid-template-columns:minmax(0,1fr)}.admission-forward-bulk{width:100%}}

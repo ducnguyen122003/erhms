@@ -3,6 +3,8 @@ import {Check,Upload} from 'lucide-react';
 import {api} from '../api';
 import {AdminAside,AdminMessage} from '../admin/AdminUI';
 import {defaults,display} from './definitions';
+import ProfileDocuments from './ProfileDocuments';
+import {consultationFields,consultationPayload,newConsultationValues} from './admissionConsultation';
 
 export function useUnsavedChanges(){
  const dirty=useRef(false);
@@ -17,25 +19,28 @@ export function Fields({fields,values,setValue,options={},errors={},code,disable
  const [uploadError,setUploadError]=useState('');
  async function upload(event,key){const file=event.target.files?.[0];if(!file)return;setUploadError('');onUploading?.(true);try{if(file.size>2097152)throw new Error('Tệp không được vượt quá 2 MB');const data=new FormData();data.append('file',file);data.append('screen',code);const saved=await api('/api/workspace/files',{method:'POST',body:data});setValue(key,saved.reference);}catch(error){setUploadError(error.message);}finally{onUploading?.(false);event.target.value='';}}
  return <><div className="admin-field-grid">{fields.map(f=>{
-  const id='screen-field-'+f.key,value=values[f.key]??'',error=errors[f.key];let choices=Array.isArray(f.source)?f.source:options[f.source]||[];
+  const id='screen-field-'+f.key,error=errors[f.key];let value=values[f.key]??'',choices=Array.isArray(f.source)?f.source:options[f.source]||[];
+  if(['AddTrainingContract','EditTrainingContract'].includes(code)&&f.key==='studentEmail')value=options.admissions?.find(row=>row.id===values.consultationId)?.email?.trim().toLowerCase()||value;
   if(f.source==='students'&&values.classId)choices=choices.filter(row=>!row.classId||row.classId===values.classId);
   if(f.source==='students'&&values.consultationId){const admission=options.admissions?.find(row=>row.id===values.consultationId);if(admission?.email)choices=choices.filter(row=>row.email?.trim().toLowerCase()===admission.email.trim().toLowerCase());}
-  if(code==='AdmissionConsultation'&&f.key==='status'&&value!=='CONTRACTED')choices=choices.filter(item=>item!=='CONTRACTED');
+  if(code==='AddClass'&&f.source==='lecturers')choices=choices.filter(row=>String(row.courseId)===String(values.courseId));
   const shared={id,name:f.key,required:f.required,disabled:disabled||f.disabled,readOnly:f.readOnly,'aria-invalid':Boolean(error),'aria-describedby':error?id+'-error':undefined};
   return <label className={'admin-field'+(['textarea','multi','checkbox','evidence'].includes(f.type)?' screen-field-wide':'')} key={f.key} htmlFor={id}>{f.label}{f.required&&f.type!=='checkbox'?' *':''}
    {f.type==='select'?<select {...shared} value={value} onChange={e=>setValue(f.key,e.target.value)}><option value="">Chọn {f.label.toLowerCase()}</option>{choices.map((item,index)=>{const val=typeof item==='string'?item:item.id;return <option key={String(val)+'-'+index} value={val}>{typeof item==='string'?display(item):optionLabel(item)}</option>;})}</select>
    :f.type==='multi'?<select {...shared} multiple size={Math.min(6,Math.max(3,choices.length))} value={(Array.isArray(value)?value:[]).map(v=>String(v.id))} onChange={e=>setValue(f.key,[...e.target.selectedOptions].map(o=>({id:o.value})))}>{choices.map((item,index)=><option key={item.id+'-'+index} value={item.id}>{optionLabel(item)}{item.code&&item.name?' · '+item.code:''}</option>)}</select>
    :f.type==='textarea'?<textarea {...shared} rows={4} maxLength={f.maxLength||4000} value={value} onChange={e=>setValue(f.key,e.target.value)}/>
    :f.type==='checkbox'?<span className="screen-checkbox"><input {...shared} type="checkbox" checked={Boolean(value)} onChange={e=>setValue(f.key,e.target.checked)}/>Xác nhận</span>
-   :f.type==='evidence'?<><input {...shared} type="text" maxLength={1000} value={value} placeholder="Tham chiếu hồ sơ hoặc tải minh chứng" onChange={e=>setValue(f.key,e.target.value)}/><span className="screen-upload"><Upload size={14}/><span>Tải tệp PDF / ảnh, tối đa 2 MB</span><input type="file" accept="application/pdf,image/png,image/jpeg" disabled={disabled} onChange={event=>upload(event,f.key)}/></span>{value&&<Evidence value={value}/>}</>
-   :<input {...shared} type={f.type} min={f.min} max={f.max} step={f.step} maxLength={f.type==='number'?undefined:f.maxLength||1000} value={value} onChange={e=>setValue(f.key,e.target.value)}/>}
+   :f.type==='evidence'?<><input {...shared} readOnly={f.uploadOnly||f.readOnly} type="text" maxLength={1000} value={value} placeholder={f.uploadOnly?'Chọn tệp bản scan bên dưới':'Tham chiếu hồ sơ hoặc tải minh chứng'} onChange={e=>setValue(f.key,e.target.value)}/><span className="screen-upload"><Upload size={14}/><span>Tải tệp PDF / ảnh, tối đa 2 MB</span><input type="file" accept="application/pdf,image/png,image/jpeg" required={f.uploadOnly&&!value} disabled={disabled} onChange={event=>upload(event,f.key)}/></span>{value&&<Evidence value={value}/>}</>
+   :<input {...shared} type={f.type} min={f.min} max={f.max} step={f.step} placeholder={f.placeholder} maxLength={f.type==='number'?undefined:f.maxLength||1000} value={value} onChange={e=>setValue(f.key,e.target.value)}/>}
    {f.type==='select'&&!Array.isArray(f.source)&&choices.length===0&&<small className="admin-muted">Chưa có lựa chọn trong phạm vi được giao.</small>}{f.type==='multi'&&<small className="admin-muted">Giữ Ctrl / Command để chọn nhiều mục.</small>}
    {error&&<small className="field-error" id={id+'-error'}>{error}</small>}
   </label>;
  })}</div>{uploadError&&<AdminMessage error={uploadError}/>}</>;
 }
-function initialValues(code,fields,record,related){const next={...defaults,...record};for(const f of fields){if(f.type==='datetime-local')next[f.key]=localDateTime(next[f.key]);if(f.type==='checkbox')next[f.key]=Boolean(next[f.key]);}
-  if(['AddAsset','EditAsset'].includes(code))next.status=record?.status||'AVAILABLE';if(code==='AdmissionConsultation')next.status=record?.status==='NEW'?'CONTACTED':record?.status||'CONTACTED';
+function initialValues(code,fields,record,related){const next=code==='AdmissionConsultation'?newConsultationValues(record):{...defaults,...record};for(const f of fields){if(f.type==='datetime-local')next[f.key]=localDateTime(next[f.key]);if(f.type==='checkbox')next[f.key]=Boolean(next[f.key]);}
+  if(['AddAsset','EditAsset'].includes(code))next.status=record?.status||'AVAILABLE';
+  if(code==='AddClass'){next.status='PLANNED';next.capacity='';}
+  if(code==='TimeTable_EditSession'&&!record?.id)next.changeNote='Xếp lịch học mới';
   if(code==='AssetHandover'){next.receivedAt=localDateTime(new Date().toISOString());next.signedBy=record?.studentName||'';next.assets=[];}
   if(code==='AssetMaintenance'&&record?.id)next.assetId=record.id;
   if(code==='Attendance_Correction'){next.sessionId=record?.id;next.studentId=new URLSearchParams(window.location.search).get('studentId')||'';}
@@ -48,15 +53,40 @@ function initialValues(code,fields,record,related){const next={...defaults,...re
 export default function ScreenForm({code,fields,record,related={},options,user,busy,error,errors,notice,onSave,onBack,saveLabel,extra,submitDisabled=false}){
  const dirty=useUnsavedChanges(),[values,setValues]=useState(()=>initialValues(code,fields,record,related)),[uploading,setUploading]=useState(false);const ref=useRef(null);
 
- const setValue=(key,value)=>{dirty.current=true;setValues(current=>({...current,[key]:value}));};
- async function submit(event){event.preventDefault();if(busy||uploading||submitDisabled)return;const data=prepareValues(values,fields);const ok=await onSave(data,()=>{dirty.current=false;});if(ok)dirty.current=false;}
+ const setValue=(key,value)=>{dirty.current=true;setValues(current=>{
+  const next={...current,[key]:value};
+  if(code==='AdmissionConsultation'&&key==='status'){
+   next.appointmentAt='';next.documentDueOn='';next.discontinuationReason='';
+  }
+  if(code==='AddClass'&&key==='courseId'){
+   const previous=options.courses?.find(row=>String(row.id)===String(current.courseId)),course=options.courses?.find(row=>String(row.id)===String(value));
+   next.lecturerId='';next.capacity=course?.classCapacity??'';
+   if(!current.name||current.name===previous?.name)next.name=course?.name||'';
+  }
+  return next;
+ });};
+ async function submit(event){event.preventDefault();if(busy||uploading||submitDisabled)return;const data=prepareValues(code==='AdmissionConsultation'?consultationPayload(values):values,visibleFields);const ok=await onSave(data,()=>{dirty.current=false;});if(ok)dirty.current=false;}
  const formOptions={...options,attendanceStudents:(related.attendance||[]).map(row=>({id:row.studentId,name:row.studentName}))};
- return <div className="admin-editor-grid"><form className="admin-card admin-form-card" ref={ref} onSubmit={submit} aria-busy={busy||uploading}><div className="admin-form-content"><h2>Thông tin cần cập nhật</h2><p className="admin-muted">Các trường có dấu * là bắt buộc.</p><AdminMessage error={error} notice={notice}/><fieldset disabled={busy||uploading}><Fields fields={fields} values={values} setValue={setValue} options={formOptions} errors={errors} code={code} disabled={busy} onUploading={setUploading}/>
+ const selectedClass=code==='TimeTable_EditSession'?options.classes?.find(row=>String(row.id)===String(values.classId)):null;
+ const selectedAdmission=['AddTrainingContract','EditTrainingContract'].includes(code)?options.admissions?.find(row=>row.id===values.consultationId):null;
+ const visibleFields=(code==='AdmissionConsultation'?consultationFields(fields,values):fields).map(field=>{
+  if(['AddClass','EditClass'].includes(code)&&field.key==='endsOn')return {...field,min:values.startsOn||undefined};
+  if(code==='AddClass'&&field.key==='lecturerId')return {...field,disabled:!values.courseId};
+  if(code==='TimeTable_EditSession'&&field.key==='classId'&&record.id)return {...field,disabled:true};
+  if(selectedClass&&['startsAt','endsAt'].includes(field.key))return {...field,min:field.key==='endsAt'&&values.startsAt?values.startsAt:selectedClass.startsOn?selectedClass.startsOn+'T00:00':undefined,max:selectedClass.endsOn?selectedClass.endsOn+'T23:59':undefined};
+  return field;
+ });
+ return <div className="admin-editor-grid"><form className="admin-card admin-form-card" ref={ref} onSubmit={submit} aria-busy={busy||uploading}><div className="admin-form-content"><h2>{code==='AddClass'?'Thông tin lớp học':'Thông tin cần cập nhật'}</h2><p className="admin-muted">Các trường có dấu * là bắt buộc.</p>
+  {code==='AddClass'&&<div className="class-form-hint"><p>Mã lớp được cấp tự động theo thứ tự tăng dần, ví dụ L-000001, L-000002.</p><p>Sau khi tạo lớp, bạn có thể chọn học viên chưa được xếp lớp và thêm các buổi học.</p></div>}
+  {code==='AdmissionConsultation'&&<p className="admin-muted">Ghi nhận một lượt tư vấn mới. Để trống email nếu giữ email đã có trong hồ sơ.</p>}
+  {selectedClass&&<div className="class-form-hint"><p><strong>{selectedClass.code} · {selectedClass.name}</strong></p><p>Bắt đầu học: {display(selectedClass.startsOn,'startsOn')}{selectedClass.endsOn?' · Kết thúc dự kiến: '+display(selectedClass.endsOn,'endsOn'):''}</p><p>Giảng viên: {selectedClass.lecturerName||'Chưa phân công'}</p></div>}
+  <AdminMessage error={error} notice={notice}/><fieldset disabled={busy||uploading}><Fields fields={visibleFields} values={values} setValue={setValue} options={formOptions} errors={errors} code={code} disabled={busy} onUploading={setUploading}/>
+  {code==='AddClass'&&<p className="admin-muted">Có thể phân công giảng viên sau khi tạo lớp. Chọn giảng viên thuộc khóa học trước khi xếp lịch học.</p>}
   {['AddCourse','EditCourse'].includes(code)&&<><h3>Cấu hình đánh giá</h3><p className="admin-muted">Tổng trọng số bằng 100%. Cấu hình này dùng để nhập điểm và kiểm tra kết quả khóa học.</p><div className="screen-assessments">{(values.assessments||[]).map((item,index)=><div key={index}><input aria-label={'Tên đầu điểm '+(index+1)} value={item.title||''} maxLength={160} required onChange={e=>setValue('assessments',values.assessments.map((row,i)=>i===index?{...row,title:e.target.value}:row))}/><input aria-label={'Trọng số '+(index+1)} type="number" min="0.01" max="100" step="0.01" value={item.weight??''} required onChange={e=>setValue('assessments',values.assessments.map((row,i)=>i===index?{...row,weight:e.target.value}:row))}/><button type="button" className="admin-text-button" onClick={()=>setValue('assessments',values.assessments.filter((_,i)=>i!==index))}>Xóa</button></div>)}</div><button type="button" className="admin-secondary" onClick={()=>setValue('assessments',[...(values.assessments||[]),{title:'',weight:''}])}>Thêm đầu điểm</button>{errors.assessments&&<p className="field-error">{errors.assessments}</p>}<h3>Giảng viên đủ điều kiện phân công</h3><Fields fields={[{key:'lecturers',label:'Giảng viên',type:'multi',source:'lecturers'}]} values={values} setValue={setValue} options={options} errors={errors} code={code}/></>}
   {['AddCourse','EditCourse'].includes(code)&&<p className="admin-muted">Quản lý phụ trách sẽ chọn được khóa học này khi lập hợp đồng và điều phối lớp.</p>}
   {code==='SendNotification'&&<p className="admin-muted">Thông báo được gửi trong hệ thống; người nhận chỉ xem thông báo của mình.</p>}
-  {code==='AddTrainingContract'&&<p className="admin-muted">Học viên cần có tài khoản Student với email khớp hồ sơ đã tư vấn. Nếu chưa có, mở mục Cấp tài khoản học viên để tạo và gửi thông tin đăng nhập qua email. Chỉ hồ sơ ở trạng thái Đã liên hệ xuất hiện trong danh sách lựa chọn.</p>}
-  {code==='EditTrainingContract'&&<p className="admin-muted">Hồ sơ hiện tại được giữ để sửa bản nháp. Khi đổi hồ sơ, chỉ chọn hồ sơ ở trạng thái Đã liên hệ.</p>}
+  {['AddTrainingContract','EditTrainingContract'].includes(code)&&<p className="admin-muted">Lập hợp đồng từ hồ sơ đã nhận, dùng đúng Gmail / email học viên đã cung cấp. Sau khi lưu hợp đồng, vào Cấp tài khoản học viên để tạo tài khoản; hệ thống tự gắn hợp đồng theo email này.</p>}
+  {selectedAdmission&&<ProfileDocuments documents={selectedAdmission.profileDocuments||[]} legacyEvidence={selectedAdmission.profileEvidence} compact/>}
   {code==='EditStudentProfile'&&<p className="admin-muted">Email đăng nhập được quản trị tại phần Tài khoản người dùng.</p>}
   {extra}</fieldset></div><footer className="admin-form-footer"><button type="button" className="admin-secondary" disabled={busy||uploading} onClick={onBack}>Quay lại</button><button type="submit" disabled={busy||uploading||submitDisabled}><Check size={15}/>{uploading?'Đang tải minh chứng…':busy?'Đang lưu…':submitDisabled?'Chưa đủ điều kiện':saveLabel||'Lưu thông tin'}</button></footer></form><AdminAside user={user} tips={['Chỉ cập nhật dữ liệu trong phạm vi được phân công.','Kiểm tra thông tin và minh chứng trước khi lưu.']}/></div>;
 }

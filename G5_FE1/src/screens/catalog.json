@@ -723,7 +723,7 @@
   {
     "code": "ListAdmissionApplication",
     "fe": "FE-04",
-    "title": "Đăng ký tư vấn & tuyển sinh",
+    "title": "Tư vấn & tiếp nhận hồ sơ",
     "roles": [
       "HR"
     ],
@@ -734,7 +734,7 @@
     "variant": "Màn hình chính",
     "kind": "list",
     "functionCode": "ListAdmissionApplication",
-    "description": "Tiếp nhận thông tin từ website và theo dõi lịch liên hệ.",
+    "description": "Tư vấn người quan tâm khóa học, hẹn nộp và bổ sung các giấy tờ còn thiếu.",
     "headers": [
       "NGƯỜI ĐĂNG KÝ / MÃ",
       "KHÓA HỌC QUAN TÂM",
@@ -747,6 +747,23 @@
       "Tất cả trạng thái",
       "Tất cả khóa học"
     ],
+    "sections": []
+  },
+  {
+    "code": "ListAdmissionEnrollment",
+    "fe": "FE-04A",
+    "title": "Hoàn tất thủ tục nhập học",
+    "roles": [
+      "HR"
+    ],
+    "proposedRoles": [],
+    "public": false,
+    "scope": "Hai trang chờ chuyển và đã chuyển học vụ; chỉ tuyển sinh được phân công chuyển hồ sơ đủ giấy tờ sang quản lý học vụ.",
+    "actions": [],
+    "variant": "Dashboard hoàn tất thủ tục nhập học",
+    "kind": "list",
+    "functionCode": "ListAdmissionEnrollment",
+    "description": "Tuyển sinh duyệt chuyển hồ sơ đã đủ giấy tờ và theo dõi quá trình học vụ xử lý.",
     "sections": []
   },
   {
@@ -787,14 +804,14 @@
     "proposedRoles": [],
     "public": false,
     "scope": "Đăng ký tư vấn, hợp đồng và trạng thái học phí của hồ sơ được phân công phụ trách.",
-    "actions": "Lưu kết quả tư vấn và lịch hẹn.",
+    "actions": "Lưu kết quả Cần tư vấn thêm, Hẹn nộp hồ sơ hoặc Không tiếp tục đăng ký.",
     "variant": "Popup ghi nhận tư vấn mở từ chi tiết đăng ký",
     "kind": "form",
     "functionCode": "AdmissionConsultation",
-    "description": "Cập nhật lịch liên hệ và kết quả trao đổi.",
+    "description": "Ghi nhận nội dung tư vấn, ngày hẹn nộp hồ sơ hoặc lý do không tiếp tục theo kết quả đã chọn.",
     "notes": [
-      "Chỉ lập hợp đồng khi thông tin cần thiết đã đầy đủ.",
-      "Lưu lịch sử mỗi lần liên hệ."
+      "Ngày hẹn nộp hồ sơ hoặc lý do không tiếp tục là bắt buộc theo kết quả đã chọn.",
+      "Lưu lịch sử từng lần tư vấn; có thể ghi lịch liên hệ lại khi cần tư vấn thêm."
     ],
     "back": "ListAdmissionApplicationDetail",
     "save": "Lưu kết quả tư vấn",
@@ -815,11 +832,11 @@
             "type": "select"
           },
           {
-            "label": "Lịch hẹn tiếp theo",
+            "label": "Lịch hẹn liên hệ lại (nếu có)",
             "type": "text"
           },
           {
-            "label": "Nội dung trao đổi *",
+            "label": "Nội dung tư vấn",
             "type": "textarea"
           }
         ]
@@ -1111,7 +1128,7 @@
     "proposedRoles": [],
     "public": false,
     "scope": "Manager theo hợp đồng và khóa học được phân công; Kế toán theo hồ sơ đã bàn giao.",
-    "actions": "Manager lập hợp đồng từ hồ sơ ở trạng thái Đã liên hệ và khóa học mình quản lý.",
+    "actions": "Manager lập hợp đồng từ hồ sơ đã nhận bằng email học viên, sau đó mới cấp tài khoản và gắn hợp đồng theo email.",
     "variant": "Màn hình chính",
     "kind": "form",
     "functionCode": "AddTrainingContract",
@@ -1556,7 +1573,7 @@
     "variant": "Màn hình chính",
     "kind": "list",
     "functionCode": "ListClass",
-    "description": "Theo dõi lớp do hệ thống tạo và kết quả phân công giảng dạy.",
+    "description": "Tạo lớp, thêm học viên đã đóng đủ học phí và chưa được xếp lớp, quản lý lịch học.",
     "headers": [
       "LỚP / KHÓA",
       "GIẢNG VIÊN",
@@ -1565,8 +1582,8 @@
       "THAO TÁC"
     ],
     "action": [
-      "Kiểm tra xếp lớp tự động",
-      "AutoAssignmentReview"
+      "Tạo lớp học",
+      "AddClass"
     ],
     "target": "ClassDetail",
     "edit": "EditClass",
@@ -1610,6 +1627,25 @@
     "sections": []
   },
   {
+    "code": "AddClass",
+    "fe": "FE-09",
+    "title": "Tạo lớp học",
+    "roles": [
+      "MANAGER"
+    ],
+    "proposedRoles": [],
+    "public": false,
+    "scope": "Khóa học và học viên được phân công quản lý.",
+    "actions": "Tạo lớp học với mã tự tăng, ngày bắt đầu, sĩ số và giảng viên phụ trách.",
+    "variant": "Màn hình chính",
+    "kind": "form",
+    "functionCode": "AddClass",
+    "description": "Chọn khóa học và ngày bắt đầu. Mã lớp được cấp tự động khi tạo thành công.",
+    "back": "ListClass",
+    "save": "Tạo lớp học",
+    "sections": []
+  },
+  {
     "code": "EditClass",
     "fe": "FE-09",
     "title": "Điều chỉnh lớp & phân công",
@@ -1623,7 +1659,7 @@
     "variant": "Màn hình chính",
     "kind": "form",
     "functionCode": "EditClass",
-    "description": "Điều chỉnh kết quả tự động sau khi kiểm tra điều kiện lớp.",
+    "description": "Cập nhật ngày học, sĩ số và phân công giảng viên cho lớp.",
     "notes": [
       "Kiểm tra lịch giảng viên, phòng và sĩ số.",
       "Lưu người thực hiện và lý do điều chỉnh."
@@ -1674,18 +1710,18 @@
   {
     "code": "AutoAssignmentReview",
     "fe": "FE-09",
-    "title": "Kiểm tra kết quả xếp lớp tự động",
+    "title": "Kiểm tra kết quả xếp lớp",
     "roles": [
       "MANAGER"
     ],
     "proposedRoles": [],
     "public": false,
     "scope": "Học viên, khóa / lớp, lịch, xếp lớp và hồ sơ hoàn tất được phân công quản lý.",
-    "actions": "Hệ thống tự tạo lớp / xếp học viên / phân công sau xác nhận học phí. Quản lý sinh viên kiểm tra kết quả, không thay Kế toán xác nhận thu tiền.",
-    "variant": "Tab kết quả tự động trong FE-09",
+    "actions": "Quản lý học viên thêm người đã đóng đủ học phí vào lớp và kiểm tra kết quả phân công. Kế toán xác nhận thanh toán theo hợp đồng.",
+    "variant": "Tab kết quả xếp lớp trong FE-09",
     "kind": "list",
     "functionCode": "AutoAssignmentReview",
-    "description": "Kết quả được khởi tạo sau khi kế toán xác nhận học phí.",
+    "description": "Rà soát học viên đã được xếp lớp và phân công giảng viên.",
     "headers": [
       "HỌC VIÊN / HỢP ĐỒNG",
       "LỚP ĐỀ XUẤT",
@@ -1720,7 +1756,7 @@
         "EditClass"
       ]
     ],
-    "variant": "Chi tiết của tab kết quả tự động",
+    "variant": "Chi tiết của tab kết quả xếp lớp",
     "kind": "detail",
     "functionCode": "AutoAssignmentDetail",
     "description": "Kiểm tra phương án trước khi xác nhận rà soát hoặc điều chỉnh.",
@@ -2374,7 +2410,7 @@
     "proposedRoles": [],
     "public": false,
     "scope": "Hợp đồng, giao dịch, học phí, cọc và hồ sơ bồi thường / quyết toán theo phân công.",
-    "actions": "Chỉ Kế toán đối soát và xác nhận thu theo hợp đồng. Việc xác nhận hợp lệ kích hoạt xử lý xếp lớp tự động.",
+    "actions": "Chỉ Kế toán đối soát và xác nhận thu theo hợp đồng. Khi học phí được xác nhận đủ, học viên xuất hiện trong danh sách chờ để Quản lý học viên thêm vào lớp cùng khóa học.",
     "variant": "Màn hình chính",
     "kind": "payment",
     "functionCode": "PaymentDetail",
@@ -3538,7 +3574,7 @@
       "MANAGER"
     ],
     "public": false,
-    "description": "Xem hồ sơ đã liên hệ và cấp tài khoản học viên bằng email đã cung cấp.",
-    "scope": "Quản lý học viên tiếp nhận hồ sơ ở trạng thái Đã liên hệ để cấp tài khoản STUDENT; thông tin đăng nhập được gửi tới email của hồ sơ."
+    "description": "Nhận hồ sơ được tuyển sinh chuyển sang học vụ, lập hợp đồng và cấp tài khoản theo email học viên.",
+    "scope": "Chỉ nhận hồ sơ tuyển sinh đã được chuyển học vụ hoặc nguồn Excel do Manager nhập. Manager lập hợp đồng trước, sau đó cấp tài khoản và liên kết theo email."
   }
 ]

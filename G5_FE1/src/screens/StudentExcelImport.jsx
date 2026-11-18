@@ -9,11 +9,11 @@ const modes={
  admissions:{
   endpoint:'/api/workspace/admissions',filename:'mau-nhap-hoc-sinh.xlsx',title:'Nhập học sinh từ Excel',sheet:'Hoc sinh',people:'học sinh',
   description:<>Thêm danh sách học sinh vào hồ sơ đăng ký tư vấn & tuyển sinh với trạng thái <strong>Mới tiếp nhận</strong>.</>,
-  fields:'Các cột có (*) là bắt buộc.'
+  fields:'Bắt buộc điền họ tên, số điện thoại, email và khóa quan tâm. Hồ sơ Không tiếp tục đăng ký được phép nhập lại thành lượt mới. Vẫn kiểm tra email trùng trong file, tài khoản và các hồ sơ còn lại.'
  },
  studentAccounts:{
   endpoint:'/api/workspace/student-accounts',filename:'mau-nhap-hoc-vien.xlsx',title:'Nhập học viên từ Excel',sheet:'Hoc vien',people:'học viên',
-  description:<>Thêm học viên trực tiếp vào danh sách cấp tài khoản, không cần chuyển hồ sơ từ tuyển sinh. Sau khi nhập, bấm <strong>Tạo tài khoản</strong> ở từng học viên để gửi thông tin đăng nhập qua email.</>,
+  description:<>Thêm học viên trực tiếp vào danh sách cấp tài khoản, không cần chuyển hồ sơ từ tuyển sinh. Sau khi nhập, chọn <strong>Lập hợp đồng</strong>, sau đó <strong>Tạo tài khoản</strong>. Hợp đồng sẽ tự gắn với tài khoản theo email học viên.</>,
   fields:'Bắt buộc điền họ tên, số điện thoại, email và khóa quan tâm.'
  }
 };

@@ -20,13 +20,14 @@ public class WorkflowFileController {
     @PostMapping(consumes=MediaType.MULTIPART_FORM_DATA_VALUE)
     public Map<String,Object> upload(@RequestParam MultipartFile file,@RequestParam String screen) throws IOException {
         User u=current.get();role(u,"HR","MANAGER","IT_SUPPORT","ACCOUNTANT");
-        if(!Set.of("ContractSignature","RecordWithdrawal","AssetHandover","ListAssetDetail","Recovery_Withdrawal","AssetIncidentDetail","AssetIncidentDetail_Accountant","DepositRefund","ListPayment","ListAssetIncident").contains(screen))throw new AccessDeniedException("Màn không hỗ trợ tải minh chứng");permissions.require(screen);if(screen.equals("ContractSignature"))role(u,"MANAGER");
+        if(!Set.of("AdmissionConsultation","ContractSignature","RecordWithdrawal","AssetHandover","ListAssetDetail","Recovery_Withdrawal","AssetIncidentDetail","AssetIncidentDetail_Accountant","DepositRefund","ListPayment","ListAssetIncident").contains(screen))throw new AccessDeniedException("Màn không hỗ trợ tải minh chứng");permissions.require(screen);if(screen.equals("ContractSignature"))role(u,"MANAGER");if(screen.equals("AdmissionConsultation"))role(u,"HR");
         if(file.isEmpty()||file.getSize()>2097152)throw invalid("evidence","Tệp cần có dữ liệu và không vượt quá 2 MB");
         byte[] bytes=file.getBytes();String type;
         if(bytes.length>=5&&new String(bytes,0,5,StandardCharsets.US_ASCII).equals("%PDF-"))type="application/pdf";
         else if(bytes.length>=8&&bytes[0]==(byte)137&&bytes[1]==80&&bytes[2]==78&&bytes[3]==71)type="image/png";
         else if(bytes.length>=3&&bytes[0]==(byte)255&&bytes[1]==(byte)216&&bytes[2]==(byte)255)type="image/jpeg";
         else throw invalid("evidence","Chỉ nhận PDF, PNG hoặc JPEG");
+        if(screen.equals("AdmissionConsultation")&&!type.equals("application/pdf"))throw invalid("documents","Giấy tờ tuyển sinh chỉ nhận file PDF.");
         String filename=Optional.ofNullable(file.getOriginalFilename()).orElse("minh-chung").replaceAll("[\\\\/\\r\\n\\p{Cntrl}]","_");if(filename.length()>160)filename=filename.substring(filename.length()-160);
         UUID id=UUID.randomUUID();d.jdbc.update("INSERT INTO workflow_files(id,uploaded_by,filename,content_type,file_size,file_data) VALUES (?,?,?,?,?,?)",id,u.id,filename,type,bytes.length,bytes);
         return Map.of("id",id.toString(),"reference","file:"+id+":"+filename,"filename",filename);
@@ -41,6 +42,12 @@ public class WorkflowFileController {
                 .header(HttpHeaders.CONTENT_DISPOSITION,ContentDisposition.attachment().filename(file.get("filename").toString(),StandardCharsets.UTF_8).build().toString()).body(bytes);
     }
     boolean linked(UUID id,User user){
+        if(user.getRoleCode().equals("MANAGER")&&(permissions.codes(user).contains("ListStudentAccount")||permissions.codes(user).contains("AddTrainingContract"))
+                &&d.count("SELECT COUNT(*) FROM admission_profile_documents d JOIN consultation_followups f ON f.consultation_id=d.consultation_id WHERE d.file_id=? AND f.forwarded_at IS NOT NULL AND f.status IN ('PROFILE_PENDING','PROFILE_CREATED')",id)>0)return true;
+        if(user.getRoleCode().equals("MANAGER")&&permissions.codes(user).contains("TrainingContractDetail")
+                &&d.count("SELECT COUNT(*) FROM admission_profile_documents d JOIN training_contracts c ON c.consultation_id=d.consultation_id WHERE d.file_id=? AND "+contractScope(user,"c"),id)>0)return true;
+        if(user.getRoleCode().equals("HR")&&permissions.codes(user).contains("ListAdmissionApplicationDetail")
+                &&d.count("SELECT COUNT(*) FROM admission_profile_documents d JOIN consultation_followups f ON f.consultation_id=d.consultation_id JOIN consultation_registrations r ON r.id=f.consultation_id WHERE d.file_id=? AND f.assigned_to=? AND r.intake_source='ADMISSION'",id,user.id)>0)return true;
         var grants=permissions.codes(user);String needle="%file:"+id+":%";
         var resources=Map.of("contracts",List.of("TrainingContractDetail","TuitionDetail_Student","TuitionDetail"),"loans",List.of("StudentAssetReceipt","AssetHandover_Receipt","ListAssetDetail"),"payments",List.of("PaymentDetail"),"incidents",List.of("AssetIncidentDetail","AssetIncidentDetail_Accountant"),"closures",List.of("TrainingClosureDetail"));
         for(var entry:resources.entrySet()){

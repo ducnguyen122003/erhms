@@ -7,7 +7,7 @@ const valuesOf=user=>({fullName:user.fullName||'',email:user.email||'',phone:use
 const roleNames=Object.fromEntries(Object.keys(dashboardRoles).map(role=>[role,dashboardRoles[role].label]));
 const emptyPasswords=()=>({oldPassword:'',newPassword:'',confirmPassword:''});
 
-export default function UserProfile({user,onUserUpdate,onLogout,onBack,onChangePassword,passwordOnly=false}){
+export default function UserProfile({user,onUserUpdate,onLogout,onBack,passwordOnly=false}){
  const [form,setForm]=useState(()=>valuesOf(user)),[loading,setLoading]=useState(true),[saving,setSaving]=useState(false);
  const [error,setError]=useState(''),[fields,setFields]=useState({}),[notice,setNotice]=useState(''),[reload,setReload]=useState(0);
  const [passwords,setPasswords]=useState(emptyPasswords),[changingPassword,setChangingPassword]=useState(false);
@@ -101,7 +101,6 @@ export default function UserProfile({user,onUserUpdate,onLogout,onBack,onChangeP
    </section>}
    <section className="profile-panel" aria-labelledby="profile-password-heading">
     <h2 id="profile-password-heading">Đổi mật khẩu</h2>
-    {onChangePassword&&<button type="button" className="text-button" disabled={busy} onClick={onChangePassword}>Mở màn đổi mật khẩu<KeyRound size={14}/></button>}
     {passwordError&&<div className="error" role="alert">{passwordError}</div>}
     {passwordNotice&&<div className="success" role="status"><Check size={17}/>{passwordNotice}</div>}
     <form ref={passwordFormRef} onSubmit={changePassword} noValidate aria-busy={busy}>

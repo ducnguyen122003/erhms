@@ -1,6 +1,6 @@
 # Hợp đồng đào tạo do Manager quản lý
 
-Áp dụng cập nhật ngày 10/11/2026. Khởi động lại backend để Flyway chạy **V12__manager_training_contracts.sql**, chạy lại frontend và tải lại trang để nhận quyền mới.
+Luồng hợp đồng trước tài khoản áp dụng từ V18; khởi động lại backend để áp dụng `V18__contracts_before_student_accounts.sql`. Bản phân quyền hợp đồng ban đầu áp dụng ngày 10/11/2026. Khởi động lại backend để Flyway chạy **V12__manager_training_contracts.sql**, chạy lại frontend và tải lại trang để nhận quyền mới.
 
 ## Thanh điều hướng
 
@@ -23,15 +23,15 @@ HR tiếp tục tiếp nhận đăng ký, xác minh email, tư vấn và cập n
 ## Luồng sử dụng
 
 1. Khách gửi đăng ký tư vấn/tuyển sinh.
-2. HR mở **Đăng ký tư vấn & tuyển sinh → Ghi nhận tư vấn**, xác minh email và lưu trạng thái **Đã liên hệ** (`CONTACTED`).
-3. Manager mở **Cấp tài khoản học viên** để tạo tài khoản Student với đúng email đã xác minh, nếu học viên chưa có tài khoản. Hệ thống gửi mật khẩu ban đầu qua email. Chi tiết: [STUDENT_ACCOUNT_PROVISIONING.md](STUDENT_ACCOUNT_PROVISIONING.md).
-4. Manager vào **Hợp đồng đào tạo → Tạo hợp đồng**, chọn **Hồ sơ đã tư vấn**. Chỉ hồ sơ ở trạng thái **Đã liên hệ** xuất hiện khi tạo mới; hồ sơ mới tiếp nhận, hẹn tư vấn, đã đóng hoặc đã lập hợp đồng không xuất hiện.
-5. Chọn tài khoản học viên khớp email và khóa học đang mở/hoạt động thuộc Manager, nhập ngày bắt đầu, học phí, cọc, hạn thanh toán và điều khoản.
-6. Lưu hợp đồng. Hệ thống chuyển hồ sơ đăng ký sang **Đã lập hợp đồng** (`CONTRACTED`). HR không tự chọn trạng thái này khi chưa có hợp đồng.
-7. Manager có thể sửa hợp đồng nháp. Hồ sơ hiện tại vẫn có trong ô chọn dù đã chuyển sang `CONTRACTED`; khi đổi hồ sơ thì chỉ được chọn hồ sơ `CONTACTED`. Nếu chuyển sang hồ sơ khác và hồ sơ cũ không còn hợp đồng hiệu lực, hệ thống đưa hồ sơ cũ về `CONTACTED`.
-8. Manager ghi ngày ký, minh chứng và chọn kế toán tiếp nhận. Hợp đồng chuyển sang đã ký và bàn giao. Kế toán tiếp tục đối soát; xếp lớp, lịch học và các bước sau dùng luồng hiện có.
+2. HR mở **Đăng ký tư vấn & tuyển sinh → Ghi nhận tư vấn**, xác minh email và ghi nhận một trong ba kết quả tư vấn. Khi học viên đồng ý tiếp tục, lưu **Hẹn nộp hồ sơ** (`DOCUMENT_APPOINTMENT`) kèm ngày hẹn nộp.
+3. HR lưu đủ 5 loại giấy tờ, sau đó bấm **Chuyển quản lý học vụ** ở dashboard **Hoàn tất thủ tục nhập học**. Manager chỉ nhận và lập hợp đồng cho hồ sơ đã được HR chuyển. Hồ sơ nhập trực tiếp từ Excel không cần qua bước scan/chuyển của HR.
+4. Manager vào **Hợp đồng đào tạo → Tạo hợp đồng**, chọn **Hồ sơ đã nhận** và khóa học đang mở/hoạt động do mình quản lý. Có thể chọn **Lập hợp đồng** ngay tại hàng đợi **Cấp tài khoản học viên**.
+5. Gmail / email được lấy từ hồ sơ đã nhận. Nhập ngày bắt đầu, học phí, cọc, hạn thanh toán và điều khoản. Chưa cần có tài khoản học viên; backend lưu email, họ tên và điện thoại vào hợp đồng.
+6. Lưu hợp đồng nháp; hồ sơ chuyển sang **Đã lập hợp đồng** (`CONTRACTED`). Manager mới được tạo tài khoản tại **Cấp tài khoản học viên**. Tài khoản được cấp bằng đúng email trên hợp đồng; hệ thống tự gắn hợp đồng vào tài khoản và chuyển hồ sơ sang **Đã tạo hồ sơ** (`PROFILE_CREATED`).
+7. Manager có thể sửa bản nháp của mình. Khi đổi hồ sơ chưa gắn tài khoản, hồ sơ cũ không còn hợp đồng được đưa về `PROFILE_PENDING` (hoặc `CONTACTED` với nguồn Excel). Hồ sơ/tài khoản cũ đã hoàn tất được giữ nguyên. Không chuyển hợp đồng đã gắn tài khoản sang học viên khác.
+8. Sau khi đã liên kết tài khoản, Manager ghi ngày ký, minh chứng và kế toán tiếp nhận để ký/bàn giao. Kế toán tiếp tục đối soát; xếp lớp và giảng dạy dùng luồng hiện có.
 
-Backend kiểm tra lại trạng thái hồ sơ ngay lúc lưu dưới khóa database. Nếu HR vừa đổi trạng thái sau khi Manager mở biểu mẫu, hệ thống chặn lưu và báo lỗi tại **Hồ sơ đã tư vấn**. Hợp đồng đã ký không được sửa qua màn cập nhật bản nháp.
+Backend kiểm tra lại trạng thái hồ sơ ngay lúc lưu dưới khóa database. Nếu HR vừa đổi trạng thái sau khi Manager mở biểu mẫu, hệ thống chặn lưu và báo lỗi tại **Hồ sơ đã nhận**. Hợp đồng đã ký không được sửa qua màn cập nhật bản nháp.
 
 ## Dữ liệu cũ và danh mục mã màn
 

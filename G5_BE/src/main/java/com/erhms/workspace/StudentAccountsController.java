@@ -38,7 +38,7 @@ public class StudentAccountsController {
         request.setAttribute("workflow.label","Nhập thông tin học viên từ Excel");
         int count=excel.importFile(file);
         request.setAttribute("admin.changeNote","Đã nhập "+count+" học viên từ Excel");
-        return Map.of("importedCount",count,"notice","Đã nhập "+count+" học viên từ Excel. Chọn Tạo tài khoản để cấp tài khoản và gửi email cho từng học viên.");
+        return Map.of("importedCount",count,"notice","Đã nhập "+count+" học viên từ Excel. Lập hợp đồng trước, sau đó chọn Tạo tài khoản để cấp tài khoản và gắn hợp đồng theo email học viên.");
     }
 
     @GetMapping
@@ -50,7 +50,7 @@ public class StudentAccountsController {
     @PostMapping("/{admissionId}")
     public Map<String,Object> create(@PathVariable String admissionId,@RequestBody Map<String,Object> input,HttpServletRequest request) {
         request.setAttribute("workflow.action","STUDENT_ACCOUNT_CREATE");
-        request.setAttribute("workflow.label","Tạo tài khoản học viên từ hồ sơ tuyển sinh hoặc Excel");
+        request.setAttribute("workflow.label","Tạo hồ sơ học viên từ hồ sơ tuyển sinh hoặc Excel");
         var result=service.create(admissionId,input);
         request.setAttribute("admin.targetId",result.get("accountId").toString());
         return result;

@@ -1,0 +1,49 @@
+.admission-document-upload{margin-top:26px;padding-top:20px;border-top:1px solid #e5ede8}
+.admin-card .admission-document-upload h3{font-size:14px;margin:0 0 12px}
+.admission-document-upload>p{margin:0 0 18px}
+.admin-dialog:has(.admission-document-item-dialog){width:min(640px,calc(100vw - 32px))}
+.admission-document-picker{display:grid;gap:12px;border:0;padding:0;margin:0;min-width:0}
+.admission-document-item{border:1px solid #dfe9e3;border-radius:8px;overflow:hidden;background:#fff}
+.admission-document-item.is-uploaded{border-color:#80b49a;background:#edf7f0}
+.admission-document-item.is-invalid{border-color:#c67566}
+.admission-document-row{display:flex;align-items:center;gap:12px;padding-right:15px}
+.admission-document-row>button{flex-shrink:0;min-height:36px;padding:8px 12px}
+.admission-document-status{display:flex;align-items:center;gap:11px;padding:15px 17px;flex:1;min-width:0}
+.admission-document-status-icon{display:flex;color:#81938d;flex-shrink:0}
+.admission-document-status>span:last-child{display:grid;gap:5px;min-width:0}
+.admission-document-status strong{font-size:13px;line-height:1.5}
+.admission-document-status small{color:#81938d;font-size:11px;line-height:1.5}
+.admission-document-item.is-uploaded .admission-document-status-icon,.admission-document-item.is-uploaded .admission-document-status small{color:#267650}
+.admission-document-item-error{margin:0;padding:0 17px 14px 48px}
+.admission-document-upload-button{display:inline-flex;flex-direction:row;align-items:center;gap:8px;position:relative;padding:8px 12px;margin:0;border:1px dashed #92b4a3;border-radius:6px;background:white;color:#155d47;cursor:pointer;font-size:12px}
+.admission-document-upload-button input{position:absolute;inset:0;width:100%;height:100%;opacity:0;cursor:pointer}
+.admission-document-upload-button:focus-within{outline:2px solid #397d62;outline-offset:3px}
+.admission-document-upload-button:has(input:disabled){opacity:.55;cursor:not-allowed}
+.admission-document-files ul,.admission-document-groups ul{list-style:none;margin:10px 0 0;padding:0;display:grid;gap:7px}
+.admission-document-files li{display:flex;gap:10px;align-items:center;background:white;border:1px solid #e4ece7;border-radius:5px;padding:6px 9px}
+.admission-document-files li a,.admission-document-groups a{display:flex;align-items:center;gap:7px;color:#155d47;text-decoration:underline;text-underline-offset:3px;overflow-wrap:anywhere;font-size:12px}
+.admission-document-files li a{flex:1;min-width:0}
+.admission-document-files li svg,.admission-document-groups a svg{flex-shrink:0}
+.admission-document-files .admin-muted{font-size:11px;margin:8px 0 0}
+.admin-page .admission-document-note{margin-top:20px}
+.admission-document-note .admin-field{margin-bottom:0}
+.admission-document-submit{border-top:1px solid #e8efea;margin-top:20px;padding-top:18px;display:flex;justify-content:space-between;align-items:center;gap:15px}
+.admission-document-submit>div{display:flex;gap:10px;flex-shrink:0}
+.admission-document-submit button{min-height:40px}
+.admission-document-submit .admission-document-progress{margin:0}
+.admission-document-progress{font-size:12px;color:#648575;margin:15px 0 0}
+.admission-status-badges{display:flex;gap:8px;flex-wrap:wrap;justify-content:flex-start}
+.admission-profile-status{display:flex;gap:10px;padding:13px 15px;border:1px solid;border-radius:7px;margin-bottom:16px;font-size:12px}
+.admission-profile-status>svg{flex-shrink:0;margin-top:2px}
+.admission-profile-status.is-complete{background:#edf7f0;border-color:#b6d5c2;color:#267650}
+.admission-profile-status.is-incomplete{background:#fff7e7;border-color:#e7d5a7;color:#956618}
+.admission-profile-status p{font-size:11px;font-weight:400;margin:5px 0 0;line-height:1.7}
+.admission-documents-view{margin-top:26px;padding-top:20px;border-top:1px solid #e5ede8}
+.admission-documents-view h3{font-size:14px;margin:0 0 14px}
+.admission-document-groups{display:grid;gap:15px}
+.admission-document-groups strong{font-size:12px;color:#29443d}
+.admission-documents-compact{font-size:12px;margin-top:9px;min-width:180px}
+.admission-documents-compact summary{cursor:pointer;color:#155d47}
+.admission-documents-compact .admission-document-groups{margin-top:12px;gap:11px}
+@media(max-width:600px){.admission-document-submit{align-items:flex-start;flex-direction:column}.admission-document-submit>div{width:100%;flex-wrap:wrap}.admission-document-submit button{flex:1;justify-content:center}}
+@media(max-width:480px){.admission-document-row{gap:6px;padding-right:10px}.admission-document-row>button{padding:8px;font-size:11px}.admission-document-status{padding:13px 10px;gap:8px}.admission-document-status strong{font-size:12px}.admission-document-item-error{padding-left:38px}}

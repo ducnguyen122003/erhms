@@ -39,7 +39,7 @@ import org.springframework.web.multipart.MultipartFile;
 @Service
 public class AdmissionExcelService {
     public static final String[] HEADERS = {
-            "Họ và tên (*)", "Số điện thoại (*)", "Email", "Khóa quan tâm (*)",
+            "Họ và tên (*)", "Số điện thoại (*)", "Email (*)", "Khóa quan tâm (*)",
             "Thời gian liên hệ", "Nội dung tư vấn"
     };
     private static final String[] FIELDS = {"fullName", "phone", "email", "programName", "contactTime", "description"};
@@ -118,13 +118,15 @@ public class AdmissionExcelService {
             String[] instructions = {
                     "HƯỚNG DẪN NHẬP HỒ SƠ HỌC SINH",
                     "Điền dữ liệu ở sheet Hoc sinh, bắt đầu từ dòng 2. Giữ nguyên tên sheet và hàng tiêu đề.",
-                    "Các cột có (*) bắt buộc: Họ và tên, Số điện thoại, Khóa quan tâm. Mỗi dòng là một hồ sơ.",
+                    "Các cột có (*) bắt buộc: Họ và tên, Số điện thoại, Email, Khóa quan tâm. Mỗi dòng là một hồ sơ.",
                     "Chỉ nhận file .xlsx, tối đa 2 MB và 500 hồ sơ mỗi lần. Bỏ qua dòng hoàn toàn trống.",
                     "Số điện thoại: giữ kiểu Text để không mất số 0 đầu; chấp nhận 0xxxxxxxxx, 84xxxxxxxxx hoặc +84xxxxxxxxx.",
-                    "Họ và tên: 2–120 ký tự; Email nếu có phải hợp lệ, tối đa 190 ký tự; Khóa quan tâm: tối đa 255 ký tự.",
+                    "Họ và tên: 2–120 ký tự; Email bắt buộc, đúng định dạng, tối đa 190 ký tự; Khóa quan tâm: tối đa 255 ký tự.",
                     "Thời gian liên hệ: Bất kỳ / Buổi sáng / Buổi chiều (hoặc any / morning / afternoon); để trống là Bất kỳ.",
                     "Nội dung tư vấn: không bắt buộc, tối đa 2000 ký tự. Chỉ nhập văn bản, không dùng công thức.",
                     "Các dòng trùng họ tên, số điện thoại và khóa quan tâm trong file hoặc hệ thống sẽ được báo lỗi.",
+                    "Mỗi học sinh dùng một email riêng. Email trùng trong file, hồ sơ hoặc tài khoản hiện có sẽ bị từ chối; không phân biệt hoa/thường và khoảng trắng đầu/cuối.",
+                    "Bỏ qua hồ sơ Không tiếp tục đăng ký khi kiểm tra trùng; tạo hồ sơ mới và giữ lịch sử cũ.",
                     "Nếu có lỗi, toàn bộ file chưa được lưu. Sửa các dòng được thông báo rồi nhập lại.",
                     "Hồ sơ nhập thành công có trạng thái Mới tiếp nhận. Chưa tạo tài khoản đăng nhập hoặc xếp lớp học.",
                     "Ví dụ dưới đây chỉ để tham khảo, không được nhập tự động:"
@@ -137,7 +139,7 @@ public class AdmissionExcelService {
                 cell.setCellStyle(index == 0 ? headerStyle : textStyle);
             }
             String[] examples = {
-                    "Họ và tên (*): Nguyễn Văn An", "Số điện thoại (*): 0901234567", "Email: an@example.com",
+                    "Họ và tên (*): Nguyễn Văn An", "Số điện thoại (*): 0901234567", "Email (*): an@example.com",
                     "Khóa quan tâm (*): May công nghiệp", "Thời gian liên hệ: Buổi sáng", "Nội dung tư vấn: Muốn tìm hiểu lịch học."
             };
             for (int index = 0; index < examples.length; index++) {
@@ -175,20 +177,30 @@ public class AdmissionExcelService {
             throw invalidFile("Không đọc được file Excel. File có thể bị hỏng, được đặt mật khẩu hoặc sai định dạng. Hãy dùng file mẫu .xlsx.");
         }
 
-        // Serialize Excel imports across tabs/staff/server instances until transaction commit.
+        // Match account creation and manager Excel imports: account lock, then HR import lock.
         // Public consultation registration intentionally still allows repeat enquiries.
+        data.one("SELECT role_id FROM m_role WHERE role_id=1 FOR UPDATE");
         data.one("SELECT role_id FROM m_role WHERE role_id=7 FOR UPDATE");
         Map<String, String> errors = new LinkedHashMap<>();
         Map<DuplicateKey, Integer> seen = new HashMap<>();
+        Map<String, Integer> emails = new HashMap<>();
         for (ImportRow row : rows) {
             Input input = row.input();
+            Integer previousEmail = emails.putIfAbsent(input.email(), row.number());
+            if (previousEmail != null) {
+                addError(errors, row.number(), "email", "Email trùng với dòng " + previousEmail + ". Mỗi học sinh cần một email riêng.");
+            } else if (data.count("SELECT COUNT(*) FROM m_user WHERE LOWER(TRIM(email))=?", input.email()) > 0) {
+                addError(errors, row.number(), "email", "Email đã thuộc một tài khoản trong hệ thống.");
+            } else if (data.count("SELECT COUNT(*) FROM consultation_registrations r LEFT JOIN consultation_followups f ON f.consultation_id=r.id WHERE LOWER(TRIM(r.email))=? AND COALESCE(f.status,'NEW')<>'NOT_PROCEEDING'", input.email()) > 0) {
+                addError(errors, row.number(), "email", "Email đã có trong hồ sơ tuyển sinh hoặc danh sách học viên đã nhập.");
+            }
             DuplicateKey key = key(input.fullName(), input.phone(), input.programName());
             Integer previous = seen.putIfAbsent(key, row.number());
             if (previous != null) {
                 addError(errors, row.number(), "phone", "Trùng họ tên, số điện thoại và khóa quan tâm với dòng " + previous + ".");
             } else {
                 // Match name/course in SQL, then normalize phone in Java for +84, 84 and 0 formats.
-                var matches = data.rows("SELECT phone FROM consultation_registrations WHERE LOWER(TRIM(full_name))=? AND LOWER(TRIM(program_name))=?",
+                var matches = data.rows("SELECT r.phone FROM consultation_registrations r LEFT JOIN consultation_followups f ON f.consultation_id=r.id WHERE LOWER(TRIM(r.full_name))=? AND LOWER(TRIM(r.program_name))=? AND COALESCE(f.status,'NEW')<>'NOT_PROCEEDING'",
                         key.name(), key.program());
                 if (matches.stream().anyMatch(existing -> key.phone().equals(normalizePhone(existing.get("phone").toString())))) {
                     addError(errors, row.number(), "phone", "Hồ sơ có cùng họ tên, số điện thoại và khóa quan tâm đã tồn tại trong hệ thống.");
@@ -222,7 +234,8 @@ public class AdmissionExcelService {
         Row header = sheet.getRow(0);
         for (int column = 0; column < HEADERS.length; column++) {
             Cell cell = header == null ? null : header.getCell(column);
-            if (cell == null || cell.getCellType() != CellType.STRING || !HEADERS[column].equals(cell.getStringCellValue().strip())) {
+            if (cell == null || cell.getCellType() != CellType.STRING || !(HEADERS[column].equals(cell.getStringCellValue().strip())
+                    || (column == 2 && "Email".equals(cell.getStringCellValue().strip())))) {
                 throw invalidFile("Tiêu đề cột " + (column + 1) + " phải là “" + HEADERS[column] + "”. Hãy dùng file mẫu và giữ nguyên thứ tự cột.");
             }
         }
@@ -247,7 +260,9 @@ public class AdmissionExcelService {
                     values[column] = "";
                 } else values[column] = cell.getStringCellValue();
             }
-            Input input = new Input(values[0], values[1], values[2], contactTime(values[4]), values[5], values[3]);
+            Input input = new Input(values[0], values[1], values[2].strip().toLowerCase(Locale.ROOT), contactTime(values[4]), values[5], values[3]);
+            if (input.email() == null) addError(errors, number, "email", "Nhập email riêng của học sinh.");
+            else if (input.email().chars().anyMatch(Character::isWhitespace)) addError(errors, number, "email", "Email không được chứa khoảng trắng.");
             validator.validate(input).stream()
                     .sorted(Comparator.comparing(violation -> violation.getPropertyPath().toString() + violation.getMessage()))
                     .forEach(violation -> addError(errors, number, violation.getPropertyPath().toString(), violation.getMessage()));

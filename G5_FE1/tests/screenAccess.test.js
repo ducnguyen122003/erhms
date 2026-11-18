@@ -18,17 +18,17 @@ test('only managers can open and discover student account provisioning, with an 
  assert.notEqual(screens[code].fe,screens.ListStudent.fe);
 });
 test('all workbook, master data and extended workspace screens have implementations',()=>{
- assert.equal(Object.keys(screens).length,121);
+ assert.equal(Object.keys(screens).length,123);
  let business=0,pages=0;
  for(const screen of Object.values(screens)){
   if(screen.code===screen.functionCode&&!screen.public){assert.ok(fs.existsSync(new URL('../src/screens/pages/'+screen.code+'.jsx',import.meta.url)));business++;}
   else if(screen.public&&screen.fe==='FE-03'){assert.ok(fs.existsSync(new URL('../src/screens/public/'+screen.code+'.jsx',import.meta.url)));pages++;}
   else assert.ok(screenPath(screen.code).startsWith('/'));
  }
- assert.equal(business,93);assert.equal(pages,9);
+ assert.equal(business,95);assert.equal(pages,9);
 });
 test('screen access matches the current seven role totals including public and shared screens',()=>{
- const totals=[35,29,26,41,44,50,24];
+ const totals=[35,29,26,41,44,51,25];
  roles.forEach((role,index)=>{const user={role,roleId:index+1};assert.equal(Object.keys(screens).filter(code=>canScreen(code,user,grants(role))).length,totals[index],role);});
 });
 test('proposed rights and grants outside the declared role do not enable business screens',()=>{
@@ -36,6 +36,17 @@ test('proposed rights and grants outside the declared role do not enable busines
  assert.equal(canScreen('AssetDetail',{role:'LECTURER'},['AssetDetail']),false);
  assert.equal(canScreen('HistoryAssetAssignment',{role:'ACCOUNTANT'},['HistoryAssetAssignment']),false);
  assert.equal(canScreen('AssetIncidentDetail',{role:'MANAGER'},['AssetIncidentDetail']),false);
+});
+test('class creation requires a Manager role and its own grant independently of class viewing',()=>{
+ const path=screenPath('AddClass');
+ assert.equal(path,'/screens/AddClass');
+ assert.equal(screens.ListClass.action[1],'AddClass');
+ assert.equal(screenRoute(path).screen.code,'AddClass');
+ for(const [index,role] of roles.entries()){
+  const user={roleId:index+1,role};
+  assert.equal(workspaceRoute(path,user,['AddClass']),role==='MANAGER'?'screen':'forbidden',role);
+  assert.equal(workspaceRoute(path,user,['ListClass','ClassDetail']),'forbidden',role);
+ }
 });
 test('business routes validate identifiers and apply revocation and role scoping',()=>{
  const manager={roleId:6,role:'MANAGER'},student={roleId:3,role:'STUDENT'};

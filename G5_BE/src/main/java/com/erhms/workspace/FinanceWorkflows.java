@@ -41,7 +41,7 @@ public class FinanceWorkflows {
         if(d.count("SELECT COUNT(*) FROM financial_transactions WHERE bank_reference=? AND id<>? AND status='CONFIRMED'",reference,key)>0)throw conflict("Mã giao dịch đã được ghi nhận ở bản ghi khác");
         d.jdbc.update("UPDATE financial_transactions SET status='CONFIRMED',confirmed_by=?,confirmed_at=CURRENT_TIMESTAMP,version=version+1 WHERE id=?",u.id,key);
         if(kind.equals("TUITION")&&sum(contract,kind).compareTo(due)>=0){
-            d.jdbc.update("UPDATE training_contracts SET status='ACTIVE',version=version+1 WHERE id=?",contract);training.autoAssign(contract);
+            d.jdbc.update("UPDATE training_contracts SET status='ACTIVE',version=version+1 WHERE id=?",contract);training.paymentReadyForAssignment(contract);
         }
         training.notify(((Number)ct.get("studentId")).longValue(),"Đã xác nhận thanh toán","Khoản "+(kind.equals("TUITION")?"học phí":"cọc thiết bị")+" của hợp đồng "+ct.get("code")+" đã được kế toán xác nhận.","TuitionDetail_Student",contract.toString(),u);
         return saved("PaymentDetail",key);
@@ -57,7 +57,7 @@ public class FinanceWorkflows {
     public Map<String,Object> activateZeroTuition(String id,Map<String,Object> p,User user){
         role(user,"ACCOUNTANT");UUID key=uuid(id);var contract=d.record("contracts",id,user);claim(key,user);d.lock("training_contracts",key,p);
         if(!"SIGNED".equals(contract.get("status"))||new BigDecimal(contract.get("tuitionDue").toString()).signum()!=0)throw conflict("Chỉ xác nhận miễn học phí cho hợp đồng đã ký có nghĩa vụ học phí bằng 0");
-        text(p,"changeNote",1000,true);d.jdbc.update("UPDATE training_contracts SET status='ACTIVE',version=version+1 WHERE id=?",key);training.autoAssign(key);return saved("TuitionDetail",key);
+        text(p,"changeNote",1000,true);d.jdbc.update("UPDATE training_contracts SET status='ACTIVE',version=version+1 WHERE id=?",key);training.paymentReadyForAssignment(key);return saved("TuitionDetail",key);
     }
     public Map<String,Object> incident(String id,Map<String,Object> p,User u){
         role(u,"ACCOUNTANT");UUID key=uuid(id);var i=d.record("incidents",id,u);

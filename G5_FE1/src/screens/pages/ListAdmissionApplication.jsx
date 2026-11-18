@@ -1,2 +1,2 @@
-import BusinessScreen from '../BusinessScreen';
-export default function ListAdmissionApplication(props) {return <BusinessScreen {...props} code="ListAdmissionApplication"/>;}
+import AdmissionDashboard from '../AdmissionDashboard.jsx';
+export default function ListAdmissionApplication(props){return <AdmissionDashboard {...props} code="ListAdmissionApplication"/>;}
