@@ -77,6 +77,9 @@ def prepare():
         for index, keys in mapping.items():
             tokens(body[index], keys)
         full_text(body[3], "Thời hạn đào tạo: ${durationMonths} tháng")
+        # Receiving details follow the centre's current bank account. Sent PDFs are frozen.
+        full_text(body[16], "Tài khoản nhận thanh toán: ${centerBankAccount}")
+        full_text(body[17], "Chủ tài khoản: ${centerBankAccountHolder} Ngân hàng: ${centerBankName}")
         rows = body[47].findall("w:tr", NS)
         tokens(rows[1].findall("w:tc", NS)[1], ["tuitionDue"])
         tokens(rows[2].findall("w:tc", NS)[1], ["depositDue"])

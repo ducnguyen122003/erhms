@@ -26,7 +26,7 @@ public class FinanceWorkflows {
         return saved("PaymentDetail",id);
     }
     public Map<String,Object> payment(String id,Map<String,Object> p,User u,String action){
-        role(u,"ACCOUNTANT");UUID key=uuid(id);var transaction=d.record("payments",id,u);UUID contract=uuid(transaction.get("contractId").toString());claim(contract,u);d.lock("financial_transactions",key,p);
+        role(u,"ACCOUNTANT");UUID key=uuid(id);var transaction=d.record("payments",id,u);UUID contract=uuid(transaction.get("contractId").toString());claim(contract,u);d.lock("financial_transactions",key,p);transaction=d.record("payments",id,u);
         if("CONFIRMED".equals(transaction.get("status")))throw conflict("Giao dịch này đã được xác nhận; không ghi nhận lần thứ hai");
         if(action.equals("mismatch")){d.jdbc.update("UPDATE financial_transactions SET status='MISMATCH',memo=?,version=version+1 WHERE id=?",text(p,"memo",1000,true),key);return saved("PaymentDetail_Mismatch",key);}
         if(action.equals("resolve")){if(!"MISMATCH".equals(transaction.get("status")))throw conflict("Giao dịch không ở trạng thái sai lệch");d.jdbc.update("UPDATE financial_transactions SET status='PENDING',memo=?,version=version+1 WHERE id=?",text(p,"memo",1000,true),key);return saved("PaymentDetail",key);}
@@ -55,7 +55,7 @@ public class FinanceWorkflows {
         return saved("TuitionDetail",ct);
     }
     public Map<String,Object> activateZeroTuition(String id,Map<String,Object> p,User user){
-        role(user,"ACCOUNTANT");UUID key=uuid(id);var contract=d.record("contracts",id,user);claim(key,user);d.lock("training_contracts",key,p);
+        role(user,"ACCOUNTANT");UUID key=uuid(id);d.record("contracts",id,user);claim(key,user);d.lock("training_contracts",key,p);var contract=d.record("contracts",id,user);
         if(!"SIGNED".equals(contract.get("status"))||new BigDecimal(contract.get("tuitionDue").toString()).signum()!=0)throw conflict("Chỉ xác nhận miễn học phí cho hợp đồng đã ký có nghĩa vụ học phí bằng 0");
         text(p,"changeNote",1000,true);d.jdbc.update("UPDATE training_contracts SET status='ACTIVE',version=version+1 WHERE id=?",key);training.paymentReadyForAssignment(key);return saved("TuitionDetail",key);
     }

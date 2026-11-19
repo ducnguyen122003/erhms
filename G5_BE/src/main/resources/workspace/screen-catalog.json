@@ -2337,18 +2337,18 @@
   {
     "code": "TuitionDetail_Student",
     "fe": "FE-14",
-    "title": "Thông tin thanh toán của tôi",
+    "title": "Nộp tiền & thanh toán",
     "roles": [
       "STUDENT"
     ],
     "proposedRoles": [],
     "public": false,
     "scope": "Hồ sơ, lịch, điểm, chuyên cần, hợp đồng thanh toán và thiết bị của chính mình.",
-    "actions": "Student chỉ đọc học phí, cọc và giao dịch của hợp đồng thuộc bản thân; không xác nhận đã thu.",
-    "variant": "Biến thể đọc của TuitionDetail",
+    "actions": "Học viên xem khoản phải nộp, chuyển khoản theo nội dung bắt buộc và gửi bill cho kế toán đối chiếu; kế toán xác nhận khoản đã thu.",
+    "variant": "Thanh toán và gửi bill theo hợp đồng của học viên",
     "kind": "tuition",
     "functionCode": "TuitionDetail_Student",
-    "description": "Học phí và cọc theo hợp đồng đào tạo của bạn.",
+    "description": "Chuyển khoản học phí, cọc theo hợp đồng và gửi bill để kế toán đối chiếu sao kê.",
     "back": "StudentProfileDetail_Student",
     "sections": []
   },

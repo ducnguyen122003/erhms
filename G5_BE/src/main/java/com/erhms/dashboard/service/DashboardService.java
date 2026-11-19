@@ -26,6 +26,8 @@ public class DashboardService {
     private static final ZoneId ZONE = ZoneId.of("Asia/Ho_Chi_Minh");
     private static final String PAID_TUITION = "(SELECT COALESCE(SUM(f.amount),0) FROM financial_transactions f WHERE f.contract_id=c.id AND f.kind='TUITION' AND f.status='CONFIRMED')";
     private static final String OUTSTANDING = "GREATEST(c.tuition_due-" + PAID_TUITION + ",0)";
+    private static final String PAID_DEPOSIT = "(SELECT COALESCE(SUM(f.amount),0) FROM financial_transactions f WHERE f.contract_id=c.id AND f.kind='DEPOSIT' AND f.status='CONFIRMED')";
+    private static final String TOTAL_OUTSTANDING = "(" + OUTSTANDING + "+GREATEST(c.deposit_due-" + PAID_DEPOSIT + ",0))";
     private final DashboardRepository db;
     private final CurrentUser current;
     private final com.erhms.workspace.ScopedDashboards scoped;
@@ -108,7 +110,7 @@ public class DashboardService {
         var attendance=recorded==0?BigDecimal.ZERO:BigDecimal.valueOf(present*100.0/recorded).setScale(1,RoundingMode.HALF_UP);
         var grade=a("SELECT AVG(g.score) FROM training_grades g JOIN training_enrollments e ON e.id=g.enrollment_id WHERE e.student_id=? AND g.published_at IS NOT NULL AND g.published_at<=? AND g.score IS NOT NULL",id,t.now());
         if (grade != null) grade=grade.setScale(1,RoundingMode.HALF_UP);
-        var tuition=a("SELECT COALESCE(SUM("+OUTSTANDING+"),0) FROM training_contracts c WHERE c.student_id=? AND c.status IN ('SIGNED','ACTIVE')",id);
+        var amountDue=a("SELECT COALESCE(SUM("+TOTAL_OUTSTANDING+"),0) FROM training_contracts c WHERE c.student_id=? AND c.status IN ('SIGNED','ACTIVE')",id);
         long equipment=n("SELECT COUNT(*) FROM equipment_loans WHERE student_id=? AND returned_at IS NULL AND return_status<>'RETURNED'",id);
         String own="EXISTS (SELECT 1 FROM training_enrollments e WHERE e.class_id=c.id AND e.student_id=? AND e.status='ACTIVE')";
         var schedule=schedule("Lịch học hôm nay & sắp tới","Lịch học được cập nhật theo các lớp của bạn.",own,t,id);
@@ -133,7 +135,7 @@ public class DashboardService {
         Object end=dates.get(0).get("end_date");
         long upcoming=n("SELECT COUNT(*) FROM training_sessions s JOIN training_classes c ON c.id=s.class_id WHERE c.status<>'CANCELLED' AND s.starts_at>=? AND s.starts_at<? AND "+own,t.day(),t.nextWeek(),id);
         return view(DashboardRole.STUDENT,t,
-                List.of(m("attendance","Chuyên cần",attendance,"%",recorded==0?"Chưa có dữ liệu điểm danh":present+" / "+recorded+" buổi đã điểm danh"),m("grade","Điểm trung bình tạm tính",grade,"/ 10",grade==null?"Chưa có điểm đã công bố":"Từ các đầu điểm đã công bố"),m("tuition","Học phí còn phải nộp",tuition,"đ","Theo các hợp đồng đang hiệu lực"),m("equipment","Thiết bị đang giữ",equipment,"","Đã được nhận bàn giao")),
+                List.of(m("attendance","Chuyên cần",attendance,"%",recorded==0?"Chưa có dữ liệu điểm danh":present+" / "+recorded+" buổi đã điểm danh"),m("grade","Điểm trung bình tạm tính",grade,"/ 10",grade==null?"Chưa có điểm đã công bố":"Từ các đầu điểm đã công bố"),m("tuition","Số tiền phải nộp",amountDue,"đ","Gồm học phí và tiền cọc còn thiếu"),m("equipment","Thiết bị đang giữ",equipment,"","Đã được nhận bàn giao")),
                 List.of(m("progress","Tiến độ",total==0?0:Math.min(100,Math.round(completed*100.0/total)),"%",completed+" / "+total+" buổi đã diễn ra"),m("upcoming","Buổi học sắp tới",upcoming,"buổi","Từ hôm nay đến cuối tuần"),m("absent","Vắng học",absent,"buổi","Theo điểm danh đã ghi nhận","amber")),
                 List.of(schedule,grades,devices),List.of(task("tuition","Theo dõi học phí","Hợp đồng còn dư nợ học phí",n("SELECT COUNT(*) FROM training_contracts c WHERE c.student_id=? AND c.status IN ('SIGNED','ACTIVE') AND "+OUTSTANDING+">0",id),"amber"),task("returns","Thiết bị đến hạn trả","Kiểm tra lịch thu hồi",n("SELECT COUNT(*) FROM equipment_loans WHERE student_id=? AND returned_at IS NULL AND return_status<>'RETURNED' AND return_due_at<=?",id,t.nextDay()),"amber")),
                 chart(t,"Lịch học trong tuần","Số buổi học trong các lớp đã xếp.","SELECT COUNT(*) FROM training_sessions s JOIN training_classes c ON c.id=s.class_id WHERE c.status<>'CANCELLED' AND "+own+" AND s.starts_at>=? AND s.starts_at<?",id),new Progress(completed,total,absent,end==null?null:end.toString()));

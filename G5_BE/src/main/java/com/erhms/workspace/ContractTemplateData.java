@@ -42,6 +42,11 @@ public class ContractTemplateData {
             definition=json.readValue(input,new TypeReference<LinkedHashMap<String,Object>>(){});
         }catch(IOException failure){throw new IllegalStateException("Không đọc được cấu hình mẫu hợp đồng",failure);}
         fixedValues=json.convertValue(definition.getOrDefault("fixedValues",Map.of()),new TypeReference<LinkedHashMap<String,Object>>(){});
+        var receivingBank=PaymentReceivingAccount.destination();
+        fixedValues.put("centerBankAccount",receivingBank.get("accountNumber"));
+        fixedValues.put("centerBankAccountHolder",receivingBank.get("accountHolder"));
+        fixedValues.put("centerBankName",receivingBank.get("bankName"));
+        definition.put("fixedValues",new LinkedHashMap<>(fixedValues));
         for(var section:objects(definition.get("sections")))for(var field:objects(section.get("fields"))){
             String key=field.get("key").toString();
             if(fields.putIfAbsent(key,field)!=null)throw new IllegalStateException("Trường mẫu hợp đồng bị trùng: "+key);

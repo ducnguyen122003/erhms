@@ -19,15 +19,19 @@ public class WorkflowFileController {
     public WorkflowFileController(WorkflowData d,CurrentUser current,ScreenPermissionsService permissions){this.d=d;this.current=current;this.permissions=permissions;}
     @PostMapping(consumes=MediaType.MULTIPART_FORM_DATA_VALUE)
     public Map<String,Object> upload(@RequestParam MultipartFile file,@RequestParam String screen) throws IOException {
-        User u=current.get();role(u,"HR","MANAGER","IT_SUPPORT","ACCOUNTANT");
-        if(!Set.of("AdmissionConsultation","AdmissionContractSigning","RecordWithdrawal","AssetHandover","ListAssetDetail","Recovery_Withdrawal","AssetIncidentDetail","AssetIncidentDetail_Accountant","DepositRefund","ListPayment","ListAssetIncident").contains(screen))throw new AccessDeniedException("Màn không hỗ trợ tải minh chứng");permissions.require(screen);if(Set.of("AdmissionConsultation","AdmissionContractSigning").contains(screen))role(u,"HR");
+        User u=current.get();role(u,"HR","MANAGER","IT_SUPPORT","ACCOUNTANT","STUDENT");
+        boolean studentBill=screen.equals("TuitionDetail_Student");
+        if(u.getRoleCode().equals("STUDENT")&&!studentBill)throw new AccessDeniedException("Học viên chỉ được tải bill của mình tại màn thanh toán hợp đồng.");
+        if(studentBill)role(u,"STUDENT");
+        if(!Set.of("AdmissionConsultation","AdmissionContractSigning","TuitionDetail_Student","RecordWithdrawal","AssetHandover","ListAssetDetail","Recovery_Withdrawal","AssetIncidentDetail","AssetIncidentDetail_Accountant","DepositRefund","ListPayment","ListAssetIncident").contains(screen))throw new AccessDeniedException("Màn không hỗ trợ tải minh chứng");permissions.require(screen);if(Set.of("AdmissionConsultation","AdmissionContractSigning").contains(screen))role(u,"HR");
         boolean signedScan=screen.equals("AdmissionContractSigning");long limit=signedScan?10485760:2097152;
-        if(file.isEmpty()||file.getSize()>limit)throw invalid(signedScan?"signedScanId":"evidence","Tệp cần có dữ liệu và không vượt quá "+(signedScan?"10":"2")+" MB");
+        String errorField=studentBill?"receiptFileId":signedScan?"signedScanId":"evidence";
+        if(file.isEmpty()||file.getSize()>limit)throw invalid(errorField,"Tệp cần có dữ liệu và không vượt quá "+(signedScan?"10":"2")+" MB");
         byte[] bytes=file.getBytes();String type;
         if(bytes.length>=5&&new String(bytes,0,5,StandardCharsets.US_ASCII).equals("%PDF-"))type="application/pdf";
         else if(bytes.length>=8&&bytes[0]==(byte)137&&bytes[1]==80&&bytes[2]==78&&bytes[3]==71)type="image/png";
         else if(bytes.length>=3&&bytes[0]==(byte)255&&bytes[1]==(byte)216&&bytes[2]==(byte)255)type="image/jpeg";
-        else throw invalid("evidence","Chỉ nhận PDF, PNG hoặc JPEG");
+        else throw invalid(errorField,"Chỉ nhận PDF, PNG hoặc JPEG");
         if(screen.equals("AdmissionConsultation")&&!type.equals("application/pdf"))throw invalid("documents","Giấy tờ tuyển sinh chỉ nhận file PDF.");
         if(signedScan&&!type.equals("application/pdf"))throw invalid("signedScanId","Bản scan hợp đồng đã ký chỉ nhận file PDF.");
         String filename=Optional.ofNullable(file.getOriginalFilename()).orElse("minh-chung").replaceAll("[\\\\/\\r\\n\\p{Cntrl}]","_");if(filename.length()>160)filename=filename.substring(filename.length()-160);
@@ -45,6 +49,10 @@ public class WorkflowFileController {
     }
     boolean linked(UUID id,User user){
         var signingGrants=permissions.codes(user);
+        if(user.getRoleCode().equals("STUDENT")&&signingGrants.contains("TuitionDetail_Student")
+                &&d.count("SELECT COUNT(*) FROM student_payment_submissions s JOIN training_contracts c ON c.id=s.contract_id WHERE s.receipt_file_id=? AND s.submitted_by=? AND c.student_id=?",id,user.id,user.id)>0)return true;
+        if(user.getRoleCode().equals("ACCOUNTANT")&&(signingGrants.contains("ListPayment")||signingGrants.contains("PaymentDetail"))
+                &&d.count("SELECT COUNT(*) FROM student_payment_submissions s JOIN training_contracts c ON c.id=s.contract_id WHERE s.receipt_file_id=? AND "+contractScope(user,"c"),id)>0)return true;
         if(user.getRoleCode().equals("HR")&&signingGrants.contains("AdmissionContractSigning")
                 &&d.count("SELECT COUNT(*) FROM training_contracts c WHERE c.signature_admissions_id=? AND c.signature_sent_at IS NOT NULL AND (c.print_file_id=? OR c.signed_scan_file_id=? OR EXISTS(SELECT 1 FROM contract_signing_history h WHERE h.contract_id=c.id AND h.file_id=?))",user.id,id,id,id)>0)return true;
         if(user.getRoleCode().equals("MANAGER")&&(signingGrants.contains("TrainingContractDetail")||signingGrants.contains("ContractSignature"))

@@ -247,7 +247,7 @@ class DashboardIntegrationTest {
         JsonNode studentDashboard = dashboard(login(student.email), "/api/dashboard");
         assertStat(studentDashboard, "attendance", 100);
         assertStat(studentDashboard, "grade", 8);
-        assertStat(studentDashboard, "tuition", 400_000);
+        assertStat(studentDashboard, "tuition", 600_000);
         assertStat(studentDashboard, "equipment", 1);
         String studentPanels = studentDashboard.path("panels").toString();
         assertTrue(studentPanels.contains("Own upcoming lesson"));
@@ -261,7 +261,45 @@ class DashboardIntegrationTest {
         JsonNode otherDashboard = dashboard(login(otherStudent.email), "/api/dashboard");
         assertStat(otherDashboard, "attendance", 0);
         assertStat(otherDashboard, "grade", 2);
-        assertStat(otherDashboard, "tuition", 3_000_000);
+        assertStat(otherDashboard, "tuition", 3_400_000);
+    }
+
+    @Test
+    void studentAmountDueIncludesOnlyUnpaidTuitionAndDepositOnEffectiveContracts() throws Exception {
+        User student = account("STUDENT");
+        MockHttpSession session = login(student.email);
+        UUID partial = contract("DUE-PARTIAL", student, "ACTIVE", 1_000, 200);
+        transaction(partial, "TUITION", 600, "CONFIRMED");
+        transaction(partial, "DEPOSIT", 50, "CONFIRMED");
+        transaction(partial, "TUITION", 400, "PENDING");
+        transaction(partial, "DEPOSIT", 150, "PENDING");
+        transaction(partial, "TUITION", 400, "MISMATCH");
+        transaction(partial, "DEPOSIT", 150, "MISMATCH");
+        for (String state : List.of("DRAFT", "CANCELLED", "COMPLETED")) {
+            contract("DUE-" + state, student, state, 9_000, 900);
+        }
+        JsonNode initial = dashboard(session, "/api/dashboard/student");
+        assertStat(initial, "tuition", 550);
+        for (JsonNode stat : initial.path("stats")) {
+            if ("tuition".equals(stat.path("key").asText())) {
+                assertEquals("Số tiền phải nộp", stat.path("label").asText());
+            }
+        }
+
+        UUID tuitionOverpaid = contract("DUE-TUITION-OVERPAID", student, "SIGNED", 1_000, 200);
+        transaction(tuitionOverpaid, "TUITION", 1_100, "CONFIRMED");
+        UUID depositOverpaid = contract("DUE-DEPOSIT-OVERPAID", student, "ACTIVE", 1_000, 200);
+        transaction(depositOverpaid, "DEPOSIT", 300, "CONFIRMED");
+        UUID fullyOverpaid = contract("DUE-FULLY-OVERPAID", student, "ACTIVE", 1_000, 200);
+        transaction(fullyOverpaid, "TUITION", 5_000, "CONFIRMED");
+        transaction(fullyOverpaid, "DEPOSIT", 1_000, "CONFIRMED");
+        assertStat(dashboard(session, "/api/dashboard/student"), "tuition", 1_750);
+
+        transaction(partial, "TUITION", 400, "CONFIRMED");
+        transaction(partial, "DEPOSIT", 150, "CONFIRMED");
+        transaction(tuitionOverpaid, "DEPOSIT", 200, "CONFIRMED");
+        transaction(depositOverpaid, "TUITION", 1_000, "CONFIRMED");
+        assertStat(dashboard(session, "/api/dashboard/student"), "tuition", 0);
     }
 
     @Test

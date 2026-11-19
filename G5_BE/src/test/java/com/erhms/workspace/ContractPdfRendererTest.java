@@ -49,6 +49,8 @@ class ContractPdfRendererTest {
             String extracted=new PDFTextStripper().getText(document),full=normalized(extracted);
             assertTrue(full.contains(normalized("Nguyễn Anh Đức")));assertTrue(full.contains(normalized(EnrollmentCourses.NAMES.get(0))));
             assertTrue(extracted.contains("13.500.000"));assertTrue(extracted.contains("500.000"));
+            assertTrue(extracted.contains("3419120803"));assertTrue(full.contains(normalized("BIDV - PGD Hàm Yên")));
+            assertFalse(extracted.contains("999912082003"));assertFalse(extracted.contains("MB Bank"));
             assertTrue(full.contains(normalized("Ưu tiên lịch học buổi tối theo thỏa thuận.")));assertFalse(full.contains(normalized("Nội dung lịch thanh toán cũ không được xuất.")));
             assertTrue(full.contains(normalized("Mười bốn triệu đồng")));assertFalse(full.contains("PHỤLỤC03TIẾPTHEO"));
             assertFalse(extracted.contains("${"));assertTrue(document.getNumberOfPages()>=4);
@@ -59,7 +61,7 @@ class ContractPdfRendererTest {
                     if(!(child instanceof Element element))continue;
                     if(element.getLocalName().equals("p")){
                         String clause=text(element);
-                        if(index!=3&&!clause.isBlank()&&!clause.matches("(?s).*\\.{2,}.*"))assertTrue(full.contains(normalized(clause)),"Original clause missing from PDF: "+clause);
+                        if(!Set.of(3,16,17).contains(index)&&!clause.isBlank()&&!clause.matches("(?s).*\\.{2,}.*"))assertTrue(full.contains(normalized(clause)),"Original clause missing from PDF: "+clause);
                     }
                     index++;
                 }
