@@ -1,102 +1,70 @@
 'use strict';
 
-// Illustrative training catalog for the KCN Connect project.
+// Career catalog and training content for BK-VTCMS.
 const careers = [
   {
-    "id": "career-electric",
-    "category": "technical",
+    "id": "laptop-repair",
+    "category": "computers",
     "number": "01",
-    "title": "Điện công nghiệp",
-    "icon": "bolt",
-    "description": "Làm quen hệ thống điện và thiết bị trong môi trường sản xuất, xây dựng nền tảng để học các kỹ năng kỹ thuật chuyên sâu.",
-    "skills": [
-      "Nhận biết thiết bị, ký hiệu điện cơ bản",
-      "Đọc hiểu sơ đồ đơn giản trên mô hình",
-      "Tác phong và nguyên tắc an toàn kỹ thuật"
-    ],
-    "audience": "Người yêu thích kỹ thuật, muốn tìm hiểu công việc liên quan đến điện tại nhà máy.",
-    "context": "Các vị trí hỗ trợ kỹ thuật, lắp đặt hoặc bảo trì tùy năng lực và yêu cầu của từng doanh nghiệp.",
-    "course": "electric"
-  },
-  {
-    "id": "career-mechanical",
-    "category": "technical",
-    "number": "02",
-    "title": "Cơ khí & lắp ráp",
+    "title": "Sửa chữa máy tính Laptop chuyên nghiệp",
     "icon": "tool",
-    "description": "Tìm hiểu dụng cụ, chi tiết và quy trình lắp ráp; rèn sự chính xác và khả năng làm việc theo hướng dẫn kỹ thuật.",
+    "description": "Học kiến thức nền tảng và kỹ năng kiểm tra, bảo dưỡng, sửa chữa máy tính Laptop; thực hành nhận diện lỗi và xử lý theo quy trình.",
     "skills": [
-      "Nhận biết dụng cụ và chi tiết cơ bản",
-      "Làm quen bản vẽ, trình tự lắp ráp",
-      "Kiểm tra và giữ ngăn nắp vị trí làm việc"
+      "Nhận biết linh kiện và cấu tạo Laptop",
+      "Kiểm tra, khoanh vùng lỗi phần cứng và phần mềm",
+      "Thực hành bảo dưỡng và sửa chữa trên thiết bị"
     ],
-    "audience": "Người thích công việc thực hành, quan tâm đến chi tiết máy và lắp ráp trong sản xuất.",
-    "context": "Công việc lắp ráp, hỗ trợ gia công và hoàn thiện sản phẩm theo quy trình của nhà máy.",
-    "course": "safety"
+    "audience": "Người muốn học nghề sửa chữa Laptop từ nền tảng hoặc bổ sung kỹ năng thực hành để làm công việc kỹ thuật.",
+    "context": "Kiểm tra, bảo dưỡng và sửa chữa Laptop tại cơ sở dịch vụ hoặc bộ phận kỹ thuật.",
+    "durationMonths": 4
   },
   {
-    "id": "career-welding",
-    "category": "technical",
-    "number": "03",
-    "title": "Kỹ thuật hàn cơ bản",
-    "icon": "shield",
-    "description": "Khám phá kiến thức nền tảng của nghề hàn, yêu cầu an toàn và định hướng thực hành có người hướng dẫn.",
-    "skills": [
-      "Nhận biết vật liệu và thiết bị học nghề",
-      "Hiểu yêu cầu bảo hộ, an toàn khu vực hàn",
-      "Làm quen tiêu chí quan sát mối hàn mẫu"
-    ],
-    "audience": "Người muốn tìm hiểu lĩnh vực kết cấu kim loại và công việc gia công trong nhà máy.",
-    "context": "Định hướng các công việc gia công, kết cấu và lắp ghép kim loại sau khi được đào tạo phù hợp.",
-    "course": "safety"
-  },
-  {
-    "id": "career-production",
-    "category": "production",
-    "number": "04",
-    "title": "Vận hành & lắp ráp sản xuất",
-    "icon": "case",
-    "description": "Chuẩn bị tác phong công nghiệp, kỹ năng phối hợp và khả năng tuân thủ hướng dẫn tại dây chuyền sản xuất.",
-    "skills": [
-      "Làm quen quy trình và hướng dẫn công đoạn",
-      "Phối hợp trong nhóm, bàn giao công việc",
-      "Ghi nhận bất thường và báo cáo đúng cách"
-    ],
-    "audience": "Người mới bắt đầu, muốn xây dựng nền tảng trước khi tham gia môi trường sản xuất.",
-    "context": "Các công đoạn sản xuất, lắp ráp và hỗ trợ dây chuyền theo hướng dẫn cụ thể của doanh nghiệp.",
-    "course": "safety"
-  },
-  {
-    "id": "career-sewing",
-    "category": "production",
-    "number": "05",
-    "title": "May công nghiệp",
-    "icon": "book",
-    "description": "Tìm hiểu thao tác nền tảng, cách đọc yêu cầu sản phẩm và tác phong làm việc trong lĩnh vực may mặc.",
-    "skills": [
-      "Nhận biết vật liệu, dụng cụ và công đoạn",
-      "Làm quen tiêu chí đường may, sản phẩm mẫu",
-      "Rèn sự tỉ mỉ và phối hợp theo chuyền"
-    ],
-    "audience": "Người quan tâm công việc may mặc, thích thực hành và có sự kiên trì với chi tiết.",
-    "context": "Các công đoạn may, hoàn thiện và kiểm tra sản phẩm tùy chương trình đào tạo và yêu cầu của nhà máy.",
-    "course": "quality"
-  },
-  {
-    "id": "career-quality",
-    "category": "quality",
-    "number": "06",
-    "title": "Kiểm tra chất lượng sản phẩm",
+    "id": "pc-printer-repair",
+    "category": "computers",
+    "number": "02",
+    "title": "Sửa chữa máy tính PC & máy in",
     "icon": "search",
-    "description": "Rèn kỹ năng quan sát, đo kiểm cơ bản và ghi nhận kết quả để hỗ trợ chất lượng trong quá trình sản xuất.",
+    "description": "Tìm hiểu cấu tạo máy tính PC và máy in, rèn kỹ năng lắp ráp, cài đặt, chẩn đoán và sửa chữa các lỗi thường gặp.",
     "skills": [
-      "Nhận biết tiêu chí và lỗi sản phẩm mẫu",
-      "Làm quen dụng cụ đo trên mẫu thực hành",
-      "Ghi nhận, phân loại và trình bày kết quả"
+      "Lắp ráp, cài đặt và bảo trì máy tính PC",
+      "Kiểm tra, xử lý lỗi phần cứng và phần mềm",
+      "Bảo dưỡng và sửa chữa máy in"
     ],
-    "audience": "Người cẩn thận, yêu thích công việc quan sát và làm việc theo tiêu chí rõ ràng.",
-    "context": "Định hướng công việc kiểm tra sản phẩm và hỗ trợ kiểm soát chất lượng trong nhà máy.",
-    "course": "quality"
+    "audience": "Người muốn bắt đầu học nghề máy tính, máy in hoặc bổ sung kỹ năng sửa chữa thiết bị văn phòng.",
+    "context": "Sửa chữa và bảo trì máy tính, máy in tại cơ sở dịch vụ hoặc bộ phận kỹ thuật.",
+    "durationMonths": 4
+  },
+  {
+    "id": "electronics-household-repair",
+    "category": "electronics",
+    "number": "03",
+    "title": "Sửa chữa Điện tử - Điện gia dụng",
+    "icon": "bolt",
+    "description": "Tìm hiểu linh kiện, mạch điện tử và nguyên lý thiết bị điện gia dụng; thực hành kiểm tra, tìm lỗi và sửa chữa theo hướng dẫn.",
+    "skills": [
+      "Nhận biết, đo kiểm linh kiện điện tử",
+      "Đọc và phân tích mạch điện tử cơ bản",
+      "Chẩn đoán, sửa chữa thiết bị điện gia dụng"
+    ],
+    "audience": "Người quan tâm điện tử, thiết bị gia dụng và muốn học nghề sửa chữa từ kiến thức nền tảng.",
+    "context": "Dịch vụ kiểm tra, bảo dưỡng và sửa chữa thiết bị điện tử, điện gia dụng.",
+    "durationMonths": 4
+  },
+  {
+    "id": "refrigeration-inverter-repair",
+    "category": "refrigeration",
+    "number": "04",
+    "title": "Sửa chữa Điện lạnh, Điện gia dụng & Inverter",
+    "icon": "shield",
+    "description": "Học nguyên lý điện lạnh, thiết bị điện gia dụng và công nghệ Inverter; rèn kỹ năng kiểm tra, bảo dưỡng và xử lý lỗi trong thực hành.",
+    "skills": [
+      "Kiểm tra, bảo dưỡng thiết bị điện lạnh",
+      "Chẩn đoán, sửa chữa thiết bị điện gia dụng",
+      "Nhận biết và xử lý lỗi hệ thống Inverter"
+    ],
+    "audience": "Người muốn học nghề điện lạnh, điện gia dụng và tìm hiểu kỹ thuật sửa chữa thiết bị sử dụng Inverter.",
+    "context": "Bảo dưỡng, sửa chữa thiết bị điện lạnh và điện gia dụng tại cơ sở dịch vụ kỹ thuật.",
+    "durationMonths": 7
   }
 ];
 const courses = [
@@ -308,6 +276,7 @@ const courses = [
     "preparation": "Không cần mặc định đã có kinh nghiệm QC. Tư vấn viên sẽ trao đổi nền tảng, ngành sản xuất bạn quan tâm và mục tiêu để đề xuất lớp phù hợp."
   }
 ];
+const consultationInterests = careers.map(({id,title})=>({id,title}));
 const courseDrawings = {
   safety: '<path d="M48 94v-9a42 42 0 0 1 84 0v9M42 94h96v12H42zM79 46v39M101 46v39M57 71l9 7m57-7-9 7"/><path d="M56 118h68M68 128h44"/><circle cx="145" cy="44" r="19"/><path d="m136 44 6 6 11-13"/>',
   electric: '<rect x="48" y="27" width="88" height="104" rx="7"/><rect x="60" y="40" width="64" height="27" rx="3"/><path d="m96 44-13 15h12l-7 14M63 83h14m30 0h14M63 95h14m30 0h14M63 108h14m30 0h14M92 84v26M72 131v12m42-12v12M31 40v73h17M136 51h17v62h-17"/><circle cx="153" cy="34" r="8"/><path d="M153 42v9"/>',
@@ -319,7 +288,7 @@ const escapeHtml = value => String(value).replace(/[&<>"']/g, char => ({'&':'&am
 const normalize = value => value.toLocaleLowerCase('vi').normalize('NFD').replace(/[\u0300-\u036f]/g,'').replace(/đ/g,'d');
 const query = selector => document.querySelector(selector);
 const queryAll = selector => Array.from(document.querySelectorAll(selector));
-const validInterests = new Set(['not-sure', ...courses.map(course=>course.id), ...careers.map(career=>career.id)]);
+const validInterests = new Set(['not-sure', ...consultationInterests.map(interest=>interest.id)]);
 const validContactTimes = new Set(['any', 'morning', 'afternoon']);
 
 function consultationUrl(_kind, selection) {
@@ -337,7 +306,7 @@ function updateConsultationUrl(selection) {
 }
 function selectConsultation(_kind, selection, moveToForm=true) {
   if(!query('#consultation-form')) { window.location.assign(consultationUrl('training',selection));return false; }
-  query('#interest').innerHTML='<option value="not-sure">Tôi cần tư vấn ngành nghề và lộ trình học</option><optgroup label="Khóa học">'+courses.map(course=>'<option value="'+course.id+'">'+escapeHtml(course.title)+'</option>').join('')+'</optgroup><optgroup label="Ngành nghề quan tâm">'+careers.map(career=>'<option value="'+career.id+'">'+escapeHtml(career.title)+'</option>').join('')+'</optgroup>';
+  query('#interest').innerHTML='<option value="not-sure">Tôi cần tư vấn ngành nghề và lộ trình học</option>'+consultationInterests.map(interest=>'<option value="'+interest.id+'">'+escapeHtml(interest.title)+'</option>').join('');
   query('#interest').value=validInterests.has(selection)?selection:'not-sure';
   query('#form-error').hidden=true;
   updateConsultationUrl(query('#interest').value);
@@ -352,7 +321,7 @@ function renderCareers() {
   const visible=careers.filter(career=>(activeCareerFilter==='all'||career.category===activeCareerFilter)&&normalize(career.title+' '+career.description+' '+career.skills.join(' ')).includes(term));
   query('#careers-grid').innerHTML=visible.map(career=>'<article class="career-card"><div class="career-card-top"><span class="career-icon">'+icon(career.icon)+'</span><span>NGÀNH '+career.number+'</span></div><h3>'+escapeHtml(career.title)+'</h3><p>'+escapeHtml(career.description)+'</p><ul>'+career.skills.map(skill=>'<li>'+icon('check')+escapeHtml(skill)+'</li>').join('')+'</ul><div class="career-card-bottom"><button class="text-link" type="button" data-career-detail="'+career.id+'">Tìm hiểu ngành '+icon('arrow')+'</button><a href="'+consultationUrl('training',career.id)+'" aria-label="Nhận tư vấn ngành '+escapeHtml(career.title)+'">'+icon('up')+'</a></div></article>').join('');
   query('#career-empty').hidden=visible.length>0;
-  query('#career-count').textContent=visible.length+' ngành nghề tham khảo';
+  query('#career-count').textContent=visible.length+' ngành nghề';
   queryAll('[data-career-filter]').forEach(button=>{const active=button.dataset.careerFilter===activeCareerFilter;button.classList.toggle('active',active);button.setAttribute('aria-pressed',String(active));});
 }
 function renderCourses() {
@@ -368,8 +337,15 @@ dialog.addEventListener('close',()=>{document.body.classList.remove('modal-open'
 query('.dialog-close').addEventListener('click',closeDialog);
 dialog.addEventListener('click',event=>{if(event.target===dialog)closeDialog();});
 function showCareer(career){
-  const course=courses.find(item=>item.id===career.course);
-  openDialog('<div class="dialog-body"><p class="dialog-eyebrow">Định hướng ngành nghề đào tạo ngắn hạn</p><h2 class="dialog-title" id="dialog-title">'+escapeHtml(career.title)+'</h2><p class="dialog-lead">'+escapeHtml(career.description)+'</p><h4>Phù hợp với ai?</h4><p class="dialog-lead">'+escapeHtml(career.audience)+'</p><h4>Kỹ năng nên chuẩn bị</h4><ul>'+career.skills.map(skill=>'<li>'+escapeHtml(skill)+'</li>').join('')+'</ul><h4>Ứng dụng trong môi trường sản xuất</h4><p class="dialog-lead">'+escapeHtml(career.context)+'</p><h4>Bắt đầu từ nền tảng</h4><p class="dialog-lead">Bạn có thể tìm hiểu <a class="inline-button" href="'+course.url+'">'+escapeHtml(course.title)+'</a> và trao đổi để chọn nội dung chuyên môn phù hợp.</p><button class="button" type="button" data-consult="training" data-interest="'+career.id+'">Nhận tư vấn ngành nghề '+icon('arrow')+'</button><p class="dialog-disclaimer">Nội dung định hướng minh họa. Lộ trình, lớp học và yêu cầu tham gia được tư vấn trước khi đăng ký.</p></div>');
+  openDialog('<div class="dialog-body"><p class="dialog-eyebrow">Ngành nghề đào tạo</p>'+
+    '<h2 class="dialog-title" id="dialog-title">'+escapeHtml(career.title)+'</h2>'+
+    '<p class="dialog-lead">'+escapeHtml(career.description)+'</p>'+
+    '<h4>Phù hợp với ai?</h4><p class="dialog-lead">'+escapeHtml(career.audience)+'</p>'+
+    '<h4>Kỹ năng được học</h4><ul>'+career.skills.map(skill=>'<li>'+escapeHtml(skill)+'</li>').join('')+'</ul>'+
+    '<h4>Hướng thực hành nghề nghiệp</h4><p class="dialog-lead">'+escapeHtml(career.context)+'</p>'+
+    '<h4>Thời lượng khóa học</h4><p class="dialog-lead">Khoảng '+career.durationMonths+' tháng.</p>'+
+    '<button class="button" type="button" data-consult="training" data-interest="'+career.id+'">Nhận tư vấn ngành nghề '+icon('arrow')+'</button>'+
+    '<p class="dialog-disclaimer">Lịch học, nội dung thực hành và học phí được tư vấn trước khi đăng ký.</p></div>');
 }
 document.addEventListener('click',event=>{
   const detail=event.target.closest('[data-career-detail]');
@@ -388,7 +364,7 @@ function setMenu(open){menuButton.setAttribute('aria-expanded',String(open));men
 menuButton.addEventListener('click',()=>setMenu(menuButton.getAttribute('aria-expanded')!=='true'));
 queryAll('#main-nav a').forEach(link=>link.addEventListener('click',()=>setMenu(false)));
 document.addEventListener('keydown',event=>{if(event.key==='Escape')setMenu(false);});
-query('#privacy-button')?.addEventListener('click',()=>openDialog('<div class="dialog-body"><p class="dialog-eyebrow">Đăng ký tư vấn học nghề</p><h2 class="dialog-title" id="dialog-title">Thông tin sử dụng dữ liệu</h2><p class="dialog-lead">Khi bạn đồng ý và gửi đăng ký, họ tên, số điện thoại, email (nếu có), ngành nghề hoặc khóa học quan tâm, thời gian liên hệ và nội dung chia sẻ được gửi tới máy chủ và lưu trong hệ thống KCN Connect để tiếp nhận, liên hệ tư vấn.</p><h4>Xác nhận đăng ký</h4><p class="dialog-lead">Sau khi hệ thống lưu thành công, bạn sẽ nhận được mã đăng ký. Việc đóng tab trình duyệt không xóa thông tin đã gửi. Nếu cần trao đổi hoặc yêu cầu cập nhật thông tin, hãy liên hệ và cung cấp mã đăng ký.</p><h4>Liên hệ trực tiếp</h4><p class="dialog-lead">Điện thoại: <a href="tel:0368488333">0368488333</a><br>Email: <a href="mailto:contact@csgroup.vn">contact@csgroup.vn</a></p><button class="button" type="button" data-dismiss-dialog>Đã hiểu '+icon('check')+'</button></div>'));
+query('#privacy-button')?.addEventListener('click',()=>openDialog('<div class="dialog-body"><p class="dialog-eyebrow">Đăng ký tư vấn học nghề</p><h2 class="dialog-title" id="dialog-title">Thông tin sử dụng dữ liệu</h2><p class="dialog-lead">Khi bạn đồng ý và gửi đăng ký, họ tên, số điện thoại, email (nếu có), ngành nghề hoặc khóa học quan tâm, thời gian liên hệ và nội dung chia sẻ được gửi tới máy chủ và lưu trong hệ thống BK-VTCMS để tiếp nhận, liên hệ tư vấn.</p><h4>Xác nhận đăng ký</h4><p class="dialog-lead">Sau khi hệ thống lưu thành công, bạn sẽ nhận được mã đăng ký. Việc đóng tab trình duyệt không xóa thông tin đã gửi. Nếu cần trao đổi hoặc yêu cầu cập nhật thông tin, hãy liên hệ và cung cấp mã đăng ký.</p><h4>Liên hệ trực tiếp</h4><p class="dialog-lead">Điện thoại: <a href="tel:0368488333">0368488333</a><br>Email: <a href="mailto:contact@csgroup.vn">contact@csgroup.vn</a></p><button class="button" type="button" data-dismiss-dialog>Đã hiểu '+icon('check')+'</button></div>'));
 
 function consultationError(response, data) {
   let message;
@@ -456,9 +432,8 @@ query('#consultation-form')?.addEventListener('submit',async event=>{
 renderCareers();renderCourses();
 if(query('#consultation-form')){
   const params=new URLSearchParams(window.location.search);
-  const legacy={assembly:'career-production',maintenance:'electric'};
   const selected=params.get('quan-tam');
-  selectConsultation('training',Object.hasOwn(legacy,selected)?legacy[selected]:selected,false);
+  selectConsultation('training',selected,false);
   query('#interest').addEventListener('change',()=>updateConsultationUrl(query('#interest').value));
 }
 const legacyPages={'#trang-chu':'index.html','#gioi-thieu':'ve-chung-toi.html','#viec-lam':'nganh-nghe.html','#dao-tao':'dao-tao.html','#lo-trinh':'lo-trinh.html','#doanh-nghiep':'doanh-nghiep.html','#lien-he':'lien-he.html'};

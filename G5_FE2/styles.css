@@ -184,6 +184,7 @@ dialog{border:1px solid var(--line);border-radius:14px;padding:38px;width:min(53
 /* Short-course and career content. */
 .career-section {background: #eef2e8;}
 .careers-grid,.partners-grid,.news-grid {display: grid; grid-template-columns: repeat(3,minmax(0,1fr)); gap: 22px;}
+.careers-grid {grid-template-columns: repeat(2,minmax(0,1fr));}
 .career-card {background: #fff; border: 1px solid #dee6d5; border-radius: 12px; padding: 26px; display: flex; flex-direction: column;}
 .career-card-top {display: flex; align-items: center; justify-content: space-between; gap: 15px; margin-bottom: 23px;}
 .career-card-top > span:last-child {font-size: 8px; letter-spacing: 1.2px; color: #95a285;}

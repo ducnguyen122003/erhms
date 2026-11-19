@@ -1,5 +1,5 @@
 import {useEffect,useRef,useState} from 'react';
-import {Activity,Bell,BookOpen,BriefcaseBusiness,Building2,CalendarDays,ChevronRight,CircleHelp,FileText,LayoutDashboard,LogOut,Menu,RefreshCw,Settings2,ShieldCheck,UserRound,Users,Wallet,Wrench,X} from 'lucide-react';
+import {Activity,Bell,BookOpen,BriefcaseBusiness,Building2,CalendarDays,CircleHelp,FileText,LayoutDashboard,LogOut,Menu,RefreshCw,Settings2,ShieldCheck,UserRound,Users,Wallet,Wrench,X} from 'lucide-react';
 import {api,logout} from './api';
 import {dashboardPath,dashboardRoles,firstAllowedPath,resolveRole,roleError,workspaceRoute} from './roles';
 import UserProfile from './UserProfile';
@@ -23,11 +23,15 @@ import ScreenRouter from './screens/ScreenRouter';
 import {DashboardNavigationContext} from './dashboards/DashboardUI';
 import {dashboardLink,screenNavigation,screenRoute} from './screens/access';
 import {admissionDashboardCodes,admissionMenuActive} from './screens/admissionDashboard';
+import WorkspaceBreadcrumbs from './WorkspaceBreadcrumbNav.jsx';
+import {breadcrumbHome,breadcrumbLocation,restoreBreadcrumbTrail,updateBreadcrumbTrail} from './workspaceBreadcrumbs.js';
 
 const dashboards={ADMIN:AdminDashboard,LECTURER:LecturerDashboard,STUDENT:StudentDashboard,ACCOUNTANT:AccountantDashboard,IT_SUPPORT:ITSupportDashboard,MANAGER:ManagerDashboard,HR:HRDashboard};
 const roleIcons={ADMIN:ShieldCheck,LECTURER:BookOpen,STUDENT:CalendarDays,ACCOUNTANT:Wallet,IT_SUPPORT:Wrench,MANAGER:Users,HR:BriefcaseBusiness};
 const initials=name=>(name||'').trim().split(/\s+/).slice(-2).map(part=>part[0]).join('').toUpperCase()||'ER';
 const administration=[['USER_ACCOUNTS','/admin/users','Tài khoản',Users,['users','user-detail','user-edit','user-create'],'FE-02'],['ROLE_PERMISSIONS','/admin/permissions','Vai trò & phân quyền',ShieldCheck,['permissions'],'FE-02'],['SYSTEM_CONFIG','/admin/settings','Cấu hình hệ thống',Settings2,['settings'],'FE-02'],['SYSTEM_AUDIT_LOG','/admin/audit-logs','Nhật ký hệ thống',Activity,['audit'],'FE-02']];
+const workspaceLocation=()=>breadcrumbLocation(window.location.pathname+window.location.search+window.location.hash)||'/';
+const withBreadcrumbState=(state,owner,trail)=>({...((state&&typeof state==='object')?state:{}),erhmsBreadcrumbs:{owner,trail}});
 
 export function Brand(){
  const [name,setName]=useState('TRUNG TÂM ĐÀO TẠO');
@@ -37,7 +41,9 @@ export function Brand(){
 
 export default function RoleWorkspace({user,onUserUpdate,onLogout}){
  const role=resolveRole(user),config=dashboardRoles[role],Dashboard=dashboards[role],RoleIcon=roleIcons[role]||CircleHelp;
- const [path,setPath]=useState(window.location.pathname.replace(/\/$/,'')||'/'),[functions,setFunctions]=useState(null),[accessError,setAccessError]=useState(''),[accessReload,setAccessReload]=useState(0);
+ const [location,setLocation]=useState(workspaceLocation),[functions,setFunctions]=useState(null),[accessError,setAccessError]=useState(''),[accessReload,setAccessReload]=useState(0);
+ const path=location.split(/[?#]/,1)[0],breadcrumbOwner=[user.id,user.roleId,user.role].join(':');
+ const [breadcrumbs,setBreadcrumbs]=useState([]),breadcrumbRef=useRef([]);
  const [data,setData]=useState(null),[busy,setBusy]=useState(true),[error,setError]=useState(''),[reload,setReload]=useState(0);
  const [menuOpen,setMenuOpen]=useState(false),[tasksOpen,setTasksOpen]=useState(false),[signingOut,setSigningOut]=useState(false),[logoutError,setLogoutError]=useState(''),[pendingPanel,setPendingPanel]=useState(null);
  const [navigationNotice,setNavigationNotice]=useState('');
@@ -45,8 +51,30 @@ export default function RoleWorkspace({user,onUserUpdate,onLogout}){
  const adminSection=administration.find(item=>item[4].includes(section));
  const businessRoute=screenRoute(path),businessNavigation=screenNavigation(user,functions||[]);
  const menuActive=item=>admissionDashboardCodes.includes(item.code)?admissionMenuActive(businessRoute?.screen.code,item.code,window.location.search):businessRoute?.screen.fe===item.fe&&(item.fe==='FE-09'?businessRoute.screen.code.startsWith('AutoAssignment')===item.code.startsWith('AutoAssignment'):item.fe==='FE-15'?businessRoute.screen.code.startsWith('Deposit')===item.code.startsWith('Deposit'):true);
- function navigate(next,{replace=false,notice=''}={}){if(!window.dispatchEvent(new Event('erhms-before-navigate',{cancelable:true})))return;const target=next==='dashboard'?firstAllowedPath(user,functions||[]):next==='profile'?'/profile':next==='recruitment'?'/recruitment':next;window.history[replace?'replaceState':'pushState']({},'',target);setPath(new URL(target,window.location.origin).pathname);setNavigationNotice(notice);setMenuOpen(false);setTasksOpen(false);}
- useEffect(()=>{const listener=()=>{setPath(window.location.pathname.replace(/\/$/,'')||'/');setNavigationNotice('');setMenuOpen(false);setTasksOpen(false);};window.addEventListener('popstate',listener);return()=>window.removeEventListener('popstate',listener);},[]);
+ function navigate(next,{replace=false,notice='',trailIndex=null}={}){
+  if(!window.dispatchEvent(new Event('erhms-before-navigate',{cancelable:true})))return;
+  const target=next==='dashboard'?firstAllowedPath(user,functions||[]):next==='profile'?'/profile':next==='recruitment'?'/recruitment':next,href=breadcrumbLocation(target);
+  if(!href)return;
+  const trail=updateBreadcrumbTrail(breadcrumbRef.current,href,user,functions||[],{replace,trailIndex});
+  window.history[replace?'replaceState':'pushState'](withBreadcrumbState(replace?window.history.state:null,breadcrumbOwner,trail),'',href);
+  breadcrumbRef.current=trail;setBreadcrumbs(trail);setLocation(href);setNavigationNotice(notice);setMenuOpen(false);setTasksOpen(false);
+ }
+ useEffect(()=>{
+  if(functions===null)return;
+  const state=window.history.state,saved=state?.erhmsBreadcrumbs;
+  const trail=restoreBreadcrumbTrail(saved?.owner===breadcrumbOwner?saved.trail:[],location,user,functions);
+  breadcrumbRef.current=trail;setBreadcrumbs(trail);
+  window.history.replaceState(withBreadcrumbState(state,breadcrumbOwner,trail),'',workspaceLocation());
+ },[location,functions,breadcrumbOwner]);
+ useEffect(()=>{
+  const listener=()=>{
+   const href=workspaceLocation(),saved=window.history.state?.erhmsBreadcrumbs;
+   const trail=functions===null?[]:restoreBreadcrumbTrail(saved?.owner===breadcrumbOwner?saved.trail:[],href,user,functions);
+   breadcrumbRef.current=trail;setBreadcrumbs(trail);setLocation(href);setNavigationNotice('');setMenuOpen(false);setTasksOpen(false);
+  };
+  window.addEventListener('popstate',listener);window.addEventListener('hashchange',listener);
+  return()=>{window.removeEventListener('popstate',listener);window.removeEventListener('hashchange',listener);};
+ },[breadcrumbOwner,functions]);
  useEffect(()=>{if(section==='redirect'&&functions)navigate(firstAllowedPath(user,functions),{replace:true});},[section,role,functions]);
  useEffect(()=>{
   if(!config){setFunctions([]);return;}const controller=new AbortController();setAccessError('');
@@ -88,7 +116,7 @@ export default function RoleWorkspace({user,onUserUpdate,onLogout}){
    {businessNavigation.map(item=><button key={item.code} className={menuActive(item)?'active':''} onClick={()=>navigate(item.path)}><FileText size={17}/><span>{item.label}</span></button>)}
   </nav><p className="erhms-nav-label erhms-personal-label">CÁ NHÂN</p><nav>{has('PROFILE')&&<button className={section==='profile'?'active':''} onClick={()=>navigate('/profile')}><UserRound size={17}/>Thông tin tài khoản</button>}</nav>
    <div className="erhms-sidebar-note-wrap"><div className="erhms-sidebar-note"><b><i/>Một hành trình học nghề</b><p>Kết nối tuyển sinh, đào tạo<br/>và quản lý thiết bị.</p></div></div></div><div className="erhms-sidebar-bottom"><div className="erhms-account"><button className="erhms-account-user" disabled={!has('PROFILE')} onClick={()=>navigate('/profile')}><span className="erhms-avatar">{initials(user.fullName)}</span><span><b>{user.fullName}</b><small>{config?.label||'Vai trò không hợp lệ'}</small></span></button><button className="icon-btn" onClick={signout} disabled={signingOut} aria-label="Đăng xuất"><LogOut size={17}/></button></div></div>
-  </aside><div className="erhms-main-wrap"><header className="erhms-topbar"><button className="erhms-mobile-toggle icon-btn" onClick={()=>setMenuOpen(value=>!value)} aria-expanded={menuOpen} aria-label="Mở menu"><Menu size={21}/></button><div className="erhms-breadcrumb">Không gian làm việc<ChevronRight size={12}/><b>{adminSection?'Admin':businessRoute?businessRoute.screen.title:section==='profile'?'Thông tin tài khoản':section==='recruitment'?'Tuyển dụng':'Dashboard'}</b></div><span className="erhms-screen-code">{businessRoute?.screen.fe||adminSection?.[5]|| (section==='profile'?'FE-06':'FE-01')}</span><div className="erhms-topbar-actions"><time className="erhms-date">{new Intl.DateTimeFormat('vi-VN',{weekday:'long',day:'numeric',month:'long',year:'numeric',timeZone:'Asia/Ho_Chi_Minh'}).format(new Date())}</time><div className="erhms-notification" ref={notificationRef}><button className="icon-btn" aria-label={'Việc cần xử lý: '+taskCount} aria-expanded={tasksOpen} onClick={()=>setTasksOpen(value=>!value)}><Bell size={18}/>{taskCount>0&&<i/>}</button>{tasksOpen&&<div className="erhms-task-popover"><b>Việc cần chú ý</b>{tasks.length?tasks.map(task=><div key={task.key} className="erhms-task-preview"><span>{task.title}</span><strong>{task.count.toLocaleString('vi-VN')}</strong></div>):<p>Chưa có công việc cần xử lý.</p>}<small>Cập nhật cùng dữ liệu dashboard.</small></div>}</div><button className="erhms-avatar" onClick={()=>has('PROFILE')&&navigate('/profile')} aria-label="Mở thông tin tài khoản">{initials(user.fullName)}</button></div></header>
+  </aside><div className="erhms-main-wrap"><header className="erhms-topbar"><button className="erhms-mobile-toggle icon-btn" onClick={()=>setMenuOpen(value=>!value)} aria-expanded={menuOpen} aria-label="Mở menu"><Menu size={21}/></button><WorkspaceBreadcrumbs trail={breadcrumbs} home={functions?breadcrumbHome(user,functions):null} onNavigate={navigate}/><span className="erhms-screen-code">{businessRoute?.screen.fe||adminSection?.[5]|| (section==='profile'?'FE-06':'FE-01')}</span><div className="erhms-topbar-actions"><time className="erhms-date">{new Intl.DateTimeFormat('vi-VN',{weekday:'long',day:'numeric',month:'long',year:'numeric',timeZone:'Asia/Ho_Chi_Minh'}).format(new Date())}</time><div className="erhms-notification" ref={notificationRef}><button className="icon-btn" aria-label={'Việc cần xử lý: '+taskCount} aria-expanded={tasksOpen} onClick={()=>setTasksOpen(value=>!value)}><Bell size={18}/>{taskCount>0&&<i/>}</button>{tasksOpen&&<div className="erhms-task-popover"><b>Việc cần chú ý</b>{tasks.length?tasks.map(task=><div key={task.key} className="erhms-task-preview"><span>{task.title}</span><strong>{task.count.toLocaleString('vi-VN')}</strong></div>):<p>Chưa có công việc cần xử lý.</p>}<small>Cập nhật cùng dữ liệu dashboard.</small></div>}</div><button className="erhms-avatar" onClick={()=>has('PROFILE')&&navigate('/profile')} aria-label="Mở thông tin tài khoản">{initials(user.fullName)}</button></div></header>
    <main id="workspace-main" className="erhms-main" ref={mainRef} tabIndex={-1}>{logoutError&&<div role="alert" className="error">{logoutError}</div>}{content}</main><footer className="erhms-footer"><span><ShieldCheck size={13}/>BK-VTCMS · Kết nối tuyển sinh, đào tạo và quản lý thiết bị.</span><span>{data?.updatedAt?'Cập nhật: '+new Date(data.updatedAt).toLocaleString('vi-VN',{timeZone:'Asia/Ho_Chi_Minh'}):''}</span></footer>
   </div></div>;
 }

@@ -1,4 +1,4 @@
-# KCN Connect — ngành nghề & đào tạo ngắn hạn
+# BK-VTCMS — ngành nghề & đào tạo ngắn hạn
 
 ## Mở trên máy
 Giữ nguyên thư mục `assets`. Cài Node.js 22.12+ hoặc 24, mở terminal trong `G5_FE2` và chạy:
@@ -15,7 +15,7 @@ Website quản lý `G5_FE1` chạy riêng tại http://localhost:8082. Hướng 
 ## Các trang chính
 - `index.html`: trang chủ, định hướng ngành nghề và bài báo liên quan.
 - `ve-chung-toi.html`: giới thiệu, sứ mệnh, tầm nhìn, giá trị và nội dung đồng hành.
-- `nganh-nghe.html`: 6 nhóm nghề, tìm kiếm và bộ lọc.
+- `nganh-nghe.html`: 4 ngành sửa chữa đã cấu hình, tìm kiếm và bộ lọc.
 - `dao-tao.html`: danh sách chương trình đào tạo.
 - `lo-trinh.html`: các bước từ tư vấn tới chuẩn bị cho công việc.
 - `doanh-nghiep.html`: ví dụ doanh nghiệp tham khảo; chưa phải danh sách đối tác xác nhận.
@@ -36,7 +36,7 @@ Website quản lý `G5_FE1` chạy riêng tại http://localhost:8082. Hướng 
 Footer có điện thoại 0368488333 và email contact@csgroup.vn theo thông tin được cung cấp.
 
 ## Phạm vi bản thiết kế
-Các nhóm nghề và chương trình là nội dung minh họa cho dự án. Thời lượng, lịch khai giảng, học phí, điều kiện tham gia và hoàn thành cần xác nhận theo lớp.
+Trang Các ngành nghề và form tư vấn dùng cùng 4 ngành sửa chữa đã cấu hình. Nội dung học, thời lượng, lịch khai giảng, học phí, điều kiện tham gia và hoàn thành được tư vấn theo khóa học trước khi đăng ký. Các trang chương trình nền tảng hiện có là nội dung minh họa cho dự án.
 
 Form gửi `fullName`, `phone`, `email`, `contactTime`, `description`, `program_name` tới `POST /api/public/consultations`. `program_name` là phần chữ hiển thị của option đã chọn. Checkbox đồng ý được kiểm tra trên giao diện. Backend lưu vào bảng PostgreSQL `consultation_registrations`, tự cấp `id`, `created_date` và trả mã đăng ký khi thành công. Khi có lỗi, form giữ thông tin đã nhập và hiển thị lỗi để thử lại. Luồng này chưa tự gửi email hoặc phân công tư vấn viên.
 

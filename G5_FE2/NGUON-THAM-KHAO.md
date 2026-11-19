@@ -13,7 +13,7 @@
 
 ## Doanh nghiệp ví dụ
 
-Các tên dưới đây chỉ là ví dụ tham khảo, chưa xác nhận quan hệ đối tác với KCN Connect.
+Các tên dưới đây chỉ là ví dụ tham khảo, chưa xác nhận quan hệ đối tác với BK-VTCMS.
 
 - Samsung Việt Nam: https://news.samsung.com/vn/overview
 - Canon Việt Nam: https://cvn.canon/vn/basicinfor.html
