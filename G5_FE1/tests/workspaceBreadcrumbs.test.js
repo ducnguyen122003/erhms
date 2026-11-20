@@ -115,7 +115,7 @@ test('direct links never invent another entity ID for student contracts or equip
 
 test('class timetable editing returns to its actual class when a valid context is present',()=>{
  const functions=grants('ADMIN'),target='/screens/TimeTable_EditSession/'+record+'?returnClassId='+other;
- assert.deepEqual(paths(initialBreadcrumbTrail(target,admin,functions)),['/dashboard/admin','/screens/ListClass','/screens/ClassDetail/'+other,target]);
+ assert.deepEqual(paths(initialBreadcrumbTrail(target,admin,functions)),['/dashboard/admin','/screens/CourseSchedules','/screens/ClassDetail/'+other,target]);
  const invalid='/screens/TimeTable_EditSession/'+record+'?returnClassId=not-a-valid-id';
  assert.deepEqual(paths(initialBreadcrumbTrail(invalid,admin,functions)),['/dashboard/admin','/screens/TimeTable_Manager',invalid]);
 });
@@ -133,7 +133,7 @@ test('accounts without Dashboard use the first accessible home and master-data p
  const limited=['ListNotification','ViewNotification'];
  assert.equal(breadcrumbHome(hr,limited),'/screens/ListNotification');
  assert.deepEqual(paths(initialBreadcrumbTrail('/screens/ViewNotification/'+record,hr,limited)),['/screens/ListNotification','/screens/ViewNotification/'+record]);
- assert.deepEqual(paths(initialBreadcrumbTrail('/screens/EditProfession/'+record,admin,grants('ADMIN'))),['/dashboard/admin','/screens/ListProfession','/screens/EditProfession/'+record]);
+ assert.deepEqual(paths(initialBreadcrumbTrail('/screens/EditClassroom/'+record,admin,grants('ADMIN'))),['/dashboard/admin','/screens/ListClassroom','/screens/EditClassroom/'+record]);
 });
 
 test('the signing queue detail has a distinct current title and a clickable queue parent',()=>{

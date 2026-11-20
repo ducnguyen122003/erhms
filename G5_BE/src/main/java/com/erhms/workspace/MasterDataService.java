@@ -23,6 +23,7 @@ public class MasterDataService {
     public MasterDataService(WorkflowData d,CurrentUser current,ScreenCatalog catalog,ScreenPermissionsService permissions){this.d=d;this.current=current;this.catalog=catalog;this.permissions=permissions;}
     private Definition definition(String type){var found=TYPES.get(type);if(found==null)throw missing();return found;}
     private Definition access(String code,String mode){
+        if(Set.of("ListProfession","AddProfession","EditProfession").contains(code))throw new org.springframework.security.access.AccessDeniedException("Trung tâm sử dụng bốn khóa đào tạo cố định; không chỉnh sửa danh mục ngành nghề");
         var screen=catalog.get(code);User user=current.get();catalog.requireRole(screen,user.getRoleCode());permissions.require(screen.functionCode());
         return TYPES.values().stream().filter(t->!t.suffix().equals("Bank")&&code.equals(mode+t.suffix())).findFirst().orElseThrow(WorkflowData::missing);
     }

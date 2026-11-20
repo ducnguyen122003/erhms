@@ -67,6 +67,7 @@ export default function BusinessScreen({code,accountId:id,user,functions=[],onNa
  function openRow(row){const target=targetFor(row);if(target&&can(target))go(target,row.id);}
  const genericBack=spec.back||formBacks[code];
  const back=()=>{
+  if(user.role==='ADMIN'&&['AddClass','ClassDetail'].includes(code)&&can('CourseSchedules')){onNavigate(screenPath('CourseSchedules')+(record?.courseId?'?'+new URLSearchParams({courseId:record.courseId,year:record.planYear||''}):''));return;}
   if(code==='ListAdmissionApplicationDetail'&&record&&can(admissionHome(record))){const home=admissionHome(record);onNavigate(screenPath(home)+(home==='ListAdmissionEnrollment'?'?tab='+(record.forwardedAt?'forwarded':'waiting'):''));return;}
   const returnClassId=new URLSearchParams(window.location.search).get('returnClassId');
   if(code==='TimeTable_EditSession'&&/^[0-9a-f-]{36}$/i.test(returnClassId||'')&&can('ClassDetail')){go('ClassDetail',returnClassId);return;}
@@ -74,7 +75,7 @@ export default function BusinessScreen({code,accountId:id,user,functions=[],onNa
    const backId=['list','notifications','timetable','report'].includes(screens[genericBack]?.kind)||genericBack==='StudentProfileDetail_Student'?null:genericBack==='AssetHandover'?record?.requestId:id;
    if(genericBack!=='AssetHandover'||backId){go(genericBack,backId);return;}
   }
-  const fallback={courses:user.role==='LECTURER'?'ListClass_Lecturer':'ListCourse',classes:user.role==='LECTURER'?'ListClass_Lecturer':'ListClass',requests:user.role==='IT_SUPPORT'?'ListEquipmentRequest_IT':'ListEquipmentRequest',loans:user.role==='STUDENT'?'StudentAssets':'ListAssetRecovery',tuition:user.role==='STUDENT'?'TuitionDetail_Student':user.role==='ACCOUNTANT'?'ListTuitionManagement':'PaymentStatus_Admissions',contracts:'ListTrainingContract',students:user.role==='STUDENT'?'StudentProfileDetail_Student':'ListStudent',assets:'ListAsset',incidents:'ListAssetIncident',notifications:'ListNotification',closures:'ListTrainingClosure',payments:'ListPayment'}[data?.resource];
+  const fallback={courses:user.role==='LECTURER'?'ListClass_Lecturer':'ListCourse',classes:user.role==='ADMIN'?'CourseSchedules':user.role==='LECTURER'?'ListClass_Lecturer':'ListClass',requests:user.role==='IT_SUPPORT'?'ListEquipmentRequest_IT':'ListEquipmentRequest',loans:user.role==='STUDENT'?'StudentAssets':'ListAssetRecovery',tuition:user.role==='STUDENT'?'TuitionDetail_Student':user.role==='ACCOUNTANT'?'ListTuitionManagement':'PaymentStatus_Admissions',contracts:'ListTrainingContract',students:user.role==='STUDENT'?'StudentProfileDetail_Student':'ListStudent',assets:'ListAsset',incidents:'ListAssetIncident',notifications:'ListNotification',closures:'ListTrainingClosure',payments:'ListPayment'}[data?.resource];
   if(fallback&&can(fallback))go(fallback);else onNavigate('dashboard');
  };
  const openClassSession=session=>onNavigate(screenPath('TimeTable_EditSession',session?.id)+'?classId='+encodeURIComponent(record.id)+'&returnClassId='+encodeURIComponent(record.id));

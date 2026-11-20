@@ -114,7 +114,7 @@ class AdminWorkspaceIntegrationTest {
     }
 
     @Test void migratedFunctionsAndDefaultGrantsMatchSevenRoles() throws Exception {
-        JsonNode source=matrix();assertEquals(7,source.path("roles").size());assertEquals(103,source.path("functions").size());
+        JsonNode source=matrix();assertEquals(7,source.path("roles").size());assertEquals(104,source.path("functions").size());
         assertEquals(List.of(7L),jdbc.queryForList("SELECT role_id FROM role_function WHERE function_code='AdmissionContractSigning'",Long.class));
         assertEquals(7,jdbc.queryForObject("SELECT COUNT(*) FROM role_function WHERE function_code='PROFILE'",Integer.class));
         assertEquals(1,jdbc.queryForObject("SELECT COUNT(*) FROM role_function WHERE function_code='USER_ACCOUNTS'",Integer.class));
@@ -124,9 +124,9 @@ class AdminWorkspaceIntegrationTest {
     @Test void trainingCataloguePermissionsAreExclusiveToAdminAndCannotBeGrantedBack() throws Exception {
         var codes=Set.of("ListProfession","AddProfession","EditProfession","ListCourse","AddCourse","EditCourse","CourseDetail");
         JsonNode source=matrix();
-        for(JsonNode function:source.path("functions"))if(codes.contains(function.path("code").asText()))assertEquals(json.valueToTree(List.of(1)),function.path("allowedRoles"));
+        for(JsonNode function:source.path("functions"))if(codes.contains(function.path("code").asText()))assertEquals(json.valueToTree(List.of()),function.path("allowedRoles"));
         for(String code:codes){
-            assertEquals(List.of(1L),jdbc.queryForList("SELECT role_id FROM role_function WHERE function_code=?",Long.class,code));
+            assertEquals(List.of(),jdbc.queryForList("SELECT role_id FROM role_function WHERE function_code=?",Long.class,code));
             for(long roleId:List.of(2L,3L,4L,5L,6L,7L)){
                 var input=matrixInput();((com.fasterxml.jackson.databind.node.ArrayNode)input.get("grants")).addObject().put("roleId",roleId).put("functionCode",code);
                 saveMatrix(input).andExpect(status().isBadRequest());

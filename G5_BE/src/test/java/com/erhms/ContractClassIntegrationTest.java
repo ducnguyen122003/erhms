@@ -42,11 +42,14 @@ class ContractClassIntegrationTest {
     User actor(String role){var u=new User();u.email=UUID.randomUUID()+"@contract-class.test";u.fullName="Học viên "+UUID.randomUUID();u.passwordHash="fixture";u.role=roles.findByCode(role).orElseThrow();return users.saveAndFlush(u);}
     UUID admission(User learner,String program){UUID id=UUID.randomUUID();jdbc.update("INSERT INTO consultation_registrations(id,full_name,email,phone,program_name,enrollment_course,contact_time,created_date) VALUES (?,?,?,'0912345678','Sửa máy',?,'any',CURRENT_TIMESTAMP)",id,learner.fullName,learner.email,program);jdbc.update("INSERT INTO consultation_followups(id,consultation_id,assigned_to,status,forwarded_at,forwarded_by) VALUES (?,?,?,'PROFILE_PENDING',CURRENT_TIMESTAMP,?)",UUID.randomUUID(),id,hr.id,hr.id);return id;}
     Map<String,Object> values(Object...pairs){var p=new LinkedHashMap<String,Object>();for(int i=0;i<pairs.length;i+=2)p.put((String)pairs[i],pairs[i+1]);return p;}
-    UUID course(User owner,String name){UUID id=UUID.randomUUID();jdbc.update("INSERT INTO training_courses(id,code,name,profession,duration_months,total_sessions,tuition_fee,objectives,status,manager_id,class_capacity) VALUES (?,?,?,'Điện',4,16,1000,'Fixture','OPEN',?,20)",id,id.toString(),name,owner.id);jdbc.update("INSERT INTO course_lecturers(course_id,lecturer_id) VALUES (?,?)",id,teacher.id);return id;}
+    UUID course(User owner,String name){return UUID.fromString(String.format(Locale.ROOT,"64000000-0000-0000-0000-%012d",EnrollmentCourses.NAMES.indexOf(name)+1));}
     UUID plan(UUID selectedCourse,String start,int capacity)throws Exception{
+        return plan(selectedCourse,start,capacity,manager);
+    }
+    UUID plan(UUID selectedCourse,String start,int capacity,User owner)throws Exception{
         UUID room=UUID.randomUUID();jdbc.update("INSERT INTO m_classroom(id,code,name,name_key) VALUES (?,?,?,?)",room,room.toString(),"Phòng "+room,"phòng "+room);
         LocalDate first=LocalDate.parse(start);int hour=8+2*planSlot++;
-        var input=values("courseId",selectedCourse.toString(),"name","Lớp "+room,"planYear",first.getYear(),"startsOn",start,"endsOn",first.plusMonths(4).toString(),"weekdays",List.of(first.getDayOfWeek().getValue()),"startTime",String.format(Locale.ROOT,"%02d:00",hour),"endTime",String.format(Locale.ROOT,"%02d:00",hour+2),"classroomId",room.toString(),"lecturerId",teacher.id,"capacity",capacity);
+        var input=values("courseId",selectedCourse.toString(),"managerId",owner.id,"name","Lớp "+room,"planYear",first.getYear(),"startsOn",start,"endsOn",first.plusMonths(4).toString(),"weekdays",List.of(first.getDayOfWeek().getValue()),"startTime",String.format(Locale.ROOT,"%02d:00",hour),"endTime",String.format(Locale.ROOT,"%02d:00",hour+2),"classroomId",room.toString(),"lecturerId",teacher.id,"capacity",capacity);
         return UUID.fromString(body(write(admin,"AddClass",null,input).andExpect(status().isOk()).andReturn()).path("id").asText());
     }
     Map<String,Object> input(){return values("consultationId",admission.toString(),"classId",cl.toString(),"paymentDueOn","2027-01-01","tuitionDue",1000,"depositDue",200,"terms","Theo lớp đã đăng ký");}
@@ -71,7 +74,7 @@ class ContractClassIntegrationTest {
     }
 
     @Test void foreignWrongCourseUnfixedAndClosedClassesCannotBeBound()throws Exception{
-        UUID foreign=plan(course(otherManager,EnrollmentCourses.NAMES.get(0)),"2027-01-04",20);var p=input();p.put("classId",foreign.toString());write(manager,"AddTrainingContract",null,p).andExpect(status().isNotFound());
+        UUID foreign=plan(course(otherManager,EnrollmentCourses.NAMES.get(0)),"2027-01-04",20,otherManager);var p=input();p.put("classId",foreign.toString());write(manager,"AddTrainingContract",null,p).andExpect(status().isNotFound());
         UUID other=plan(course(manager,EnrollmentCourses.NAMES.get(1)),"2027-01-04",20);p=input();p.put("classId",other.toString());p.put("courseId",course.toString());write(manager,"AddTrainingContract",null,p).andExpect(status().isBadRequest()).andExpect(jsonPath("$.fields.classId").exists());
         jdbc.update("UPDATE training_classes SET plan_fixed=FALSE WHERE id=?",cl);write(manager,"AddTrainingContract",null,input()).andExpect(status().isBadRequest());jdbc.update("UPDATE training_classes SET plan_fixed=TRUE WHERE id=?",cl);
         for(String state:List.of("COMPLETED","CANCELLED")){jdbc.update("UPDATE training_classes SET status=? WHERE id=?",state,cl);write(manager,"AddTrainingContract",null,input()).andExpect(status().isBadRequest());}

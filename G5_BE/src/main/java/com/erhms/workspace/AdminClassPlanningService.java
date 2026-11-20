@@ -23,12 +23,15 @@ public class AdminClassPlanningService {
         // One shared lock serializes all calendar writers before checking room and teacher overlaps.
         d.one("SELECT version FROM permission_revision WHERE id=1 FOR UPDATE");
         UUID courseId=uuid(p,"courseId");
+        if(!FixedCourseCatalog.IDS.contains(courseId))throw invalid("courseId","Chỉ lập lịch cho bốn khóa đào tạo cố định của trung tâm");
         d.one("SELECT id FROM training_courses WHERE id=? FOR UPDATE",courseId);
         var course=d.record("courses",courseId.toString(),actor);
+        if(!Boolean.TRUE.equals(course.get("fixedCatalog")))throw invalid("courseId","Chỉ lập lịch cho bốn khóa đào tạo cố định của trung tâm");
         if(!List.of("OPEN","ACTIVE").contains(course.get("status")))throw invalid("courseId","Chọn khóa học đang mở tuyển sinh hoặc đang hoạt động");
         String name=text(p,"name",160,true);
         long capacity=number(p,"capacity",1,500),teacher=number(p,"lecturerId",1,Long.MAX_VALUE);
-        requireLecturer(courseId,teacher);
+        d.requireRoleId(teacher,2);
+        long manager=number(p,"managerId",1,Long.MAX_VALUE);d.requireRoleId(manager,6);
         int year=(int)number(p,"planYear",1900,9999);
         LocalDate first=date(p,"startsOn",true),last=date(p,"endsOn",true);
         if(first.getYear()!=year)throw invalid("planYear","Năm kế hoạch phải là năm bắt đầu lớp");
@@ -43,7 +46,7 @@ public class AdminClassPlanningService {
         UUID key=UUID.randomUUID();
         for(var day:dates)checkConflict(key,null,teacher,roomId,room,day.atTime(start).atZone(ZONE).toOffsetDateTime(),day.atTime(end).atZone(ZONE).toOffsetDateTime());
         d.jdbc.update("INSERT INTO training_classes(id,code,name,lecturer_id,starts_on,ends_on,status,total_sessions,course_id,manager_id,capacity,plan_year,weekdays,start_time,end_time,classroom_id,plan_fixed) VALUES (?,?,?,?,?,?,'PLANNED',?,?,?,?,?,?,?,?,?,TRUE)",
-                key,nextCode(),name,teacher,first,last,dates.size(),courseId,course.get("managerId"),capacity,year,csv(weekdays),start,end,roomId);
+                key,nextCode(),name,teacher,first,last,dates.size(),courseId,manager,capacity,year,csv(weekdays),start,end,roomId);
         int index=0;
         for(var day:dates){String title="Buổi "+(++index)+" - "+name;if(title.length()>160)title=title.substring(0,160);d.jdbc.update("INSERT INTO training_sessions(id,class_id,title,starts_at,ends_at,room,classroom_id,change_note) VALUES (?,?,?,?,?,?,?,?)",UUID.randomUUID(),key,title,day.atTime(start).atZone(ZONE).toOffsetDateTime(),day.atTime(end).atZone(ZONE).toOffsetDateTime(),room,roomId,"Lịch cố định theo kế hoạch năm "+year);}
         return TrainingWorkflows.saved("ClassDetail",key);
@@ -63,7 +66,7 @@ public class AdminClassPlanningService {
         Long teacher=cl.get("lecturerId")==null?null:((Number)cl.get("lecturerId")).longValue();
         if(!state.equals("CANCELLED")){
             teacher=number(p,"lecturerId",1,Long.MAX_VALUE);
-            if(cl.get("courseId")==null)d.requireRoleId(teacher,2);else requireLecturer(uuid(cl.get("courseId").toString()),teacher);
+            d.requireRoleId(teacher,2);
         }
         if(!state.equals("CANCELLED")&&d.count("SELECT COUNT(*) FROM training_sessions a JOIN training_sessions b ON a.id<>b.id JOIN training_classes bc ON bc.id=b.class_id WHERE a.class_id=? AND b.class_id<>? AND bc.status<>'CANCELLED' AND bc.lecturer_id=? AND a.starts_at<b.ends_at AND a.ends_at>b.starts_at",key,key,teacher)>0)
             throw conflict("Giảng viên bị trùng lịch với lớp khác");
@@ -101,10 +104,6 @@ public class AdminClassPlanningService {
     static String occupiedSlotsSql(String alias){
         return "((SELECT COUNT(*) FROM training_contracts reserved WHERE reserved.class_id="+alias+".id AND reserved.status<>'CANCELLED')+(SELECT COUNT(*) FROM training_enrollments occupied WHERE occupied.class_id="+alias+".id AND occupied.status IN ('ACTIVE','PENDING') AND NOT EXISTS(SELECT 1 FROM training_contracts linked WHERE linked.id=occupied.contract_id AND linked.class_id="+alias+".id AND linked.status<>'CANCELLED')))";
     }
-    private void requireLecturer(UUID course,long teacher){
-        d.requireRoleId(teacher,2);
-        if(d.count("SELECT COUNT(*) FROM course_lecturers WHERE course_id=? AND lecturer_id=?",course,teacher)==0)throw invalid("lecturerId","Giảng viên chưa được cấu hình phụ trách khóa học này");
-    }
     private void checkConflict(UUID classId,UUID sessionId,long teacher,UUID roomId,String room,OffsetDateTime start,OffsetDateTime end){
         UUID excluded=sessionId==null?new UUID(0,0):sessionId;
         if(d.count("SELECT COUNT(*) FROM training_sessions s JOIN training_classes c ON c.id=s.class_id WHERE c.status<>'CANCELLED' AND s.id<>? AND s.starts_at<? AND s.ends_at>? AND (s.class_id=? OR s.classroom_id=? OR (s.classroom_id IS NULL AND LOWER(s.room)=LOWER(?)) OR c.lecturer_id=?)",excluded,end,start,classId,roomId,room,teacher)>0)
@@ -121,7 +120,7 @@ public class AdminClassPlanningService {
     }
     private static String csv(Collection<Integer> days){return days.stream().map(String::valueOf).collect(Collectors.joining(","));}
     private static void requireUnchangedPlan(Map<String,Object> p,Map<String,Object> cl){
-        for(String field:List.of("courseId","name","startsOn","endsOn","classroomId"))if(p.containsKey(field)&&!Objects.toString(p.get(field),"").equals(Objects.toString(cl.get(field),"")))throw invalid(field,"Thông tin kế hoạch lớp đã cố định, không thể thay đổi");
+        for(String field:List.of("courseId","name","startsOn","endsOn","classroomId","managerId"))if(p.containsKey(field)&&!Objects.toString(p.get(field),"").equals(Objects.toString(cl.get(field),"")))throw invalid(field,"Thông tin kế hoạch lớp đã cố định, không thể thay đổi");
         if(p.containsKey("planYear")&&!Objects.toString(p.get("planYear"),"").equals(Objects.toString(cl.get("planYear"),"")))throw invalid("planYear","Năm kế hoạch đã cố định");
         if(p.containsKey("weekdays")){var expected=cl.get("weekdays");if(!(expected instanceof List<?>)||!new TreeSet<>(weekdays(p)).equals(new TreeSet<>((List<Integer>)expected)))throw invalid("weekdays","Các thứ học đã cố định");}
         for(String field:List.of("startTime","endTime"))if(p.containsKey(field)&&(cl.get(field)==null||!time(p,field).equals(LocalTime.parse(cl.get(field).toString()))))throw invalid(field,"Giờ học đã cố định");

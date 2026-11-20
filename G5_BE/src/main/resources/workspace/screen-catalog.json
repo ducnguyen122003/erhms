@@ -1,5 +1,23 @@
 [
   {
+    "code": "CourseSchedules",
+    "fe": "FE-09",
+    "title": "Cấu hình lịch học theo khóa",
+    "roles": ["ADMIN"],
+    "proposedRoles": [],
+    "public": false,
+    "scope": "Bốn khóa đào tạo cố định và kế hoạch lịch học riêng từng năm của trung tâm.",
+    "actions": "Admin chọn khóa, năm kế hoạch, người phụ trách và giảng viên để lập lịch lớp cố định.",
+    "variant": "Màn hình chính",
+    "kind": "course_schedules",
+    "functionCode": "CourseSchedules",
+    "description": "Chọn một trong bốn khóa đào tạo để cấu hình lịch học theo từng năm.",
+    "action": ["Thêm kế hoạch lớp", "AddClass"],
+    "target": "ClassDetail",
+    "edit": "EditClass",
+    "sections": []
+  },
+  {
     "code": "AdmissionContractSigning",
     "fe": "FE-07-TS",
     "title": "In & ký hợp đồng",
@@ -1375,9 +1393,7 @@
     "code": "ListCourse",
     "fe": "FE-08",
     "title": "Danh mục khóa học",
-    "roles": [
-      "ADMIN"
-    ],
+    "roles": [],
     "proposedRoles": [],
     "public": false,
     "scope": "Chỉ quản trị viên được truy cập và quản lý danh mục khóa học toàn trung tâm.",
@@ -1409,9 +1425,7 @@
     "code": "AddCourse",
     "fe": "FE-08",
     "title": "Thêm khóa học",
-    "roles": [
-      "ADMIN"
-    ],
+    "roles": [],
     "proposedRoles": [],
     "public": false,
     "scope": "Chỉ quản trị viên được truy cập và quản lý danh mục khóa học toàn trung tâm.",
@@ -1475,9 +1489,7 @@
     "code": "EditCourse",
     "fe": "FE-08",
     "title": "Chỉnh sửa khóa học",
-    "roles": [
-      "ADMIN"
-    ],
+    "roles": [],
     "proposedRoles": [],
     "public": false,
     "scope": "Chỉ quản trị viên được truy cập và quản lý danh mục khóa học toàn trung tâm.",
@@ -1541,9 +1553,7 @@
     "code": "CourseDetail",
     "fe": "FE-08",
     "title": "Chi tiết khóa học",
-    "roles": [
-      "ADMIN"
-    ],
+    "roles": [],
     "proposedRoles": [],
     "public": false,
     "scope": "Chỉ quản trị viên được truy cập và quản lý danh mục khóa học toàn trung tâm.",
@@ -1575,7 +1585,6 @@
     "fe": "FE-09",
     "title": "Lớp học & giảng viên",
     "roles": [
-      "ADMIN",
       "MANAGER"
     ],
     "proposedRoles": [],
@@ -3494,9 +3503,7 @@
     "title": "Ngành nghề",
     "kind": "master_list",
     "functionCode": "ListProfession",
-    "roles": [
-      "ADMIN"
-    ],
+    "roles": [],
     "public": false,
     "description": "Quản lý danh mục ngành nghề dùng chung.",
     "masterType": "professions",
@@ -3509,9 +3516,7 @@
     "title": "Tạo ngành nghề",
     "kind": "master_add",
     "functionCode": "AddProfession",
-    "roles": [
-      "ADMIN"
-    ],
+    "roles": [],
     "public": false,
     "description": "Quản lý danh mục ngành nghề dùng chung.",
     "masterType": "professions",
@@ -3524,9 +3529,7 @@
     "title": "Cập nhật ngành nghề",
     "kind": "master_edit",
     "functionCode": "EditProfession",
-    "roles": [
-      "ADMIN"
-    ],
+    "roles": [],
     "public": false,
     "description": "Quản lý danh mục ngành nghề dùng chung.",
     "masterType": "professions",

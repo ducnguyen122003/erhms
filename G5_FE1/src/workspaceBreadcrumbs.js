@@ -40,6 +40,7 @@ function ancestor(href,user,functions){
  if(path==='/admin/users/new'||/^\/admin\/users\/[1-9][0-9]*\/view$/.test(path))return '/admin/users';
  if(!route)return null;
  const {screen,id}=route,code=screen.code;
+ if(user.role==='ADMIN'&&['AddClass','ClassDetail'].includes(code))return screenPath('CourseSchedules');
  if(code==='ListAdmissionApplicationDetail'){
   const from=url.searchParams.get('from');
   if(from==='ListAdmissionEnrollment'){

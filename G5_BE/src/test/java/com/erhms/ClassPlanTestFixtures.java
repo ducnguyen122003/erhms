@@ -29,7 +29,7 @@ public final class ClassPlanTestFixtures {
         }
         var courses=jdbc.queryForList("SELECT manager_id FROM training_courses WHERE id=?",course);
         if(courses.isEmpty()){result.put("classId",UUID.randomUUID().toString());return result;}
-        long owner=((Number)courses.get(0).get("manager_id")).longValue();
+        long owner=courses.get(0).get("manager_id") instanceof Number originalOwner?originalOwner.longValue():manager;
         LocalDate start=LocalDate.parse(input.getOrDefault("startsOn","2027-01-04").toString());
         var existing=jdbc.queryForList("SELECT id FROM training_classes WHERE course_id=? AND manager_id=? AND starts_on=? AND plan_fixed=TRUE AND status='PLANNED' AND capacity=500",course,owner,start);
         if(!existing.isEmpty()){result.put("classId",existing.get(0).get("id").toString());return result;}

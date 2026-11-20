@@ -56,7 +56,7 @@ public class WorkspaceService {
         case "ListNotification","ViewNotification","SendNotification"->"notifications";
         case "ListTrainingContract","AddTrainingContract","EditTrainingContract","TrainingContractDetail","ContractSignature"->"contracts";
         case "ListCourse","AddCourse","EditCourse","CourseDetail"->"courses";
-        case "ListClass","AddClass","ClassDetail","EditClass","ListClass_Lecturer","ClassDetail_Lecturer","ClassGradebook"->"classes";
+        case "CourseSchedules","ListClass","AddClass","ClassDetail","EditClass","ListClass_Lecturer","ClassDetail_Lecturer","ClassGradebook"->"classes";
         case "AutoAssignmentReview","AutoAssignmentDetail"->"assignments";
         case "TimeTable_Manager","TimeTable_Lecturer","TimeTable_Student","TimeTable_EditSession","TimeTable_Conflict","ListAttendance","ClassAttendance","Attendance_Correction"->"sessions";
         case "StudentAttendance"->"student-attendance";case "StudentResults"->"grades";
@@ -75,9 +75,14 @@ public class WorkspaceService {
     }
     @Transactional(readOnly=true)
     public Map<String,Object> view(String code,String id,String q,String status,int page,String from,String to,String tab,Integer year){
+        return view(code,id,q,status,page,from,to,tab,year,"");
+    }
+    @Transactional(readOnly=true)
+    public Map<String,Object> view(String code,String id,String q,String status,int page,String from,String to,String tab,Integer year,String courseId){
         User u=access(code);if(code.startsWith("Reports_"))return report(code,u,from,to);
         if(code.equals("AdmissionContractSigning"))return signing.view(id,q,status,page,u);
         String resource=resource(code);if(page<0||page>100000||q.length()>200||status.length()>40)throw invalid("filter","Bộ lọc không hợp lệ");
+        if(code.equals("CourseSchedules")){if(id!=null)throw missing();return courseSchedules(u,q,status,page,year,courseId);}
         if(Set.of("ListAdmissionApplication","ListAdmissionEnrollment").contains(code)){
             if(id!=null)throw missing();
             return admissionDashboards.list(code,u,q,status,page,tab,permissions.codes(u).contains("AdmissionConsultation"));
@@ -132,7 +137,7 @@ public class WorkspaceService {
         result.put("options",options(code,u,id));return result;
     }
     private boolean canWrite(String code,User u){return switch(u.getRoleCode()){
-        case "ADMIN"->Set.of("AddCourse","EditCourse","AddClass","EditClass","TimeTable_EditSession").contains(code);
+        case "ADMIN"->Set.of("CourseSchedules","AddClass","EditClass","TimeTable_EditSession").contains(code);
         case "MANAGER"->Set.of("AddTrainingContract","EditTrainingContract","ContractSignature","ClassDetail","EditStudentProfile","SendNotification","AutoAssignmentDetail","TrainingClosureDetail","TrainingClosureDetail_Ready","TrainingClosureDetail_Withdrawal","RecordWithdrawal").contains(code);
         case "HR"->code.equals("AdmissionConsultation");
         case "LECTURER"->Set.of("ClassAttendance","Attendance_Correction","ClassGradebook","AddEquipmentRequest").contains(code);
@@ -172,17 +177,9 @@ public class WorkspaceService {
             case "ListAdmissionApplicationDetail"->out.put("enrollmentCourses",AdmissionProfiles.ENROLLMENT_COURSES);
             case "AddClass"->{
                 out.put("classrooms",masters.choices("classrooms"));
-                out.put("courses",d.rows("SELECT scoped.* FROM ("+d.base("courses",u)+") scoped WHERE status IN ('OPEN','ACTIVE') ORDER BY name"));
-                out.put("lecturers",d.rows("SELECT l.lecturer_id AS id,teacher.full_name AS name,l.course_id FROM course_lecturers l JOIN training_courses c ON c.id=l.course_id JOIN m_user teacher ON teacher.user_id=l.lecturer_id WHERE "+courseScope(u,"c")+" AND c.status IN ('OPEN','ACTIVE') AND teacher.role_id=2 AND teacher.account_enabled=TRUE AND teacher.account_locked=FALSE ORDER BY teacher.full_name,l.course_id"));
+                out.put("courses",fixedCourses(null));out.put("managers",activeStaff(6));out.put("lecturers",activeStaff(2));
             }
-            case "AddCourse","EditCourse","EditClass"->{
-                if(!code.equals("EditClass")){
-                    out.put("professions",masters.choices("professions"));
-                    out.put("managers",d.rows("SELECT u.user_id AS id,u.full_name AS name FROM m_user u JOIN m_role r ON r.role_id=u.role_id WHERE r.role_id=6 AND r.code='MANAGER' AND u.account_enabled=TRUE AND u.account_locked=FALSE ORDER BY u.full_name"));
-                }
-                if(code.equals("EditClass")&&id!=null&&d.record("classes",id,u).get("courseId")!=null)out.put("lecturers",d.rows("SELECT user_id AS id,full_name AS name FROM m_user WHERE role_id=2 AND account_enabled=TRUE AND account_locked=FALSE AND user_id IN(SELECT lecturer_id FROM course_lecturers WHERE course_id=?) ORDER BY full_name",uuid(d.record("classes",id,u).get("courseId").toString())));
-                else out.put("lecturers",d.rows("SELECT user_id AS id,full_name AS name FROM m_user WHERE role_id=2 AND account_enabled=TRUE AND account_locked=FALSE ORDER BY full_name"));
-            }
+            case "EditClass"->{out.put("lecturers",activeStaff(2));out.put("managers",activeStaff(6));}
             case "AddTrainingContract","EditTrainingContract"->{
                 out.put("enrollmentCourseCatalog",EnrollmentCourses.CATALOG);
                 Object currentAdmission=id==null?null:d.record("contracts",id,u).get("consultationId");
@@ -191,10 +188,12 @@ public class WorkspaceService {
                 out.put("admissions",d.rows("SELECT r.*,f.status,(SELECT CONCAT('file:',w.id,':',w.filename) FROM workflow_files w WHERE w.id=f.scan_file_id) AS profile_evidence FROM consultation_registrations r JOIN consultation_followups f ON f.consultation_id=r.id WHERE "+eligible+" ORDER BY r.created_date DESC,r.id",admission));
                 @SuppressWarnings("unchecked") var applications=(List<Map<String,Object>>)out.get("admissions");
                 for(var application:applications){application.put("profileDocuments",profiles.documents(uuid(application.get("id").toString())));application.put("contractTemplateDefaults",contractTemplate.admissionDefaults(application,u));}
-                out.put("courses",d.rows("SELECT scoped.* FROM ("+d.base("courses",u)+") scoped WHERE status IN ('OPEN','ACTIVE') ORDER BY name"));
-                Object currentClass=id==null?null:d.record("contracts",id,u).get("classId");
+                var currentContract=id==null?null:d.record("contracts",id,u);
+                Object currentCourse=currentContract==null?null:currentContract.get("courseId");
+                out.put("courses",d.rows("SELECT scoped.* FROM ("+d.base("courses",u)+") scoped WHERE (fixed_catalog=TRUE AND id IN ("+FixedCourseCatalog.ID_SQL+") AND status IN ('OPEN','ACTIVE')) OR id=? ORDER BY name",currentCourse==null?null:uuid(currentCourse.toString())));
+                Object currentClass=currentContract==null?null:currentContract.get("classId");
                 UUID classId=currentClass==null?null:uuid(currentClass.toString()),excluded=id==null?null:uuid(id);
-                var classes=d.rows("SELECT scoped.* FROM ("+d.base("classes",u)+") scoped WHERE (plan_fixed=TRUE AND status IN ('PLANNED','ACTIVE') AND ends_on>=? AND remaining_slots>0) OR id=? ORDER BY plan_year DESC,starts_on,code",LocalDate.now(ZoneId.of("Asia/Ho_Chi_Minh")),classId);
+                var classes=d.rows("SELECT scoped.* FROM ("+d.base("classes",u)+") scoped WHERE (course_id IN ("+FixedCourseCatalog.ID_SQL+") AND plan_fixed=TRUE AND status IN ('PLANNED','ACTIVE') AND ends_on>=? AND remaining_slots>0) OR id=? ORDER BY plan_year DESC,starts_on,code",LocalDate.now(ZoneId.of("Asia/Ho_Chi_Minh")),classId);
                 for(var cl:classes)cl.put("remainingSlots",Math.max(0,((Number)cl.get("capacity")).longValue()-ClassReservations.occupied(d,uuid(cl.get("id").toString()),excluded)));
                 out.put("classes",classes);
             }
@@ -216,7 +215,6 @@ public class WorkspaceService {
     public Map<String,Object> save(String code,String id,Map<String,Object> p){
         User u=access(code);
         return switch(code){
-            case "AddCourse"->training.course(null,p,u);case "EditCourse"->training.course(required(id),p,u);
             case "AdmissionConsultation"->training.consultation(required(id),p,u);
             case "EditStudentProfile"->training.student(required(id),p,u);
             case "AddTrainingContract"->training.contract(null,p,u);case "EditTrainingContract"->training.contract(required(id),p,u);case "ContractSignature"->signing.review(required(id),p,u);
@@ -265,6 +263,23 @@ public class WorkspaceService {
         };
     }
     String required(String id){if(id==null||id.isBlank())throw invalid("id","Chọn bản ghi trước khi thực hiện");return id;}
+    private List<Map<String,Object>> activeStaff(int role){return d.rows("SELECT user_id AS id,full_name AS name FROM m_user WHERE role_id=? AND account_enabled=TRUE AND account_locked=FALSE ORDER BY full_name,user_id",role);}
+    private List<Map<String,Object>> fixedCourses(Integer year){
+        return d.rows("SELECT co.id,co.code,co.name,co.duration_months,co.tuition_fee,co.status,co.class_capacity,co.fixed_catalog,(SELECT COUNT(*) FROM training_classes cl WHERE cl.course_id=co.id"+(year==null?"":" AND cl.plan_year=?")+") AS class_count FROM training_courses co WHERE co.fixed_catalog=TRUE AND co.id IN ("+FixedCourseCatalog.ID_SQL+") ORDER BY co.id",year==null?new Object[0]:new Object[]{year});
+    }
+    private Map<String,Object> courseSchedules(User actor,String q,String status,int page,Integer year,String course){
+        role(actor,"ADMIN");if(year!=null&&(year<1900||year>9999))throw invalid("year","Năm kế hoạch không hợp lệ");
+        UUID courseId=course.isBlank()?null:uuid(course);if(courseId!=null&&(!FixedCourseCatalog.IDS.contains(courseId)||d.count("SELECT COUNT(*) FROM training_courses WHERE id=? AND fixed_catalog=TRUE",courseId)==0))throw invalid("courseId","Chọn một trong bốn khóa đào tạo cố định");
+        if(!status.isBlank()&&!Set.of("PLANNED","ACTIVE","COMPLETED","CANCELLED").contains(status))throw invalid("status","Trạng thái lớp không hợp lệ");
+        List<Object> args=new ArrayList<>();String sql="SELECT scoped.* FROM ("+d.base("classes",actor)+") scoped WHERE course_id IN (SELECT id FROM training_courses WHERE fixed_catalog=TRUE AND id IN ("+FixedCourseCatalog.ID_SQL+"))";
+        if(year!=null){sql+=" AND plan_year=?";args.add(year);}if(courseId!=null){sql+=" AND course_id=?";args.add(courseId);}
+        if(!q.isBlank()){sql+=" AND LOWER(name||' '||code||' '||COALESCE(lecturer_name,'')) LIKE ? ESCAPE '!'";args.add("%"+q.toLowerCase(Locale.ROOT).replace("!","!!").replace("%","!%").replace("_","!_")+"%");}
+        if(!status.isBlank()){sql+=" AND status=?";args.add(status);}
+        long total=d.count("SELECT COUNT(*) FROM ("+sql+") plans",args.toArray());args.add(page*25);var plans=d.rows(sql+" ORDER BY plan_year DESC,starts_on,code LIMIT 25 OFFSET ?",args.toArray());
+        var courses=fixedCourses(year);var options=new LinkedHashMap<String,Object>();options.put("courses",courses);options.put("managers",activeStaff(6));options.put("lecturers",activeStaff(2));options.put("classrooms",masters.choices("classrooms"));
+        SortedSet<Integer> years=new TreeSet<>(Comparator.reverseOrder());years.add(LocalDate.now(ZoneId.of("Asia/Ho_Chi_Minh")).getYear());for(var row:d.rows("SELECT DISTINCT plan_year FROM training_classes WHERE plan_year IS NOT NULL AND course_id IN (SELECT id FROM training_courses WHERE fixed_catalog=TRUE AND id IN ("+FixedCourseCatalog.ID_SQL+"))"))years.add(((Number)row.get("planYear")).intValue());options.put("planYears",new ArrayList<>(years));
+        Map<String,Object> result=new LinkedHashMap<>();result.put("resource","classes");result.put("canWrite",true);result.put("courses",courses);result.put("fixedCourses",courses);result.put("items",plans);result.put("plans",plans);result.put("options",options);result.put("total",total);result.put("page",page);result.put("totalPages",(total+24)/25);result.put("year",year);result.put("courseId",courseId==null?null:courseId.toString());return result;
+    }
     Map<String,Object> report(String code,User u,String from,String to){
         LocalDate begin=from.isBlank()?LocalDate.now().withDayOfMonth(1):date(Map.of("from",from),"from",true),end=to.isBlank()?LocalDate.now():date(Map.of("to",to),"to",true);
         if(end.isBefore(begin))throw invalid("to","Ngày kết thúc phải sau ngày bắt đầu");OffsetDateTime start=begin.atStartOfDay(ZoneId.of("Asia/Ho_Chi_Minh")).toOffsetDateTime(),finish=end.plusDays(1).atStartOfDay(ZoneId.of("Asia/Ho_Chi_Minh")).toOffsetDateTime();

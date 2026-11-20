@@ -31,7 +31,6 @@ export function Fields({fields,values,setValue,options={},errors={},code,disable
   if(['AddTrainingContract','EditTrainingContract'].includes(code)&&f.key==='studentEmail')value=options.admissions?.find(row=>row.id===values.consultationId)?.email?.trim().toLowerCase()||value;
   if(f.source==='students'&&values.classId)choices=choices.filter(row=>!row.classId||row.classId===values.classId);
   if(f.source==='students'&&values.consultationId){const admission=options.admissions?.find(row=>row.id===values.consultationId);if(admission?.email)choices=choices.filter(row=>row.email?.trim().toLowerCase()===admission.email.trim().toLowerCase());}
-  if(['AddClass','EditClass'].includes(code)&&f.source==='lecturers')choices=choices.filter(row=>!row.courseId||String(row.courseId)===String(values.courseId));
   const shared={id,name:f.key,required:f.required,disabled:disabled||f.disabled,readOnly:f.readOnly,'aria-invalid':Boolean(error),'aria-describedby':error?id+'-error':undefined};
   if(f.type==='weekdays')return <fieldset key={f.key} className="class-weekdays screen-field-wide" disabled={disabled||f.disabled}><legend>{f.label} *</legend><div>{weekdayChoices.map(day=><label key={day.id}><input type="checkbox" name={f.key} value={day.id} checked={(Array.isArray(value)?value:[]).map(Number).includes(day.id)} onChange={event=>setValue(f.key,event.target.checked?[...(Array.isArray(value)?value:[]),day.id].map(Number).sort((a,b)=>a-b):(Array.isArray(value)?value:[]).filter(current=>Number(current)!==day.id))}/>{day.name}</label>)}</div>{error&&<small className="field-error" id={id+'-error'}>{error}</small>}</fieldset>;
   return <label className={'admin-field'+(f.wide||['textarea','multi','checkbox','evidence'].includes(f.type)?' screen-field-wide':'')} key={f.key} htmlFor={id}>{f.label}{f.required&&f.type!=='checkbox'?' *':''}
@@ -48,7 +47,7 @@ export function Fields({fields,values,setValue,options={},errors={},code,disable
 }
 function initialValues(code,fields,record,related,options){const next=code==='AdmissionConsultation'?newConsultationValues(record):{...defaults,...record};for(const f of fields){if(f.type==='datetime-local')next[f.key]=localDateTime(next[f.key]);if(f.type==='checkbox')next[f.key]=Boolean(next[f.key]);}
   if(['AddAsset','EditAsset'].includes(code))next.status=record?.status||'AVAILABLE';
-  if(code==='AddClass'){next.status='PLANNED';next.capacity='';next.planYear=new Date().getFullYear();next.weekdays=[];next.startTime='08:00';next.endTime='11:00';}
+  if(code==='AddClass'){const query=new URLSearchParams(window.location.search),course=options.courses?.find(row=>String(row.id)===query.get('courseId'));next.status='PLANNED';next.courseId=course?.id||'';next.name=course?.name||'';next.capacity=course?.classCapacity??'';next.managerId=options.managers?.length===1?options.managers[0].id:'';next.planYear=/^\d{4}$/.test(query.get('year')||'')?Number(query.get('year')):new Date().getFullYear();next.weekdays=[];next.startTime='08:00';next.endTime='11:00';}
   if(code==='TimeTable_EditSession'&&!record?.id)next.changeNote='Xếp lịch học mới';
   if(code==='AssetHandover'){next.receivedAt=localDateTime(new Date().toISOString());next.signedBy=record?.studentName||'';next.assets=[];}
   if(code==='AssetMaintenance'&&record?.id)next.assetId=record.id;
@@ -71,7 +70,7 @@ export default function ScreenForm({code,fields,record,related={},options,user,b
   }
   if(code==='AddClass'&&key==='courseId'){
    const previous=options.courses?.find(row=>String(row.id)===String(current.courseId)),course=options.courses?.find(row=>String(row.id)===String(value));
-   next.lecturerId='';next.capacity=course?.classCapacity??'';
+   next.capacity=course?.classCapacity??'';
    if(!current.name||current.name===previous?.name)next.name=course?.name||'';
   }
   return next;
@@ -95,10 +94,10 @@ export default function ScreenForm({code,fields,record,related={},options,user,b
   if(selectedClass&&['startsAt','endsAt'].includes(field.key))return {...field,min:field.key==='endsAt'&&values.startsAt?values.startsAt:selectedClass.startsOn?selectedClass.startsOn+'T00:00':undefined,max:selectedClass.endsOn?selectedClass.endsOn+'T23:59':undefined};
   return field;
  });
- return <div className="admin-editor-grid"><form className="admin-card admin-form-card" ref={ref} onSubmit={submit} aria-busy={busy||uploading}><div className="admin-form-content"><h2>{code==='AddClass'?'Thông tin lớp học':'Thông tin cần cập nhật'}</h2><p className="admin-muted">Các trường có dấu * là bắt buộc.</p>
-  {code==='AddClass'&&<div className="class-form-hint"><p>Mã lớp được cấp tự động, ví dụ L-000001. Giảng viên và phòng học là bắt buộc.</p><p>Lịch học được tạo một lần theo ngày học hằng tuần trong khoảng bắt đầu đến kết thúc. Ngày và khung giờ được chốt khi tạo lớp; kế hoạch năm sau cần tạo lớp riêng.</p></div>}
+ return <div className="admin-editor-grid"><form className="admin-card admin-form-card" ref={ref} onSubmit={submit} aria-busy={busy||uploading}><div className="admin-form-content"><h2>{code==='AddClass'?'Cấu hình lịch học cho khóa':'Thông tin cần cập nhật'}</h2><p className="admin-muted">Các trường có dấu * là bắt buộc.</p>
+  {code==='AddClass'&&<div className="class-form-hint"><p>Chọn một trong bốn khóa đào tạo cố định, quản lý phụ trách, giảng viên và phòng học. Mã lớp được cấp tự động.</p><p>Lịch học được tạo một lần theo ngày học hằng tuần trong khoảng bắt đầu đến kết thúc. Ngày và khung giờ được chốt khi tạo lớp; kế hoạch năm sau cần tạo riêng.</p></div>}
   {code==='AdmissionConsultation'&&<p className="admin-muted">Ghi nhận một lượt tư vấn mới. Để trống email nếu giữ email đã có trong hồ sơ.</p>}
-  {selectedClass&&<div className="class-form-hint"><p><strong>{selectedClass.code} · {selectedClass.name}</strong>{classPlanYear(selectedClass)?' · Kế hoạch '+classPlanYear(selectedClass):''}</p><p>Bắt đầu học: {display(selectedClass.startsOn,'startsOn')}{selectedClass.endsOn?' · Kết thúc: '+display(selectedClass.endsOn,'endsOn'):''}</p><p>Giảng viên: {selectedClass.lecturerName||'Chưa phân công'}{selectedClass.classroomName?' · Phòng: '+selectedClass.classroomName:''}</p>{weeklyPlanLabel(selectedClass)&&<p>Lịch cố định: {weeklyPlanLabel(selectedClass)}</p>}{contractSelection&&selectedClass.remainingSlots!==undefined&&<p>Còn nhận: {selectedClass.remainingSlots} học viên</p>}</div>}
+  {selectedClass&&<div className="class-form-hint"><p><strong>{selectedClass.code} · {selectedClass.name}</strong>{classPlanYear(selectedClass)?' · Kế hoạch '+classPlanYear(selectedClass):''}</p><p>Bắt đầu học: {display(selectedClass.startsOn,'startsOn')}{selectedClass.endsOn?' · Kết thúc: '+display(selectedClass.endsOn,'endsOn'):''}</p><p>Giảng viên: {selectedClass.lecturerName||'Chưa phân công'}{selectedClass.classroomName?' · Phòng: '+selectedClass.classroomName:''}</p>{selectedClass.managerName&&<p>Quản lý học viên: {selectedClass.managerName}</p>}{weeklyPlanLabel(selectedClass)&&<p>Lịch cố định: {weeklyPlanLabel(selectedClass)}</p>}{contractSelection&&selectedClass.remainingSlots!==undefined&&<p>Còn nhận: {selectedClass.remainingSlots} học viên</p>}</div>}
   {fixedSession&&<p className="class-form-hint">Buổi học thuộc kế hoạch đã chốt của lớp. Ngày, giờ và phòng học được giữ theo kế hoạch.</p>}
   {code==='EditClass'&&record.planFixed&&<p className="admin-muted">Chỉ điều chỉnh trạng thái, giảng viên và sĩ số. Ngày học, khung giờ và phòng học đã được chốt.</p>}
   {code==='EditClass'&&<p className="admin-muted">Chỉ hủy kế hoạch chưa có hợp đồng giữ chỗ hoặc học viên đã xếp lớp. Để sửa ngày và khung giờ, hủy lớp chưa sử dụng rồi tạo kế hoạch lớp mới.</p>}

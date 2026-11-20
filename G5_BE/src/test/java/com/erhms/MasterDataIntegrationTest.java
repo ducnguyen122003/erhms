@@ -35,7 +35,7 @@ class MasterDataIntegrationTest {
  ResultActions business(String role,String code,String id,Map<String,Object> input)throws Exception{return mvc.perform(post("/api/workspace/screens/"+code+(id==null?"":"/"+id)).with(user(actors.get(role).email).roles(role)).with(csrf()).contentType("application/json").content(json.writeValueAsString(input)));}
 
  @Test void eachCatalogueSupportsCrudAndOnlyTheResponsibleRoleCanManageIt()throws Exception{
-  for(String[] spec:List.of(new String[]{"EquipmentGroup","IT_SUPPORT"},new String[]{"StorageLocation","IT_SUPPORT"},new String[]{"Profession","ADMIN"},new String[]{"Classroom","ADMIN"})){
+  for(String[] spec:List.of(new String[]{"EquipmentGroup","IT_SUPPORT"},new String[]{"StorageLocation","IT_SUPPORT"},new String[]{"Classroom","ADMIN"})){
    String suffix=spec[0],role=spec[1],id=create(role,suffix,"MD-01","Danh mục "+suffix);
    getScreen(role,"List"+suffix,null).andExpect(status().isOk()).andExpect(jsonPath("$.total").value(1));
    getScreen(role,"Edit"+suffix,id).andExpect(status().isOk()).andExpect(jsonPath("$.record.name").value("Danh mục "+suffix));
@@ -75,15 +75,13 @@ class MasterDataIntegrationTest {
   payload.remove("equipmentGroupId");payload.put("category","Tự nhập");business("IT_SUPPORT","AddAsset",null,payload).andExpect(status().isBadRequest()).andExpect(jsonPath("$.fields.equipmentGroupId").exists());
  }
  @Test void professionAndClassroomChoicesComeFromTheirMastersAndBankSeedsAreAvailable()throws Exception{
-  String profession=create("ADMIN","Profession","EL","Điện"),room=create("ADMIN","Classroom","TH01","Phòng thực hành 1");
-  mvc.perform(get("/api/workspace/screens/AddCourse").with(user(actors.get("ADMIN").email).roles("ADMIN"))).andExpect(status().isOk()).andExpect(jsonPath("$.options.professions[0].id").value(profession));
+  String room=create("ADMIN","Classroom","TH01","Phòng thực hành 1");
+  mvc.perform(get("/api/workspace/screens/AddCourse").with(user(actors.get("ADMIN").email).roles("ADMIN"))).andExpect(status().isForbidden());
   mvc.perform(get("/api/workspace/screens/TimeTable_EditSession").with(user(actors.get("ADMIN").email).roles("ADMIN"))).andExpect(status().isOk()).andExpect(jsonPath("$.options.classrooms[0].id").value(room));
   mvc.perform(get("/api/workspace/screens/ListPayment").with(user(actors.get("ACCOUNTANT").email).roles("ACCOUNTANT"))).andExpect(status().isOk()).andExpect(jsonPath("$.options.banks.length()").value(10));
   assertEquals(10,jdbc.queryForObject("SELECT COUNT(*) FROM m_bank",Integer.class));
-  var course=Map.<String,Object>of("name","Khóa học","code","KH-01","professionId",profession,"durationMonths",3,"totalSessions",20,"classCapacity",20,"tuitionFee",1000,"objectives","Thực hành","status","DRAFT","assessments",List.of());
-  var payload=new HashMap<>(course);payload.put("lecturers",List.of());payload.put("managerId",actors.get("MANAGER").id);business("ADMIN","AddCourse",null,payload).andExpect(status().isOk());
-  remove("ADMIN","ListProfession",profession,0).andExpect(status().isConflict());
-  assertEquals(UUID.fromString(profession),jdbc.queryForObject("SELECT profession_id FROM training_courses WHERE code='KH-01'",UUID.class));
+  var course=Map.<String,Object>of("name","Khóa học","code","KH-01","durationMonths",3,"totalSessions",20,"classCapacity",20,"tuitionFee",1000,"objectives","Thực hành","status","DRAFT","assessments",List.of());
+  var payload=new HashMap<>(course);payload.put("lecturers",List.of());payload.put("managerId",actors.get("MANAGER").id);business("ADMIN","AddCourse",null,payload).andExpect(status().isForbidden());
  }
  @Test void masterScreensAppearInPermissionMatrixAndChangesAreAudited()throws Exception{
   String id=create("ADMIN","Classroom","A1","Phòng A1");write("ADMIN","EditClassroom",id,input("A1","Phòng A2","ACTIVE",0)).andExpect(status().isOk());remove("ADMIN","ListClassroom",id,1).andExpect(status().isOk());
@@ -91,8 +89,8 @@ class MasterDataIntegrationTest {
   assertEquals(3,jdbc.queryForObject("SELECT COUNT(*) FROM system_audit_log WHERE action_code IN ('MASTER_CREATE','MASTER_UPDATE','MASTER_DELETE') AND target_id=?",Integer.class,id));
  }
  @Test void accidentalProfessionGrantsCannotBypassTheAdminRole()throws Exception{
-  String id=create("ADMIN","Profession","ADMIN-ONLY","Nghề kiểm thử");
-  for(String role:actors.keySet())if(!role.equals("ADMIN")){
+  String id=UUID.randomUUID().toString();
+  for(String role:actors.keySet()){
    for(String code:List.of("ListProfession","AddProfession","EditProfession"))jdbc.update("INSERT INTO role_function(role_id,function_code) VALUES (?,?)",actors.get(role).getRoleId(),code);
    getScreen(role,"ListProfession",null).andExpect(status().isForbidden());getScreen(role,"EditProfession",id).andExpect(status().isForbidden());
    write(role,"AddProfession",null,input("FORBIDDEN","Sai quyền","ACTIVE",0)).andExpect(status().isForbidden());
