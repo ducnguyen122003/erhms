@@ -15,6 +15,29 @@ const fixtures=()=>({
 });
 const courseField={key:'courseId',label:'Khóa học',type:'select',source:'courses',required:true};
 
+test('choosing a planned class fixes the start date and course while admission changes clear the old class',()=>{
+ const options=fixtures();options.classes=[{id:'class-0',courseId:'course-0',courseName:catalog[0].name,status:'PLANNED',remainingSlots:3,planYear:2027,startsOn:'2027-01-04',endsOn:'2027-04-30'}];
+ const initial=initialTrainingContractValues('AddTrainingContract',{consultationId:'admission-0',classId:'old',startsOn:'2026-01-01'},options);
+ assert.equal(initial.classId,'');assert.equal(initial.startsOn,'');
+ const selected=changeTrainingContractValue(initial,'classId','class-0',options);
+ assert.equal(selected.classId,'class-0');assert.equal(selected.courseId,'course-0');assert.equal(selected.startsOn,'2027-01-04');
+ assert.equal(trainingContractSelection(selected,options).selectedClass.id,'class-0');
+ const negotiated=changeTrainingContractValue(selected,'tuitionDue',12000000,options);
+ assert.equal(negotiated.tuitionDue,12000000);
+ const changed=changeTrainingContractValue(negotiated,'consultationId','admission-1',options);
+ assert.equal(changed.classId,'');assert.equal(changed.startsOn,'');assert.equal(trainingContractSelection(changed,options).classes.length,0);
+});
+
+test('legacy admissions choose a class to derive its course instead of entering the course and date separately',()=>{
+ const options=fixtures();options.admissions.push({id:'legacy',email:'legacy@gmail.com'});
+ options.classes=[{id:'pc-2027',courseId:'course-1',courseName:catalog[1].name,status:'PLANNED',remainingSlots:2,planYear:2027,startsOn:'2027-03-01'}];
+ const initial=initialTrainingContractValues('AddTrainingContract',{consultationId:'legacy'},options);
+ assert.equal(trainingContractCourseField(courseField,trainingContractSelection(initial,options)).readOnly,true);
+ const selected=changeTrainingContractValue(initial,'classId','pc-2027',options);
+ assert.equal(selected.courseId,'course-1');assert.equal(selected.startsOn,'2027-03-01');
+ assert.equal(trainingContractCourseField(courseField,trainingContractSelection(selected,options)).displayValue,catalog[1].name);
+});
+
 test('all four registered courses populate their name fee and duration without any training catalog records',()=>{
  const options=fixtures();options.courses=[];
  for(let index=0;index<catalog.length;index++){

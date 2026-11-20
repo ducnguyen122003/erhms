@@ -2,6 +2,7 @@ package com.erhms.workspace;
 
 import com.erhms.admin.service.ScreenPermissionsService;
 import com.erhms.user.entity.User;
+import com.erhms.user.StudentCode;
 import com.erhms.user.service.CurrentUser;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -16,7 +17,8 @@ public class WorkspaceService {
     final WorkflowData d;final CurrentUser current;final ScreenCatalog catalog;final ScreenPermissionsService permissions;
     final TrainingWorkflows training;final FinanceWorkflows finance;final EquipmentWorkflows equipment;final MasterDataService masters;final AdmissionProfiles profiles;
     final AdmissionDashboards admissionDashboards;final AdmissionForwarding admissionForwarding;final ContractTemplateData contractTemplate;final ContractSigningWorkflow signing;
-    public WorkspaceService(WorkflowData d,CurrentUser current,ScreenCatalog catalog,ScreenPermissionsService permissions,TrainingWorkflows training,FinanceWorkflows finance,EquipmentWorkflows equipment,MasterDataService masters,AdmissionProfiles profiles,AdmissionDashboards admissionDashboards,AdmissionForwarding admissionForwarding,ContractTemplateData contractTemplate,ContractSigningWorkflow signing){this.signing=signing;this.contractTemplate=contractTemplate;this.admissionForwarding=admissionForwarding;this.admissionDashboards=admissionDashboards;this.profiles=profiles;this.masters=masters;this.d=d;this.current=current;this.catalog=catalog;this.permissions=permissions;this.training=training;this.finance=finance;this.equipment=equipment;}
+    final AdminClassPlanningService classPlanning;
+    public WorkspaceService(WorkflowData d,CurrentUser current,ScreenCatalog catalog,ScreenPermissionsService permissions,TrainingWorkflows training,FinanceWorkflows finance,EquipmentWorkflows equipment,MasterDataService masters,AdmissionProfiles profiles,AdmissionDashboards admissionDashboards,AdmissionForwarding admissionForwarding,ContractTemplateData contractTemplate,ContractSigningWorkflow signing,AdminClassPlanningService classPlanning){this.classPlanning=classPlanning;this.signing=signing;this.contractTemplate=contractTemplate;this.admissionForwarding=admissionForwarding;this.admissionDashboards=admissionDashboards;this.profiles=profiles;this.masters=masters;this.d=d;this.current=current;this.catalog=catalog;this.permissions=permissions;this.training=training;this.finance=finance;this.equipment=equipment;}
     User access(String code){var screen=catalog.get(code);User u=current.get();catalog.requireRole(screen,u.getRoleCode());permissions.require(screen.functionCode());return u;}
     private String pdfScreen(User actor){return switch(actor.getRoleCode()){
         case "MANAGER"->permissions.codes(actor).contains("TrainingContractDetail")?"TrainingContractDetail":"ContractSignature";
@@ -69,6 +71,10 @@ public class WorkspaceService {
         default->throw missing();};}
     @Transactional(readOnly=true)
     public Map<String,Object> view(String code,String id,String q,String status,int page,String from,String to,String tab){
+        return view(code,id,q,status,page,from,to,tab,null);
+    }
+    @Transactional(readOnly=true)
+    public Map<String,Object> view(String code,String id,String q,String status,int page,String from,String to,String tab,Integer year){
         User u=access(code);if(code.startsWith("Reports_"))return report(code,u,from,to);
         if(code.equals("AdmissionContractSigning"))return signing.view(id,q,status,page,u);
         String resource=resource(code);if(page<0||page>100000||q.length()>200||status.length()>40)throw invalid("filter","Bộ lọc không hợp lệ");
@@ -95,7 +101,15 @@ public class WorkspaceService {
             }}
         else if(!Set.of("AddCourse","AddClass","AddTrainingContract","AddEquipmentRequest","AddAsset","SendNotification").contains(code)){
             long total;
-            if(code.equals("TimeTable_Conflict")){
+            if(resource.equals("classes")&&year!=null){
+                if(year<1900||year>9999)throw invalid("year","Năm kế hoạch không hợp lệ");
+                String query="SELECT scoped.* FROM ("+d.base("classes",u)+") scoped WHERE plan_year=? AND LOWER(name||' '||code) LIKE ? ESCAPE '!'"+(status.isEmpty()?"":" AND status=?");
+                List<Object> args=new ArrayList<>(List.of(year,"%"+q.toLowerCase(Locale.ROOT).replace("!","!!").replace("%","!%").replace("_","!_")+"%"));if(!status.isEmpty())args.add(status);
+                total=d.count("SELECT COUNT(*) FROM ("+query+") selected",args.toArray());
+                long pending=d.count("SELECT COUNT(*) FROM ("+query+") selected WHERE status='PLANNED'",args.toArray()),active=d.count("SELECT COUNT(*) FROM ("+query+") selected WHERE status='ACTIVE'",args.toArray());
+                result.put("stats",List.of(Map.of("label","Tổng lớp","value",total),Map.of("label","Chờ khai giảng","value",pending),Map.of("label","Đang học","value",active),Map.of("label","Đã kết thúc","value",total-pending-active)));
+                args.add(page*25);result.put("items",d.rows(query+" ORDER BY starts_on,code LIMIT 25 OFFSET ?",args.toArray()));result.put("year",year);
+            }else if(code.equals("TimeTable_Conflict")){
                 String query="SELECT scoped.* FROM ("+d.base(resource,u)+") scoped WHERE LOWER(title) LIKE ? ESCAPE '!' AND EXISTS(SELECT 1 FROM training_classes own WHERE own.id=scoped.class_id AND own.status<>'CANCELLED') AND EXISTS(SELECT 1 FROM training_sessions b JOIN training_classes bc ON bc.id=b.class_id WHERE b.id<>scoped.id AND bc.status<>'CANCELLED' AND b.starts_at<scoped.ends_at AND b.ends_at>scoped.starts_at AND (b.class_id=scoped.class_id OR bc.lecturer_id=scoped.lecturer_id OR (b.classroom_id=scoped.classroom_id OR (b.classroom_id IS NULL AND LOWER(b.room)=LOWER(scoped.room)))))";
                 String search="%"+q.toLowerCase(Locale.ROOT).replace("!","!!").replace("%","!%").replace("_","!_")+"%";
                 result.put("items",d.rows(query+" ORDER BY starts_at LIMIT 25 OFFSET ?",search,page*25));total=d.count("SELECT COUNT(*) FROM ("+query+") selected",search);
@@ -118,8 +132,8 @@ public class WorkspaceService {
         result.put("options",options(code,u,id));return result;
     }
     private boolean canWrite(String code,User u){return switch(u.getRoleCode()){
-        case "ADMIN"->Set.of("AddCourse","EditCourse").contains(code);
-        case "MANAGER"->Set.of("AddTrainingContract","EditTrainingContract","ContractSignature","AddClass","ClassDetail","EditClass","TimeTable_Manager","TimeTable_EditSession","TimeTable_Conflict","EditStudentProfile","SendNotification","AutoAssignmentDetail","TrainingClosureDetail","TrainingClosureDetail_Ready","TrainingClosureDetail_Withdrawal","RecordWithdrawal").contains(code);
+        case "ADMIN"->Set.of("AddCourse","EditCourse","AddClass","EditClass","TimeTable_EditSession").contains(code);
+        case "MANAGER"->Set.of("AddTrainingContract","EditTrainingContract","ContractSignature","ClassDetail","EditStudentProfile","SendNotification","AutoAssignmentDetail","TrainingClosureDetail","TrainingClosureDetail_Ready","TrainingClosureDetail_Withdrawal","RecordWithdrawal").contains(code);
         case "HR"->code.equals("AdmissionConsultation");
         case "LECTURER"->Set.of("ClassAttendance","Attendance_Correction","ClassGradebook","AddEquipmentRequest").contains(code);
         case "ACCOUNTANT"->Set.of("ListPayment","PaymentDetail","PaymentDetail_Mismatch","PaymentInstruction","TuitionDetail","DepositRefund","AssetIncidentDetail_Accountant").contains(code);
@@ -131,11 +145,11 @@ public class WorkspaceService {
             case "admissions"->{related.put("documents",profiles.documents(key));related.put("history",d.rows("SELECT n.id,n.outcome,n.channel,n.content,n.appointment_at,n.document_due_on,n.created_at,u.full_name AS actor_name,n.discontinuation_reason FROM consultation_notes n JOIN m_user u ON u.user_id=n.actor_id WHERE n.consultation_id=? ORDER BY n.created_at DESC,n.id",key));}
             case "students"->{long student=((Number)record.get("id")).longValue();related.put("enrollments",d.rows("SELECT e.id,e.class_id,e.status,c.code AS class_code,c.name AS class_name FROM training_enrollments e JOIN training_classes c ON c.id=e.class_id WHERE e.student_id=? AND "+classScope(u,"c"),student));related.put("contracts",d.rows("SELECT id,code,course_name,status FROM ("+d.base("contracts",u)+") scoped WHERE student_id=?",student));}
             case "courses"->{related.put("assessments",d.rows("SELECT title,weight FROM course_assessments WHERE course_id=? ORDER BY title",key));related.put("lecturers",d.rows("SELECT l.lecturer_id AS id,u.full_name AS name FROM course_lecturers l JOIN m_user u ON u.user_id=l.lecturer_id WHERE l.course_id=?",key));related.put("classes",d.rows("SELECT id,code,name,status FROM training_classes c WHERE c.course_id=? AND "+(u.getRoleCode().equals("ADMIN")?"1=1":classScope(u,"c")),key));}
-            case "classes"->{related.put("students",d.rows("SELECT e.id AS enrollment_id,e.student_id,u.full_name AS student_name,e.status,e.closed_at,e.assignment_status FROM training_enrollments e JOIN m_user u ON u.user_id=e.student_id WHERE e.class_id=? ORDER BY u.full_name",key));
+            case "classes"->{related.put("students",d.rows("SELECT e.id AS enrollment_id,e.student_id,"+StudentCode.sql("e.student_id")+" AS student_code,u.full_name AS student_name,e.status,e.closed_at,e.assignment_status FROM training_enrollments e JOIN m_user u ON u.user_id=e.student_id WHERE e.class_id=? ORDER BY u.full_name",key));
                 if(code.equals("ClassDetail")&&u.getRoleCode().equals("MANAGER"))related.put("unassignedStudents",training.unassignedStudents(id,u));
                 related.put("sessions",d.rows("SELECT id,title,starts_at,ends_at,room,attendance_finalized,version FROM training_sessions WHERE class_id=? ORDER BY starts_at",key));
                 if(code.equals("ClassGradebook")){related.put("assessments",d.rows("SELECT title,weight FROM course_assessments WHERE course_id=? ORDER BY title",record.get("courseId")==null?null:uuid(record.get("courseId").toString())));related.put("grades",d.rows("SELECT g.* FROM training_grades g JOIN training_enrollments e ON e.id=g.enrollment_id WHERE e.class_id=?",key));}}
-            case "sessions"->related.put("attendance",d.rows("SELECT e.student_id,u.full_name AS student_name,a.id,a.status,a.note,a.version FROM training_enrollments e JOIN m_user u ON u.user_id=e.student_id LEFT JOIN training_attendance a ON a.student_id=e.student_id AND a.session_id=? WHERE e.class_id=? AND e.status='ACTIVE'"+(u.getRoleCode().equals("STUDENT")?" AND e.student_id="+u.id:"")+" ORDER BY u.full_name",key,uuid(record.get("classId").toString())));
+            case "sessions"->related.put("attendance",d.rows("SELECT e.student_id,"+StudentCode.sql("e.student_id")+" AS student_code,u.full_name AS student_name,a.id,a.status,a.note,a.version FROM training_enrollments e JOIN m_user u ON u.user_id=e.student_id LEFT JOIN training_attendance a ON a.student_id=e.student_id AND a.session_id=? WHERE e.class_id=? AND e.status='ACTIVE'"+(u.getRoleCode().equals("STUDENT")?" AND e.student_id="+u.id:"")+" ORDER BY u.full_name",key,uuid(record.get("classId").toString())));
             case "contracts","tuition","deposits"->{
                 if(u.getRoleCode().equals("MANAGER"))related.put("signingHistory",signing.history(key));
                 if(u.getRoleCode().equals("MANAGER")&&record.get("consultationId")!=null)related.put("documents",profiles.documents(uuid(record.get("consultationId").toString())));
@@ -152,10 +166,12 @@ public class WorkspaceService {
     List<Map<String,Object>> choices(String resource,User u){return d.rows("SELECT scoped.* FROM ("+d.base(resource,u)+") scoped ORDER BY id LIMIT 1000");}
     Map<String,Object> options(String code,User u,String id){
         Map<String,Object> out=new LinkedHashMap<>();
+        if(resource(code).equals("classes")){SortedSet<Integer> years=new TreeSet<>(Comparator.reverseOrder());years.add(LocalDate.now(ZoneId.of("Asia/Ho_Chi_Minh")).getYear());for(var row:d.rows("SELECT DISTINCT plan_year FROM ("+d.base("classes",u)+") scoped WHERE plan_year IS NOT NULL"))years.add(((Number)row.get("planYear")).intValue());out.put("planYears",new ArrayList<>(years));}
         if(Set.of("contracts","tuition","deposits").contains(resource(code)))out.put("contractTemplate",contractTemplate.metadata());
         switch(code){
             case "ListAdmissionApplicationDetail"->out.put("enrollmentCourses",AdmissionProfiles.ENROLLMENT_COURSES);
             case "AddClass"->{
+                out.put("classrooms",masters.choices("classrooms"));
                 out.put("courses",d.rows("SELECT scoped.* FROM ("+d.base("courses",u)+") scoped WHERE status IN ('OPEN','ACTIVE') ORDER BY name"));
                 out.put("lecturers",d.rows("SELECT l.lecturer_id AS id,teacher.full_name AS name,l.course_id FROM course_lecturers l JOIN training_courses c ON c.id=l.course_id JOIN m_user teacher ON teacher.user_id=l.lecturer_id WHERE "+courseScope(u,"c")+" AND c.status IN ('OPEN','ACTIVE') AND teacher.role_id=2 AND teacher.account_enabled=TRUE AND teacher.account_locked=FALSE ORDER BY teacher.full_name,l.course_id"));
             }
@@ -176,6 +192,11 @@ public class WorkspaceService {
                 @SuppressWarnings("unchecked") var applications=(List<Map<String,Object>>)out.get("admissions");
                 for(var application:applications){application.put("profileDocuments",profiles.documents(uuid(application.get("id").toString())));application.put("contractTemplateDefaults",contractTemplate.admissionDefaults(application,u));}
                 out.put("courses",d.rows("SELECT scoped.* FROM ("+d.base("courses",u)+") scoped WHERE status IN ('OPEN','ACTIVE') ORDER BY name"));
+                Object currentClass=id==null?null:d.record("contracts",id,u).get("classId");
+                UUID classId=currentClass==null?null:uuid(currentClass.toString()),excluded=id==null?null:uuid(id);
+                var classes=d.rows("SELECT scoped.* FROM ("+d.base("classes",u)+") scoped WHERE (plan_fixed=TRUE AND status IN ('PLANNED','ACTIVE') AND ends_on>=? AND remaining_slots>0) OR id=? ORDER BY plan_year DESC,starts_on,code",LocalDate.now(ZoneId.of("Asia/Ho_Chi_Minh")),classId);
+                for(var cl:classes)cl.put("remainingSlots",Math.max(0,((Number)cl.get("capacity")).longValue()-ClassReservations.occupied(d,uuid(cl.get("id").toString()),excluded)));
+                out.put("classes",classes);
             }
             case "TrainingContractDetail"->out.put("admissionsStaff",d.rows("SELECT user_id AS id,full_name AS name FROM m_user u WHERE role_id=7 AND account_enabled=TRUE AND account_locked=FALSE AND EXISTS(SELECT 1 FROM role_function rf WHERE rf.role_id=u.role_id AND rf.function_code='AdmissionContractSigning') ORDER BY full_name"));
             case "ContractSignature"->out.put("accountants",d.rows("SELECT user_id AS id,full_name AS name FROM m_user WHERE role_id=4 AND account_enabled=TRUE AND account_locked=FALSE ORDER BY full_name"));
@@ -199,8 +220,8 @@ public class WorkspaceService {
             case "AdmissionConsultation"->training.consultation(required(id),p,u);
             case "EditStudentProfile"->training.student(required(id),p,u);
             case "AddTrainingContract"->training.contract(null,p,u);case "EditTrainingContract"->training.contract(required(id),p,u);case "ContractSignature"->signing.review(required(id),p,u);
-            case "AddClass"->training.createClass(p,u);case "EditClass"->training.classroom(required(id),p,u);
-            case "TimeTable_EditSession"->training.session(id,p,u);
+            case "AddClass"->classPlanning.create(p,u);case "EditClass"->classPlanning.update(required(id),p,u);
+            case "TimeTable_EditSession"->classPlanning.session(id,p,u);
             case "Attendance_Correction"->training.attendance(required(id),p,u,true);
             case "AddEquipmentRequest"->equipment.request(p,u);
             case "AddAsset"->equipment.asset(null,p,u);case "EditAsset"->equipment.asset(required(id),p,u);

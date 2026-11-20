@@ -11,7 +11,7 @@ public class WorkspaceController {
     final WorkspaceService service;final ScreenCatalog catalog;
     public WorkspaceController(WorkspaceService service,ScreenCatalog catalog){this.service=service;this.catalog=catalog;}
     @GetMapping({"/{code}","/{code}/{id}"})
-    public Map<String,Object> view(@PathVariable String code,@PathVariable(required=false) String id,@RequestParam(defaultValue="") String q,@RequestParam(defaultValue="") String status,@RequestParam(defaultValue="0") int page,@RequestParam(defaultValue="") String from,@RequestParam(defaultValue="") String to,@RequestParam(defaultValue="waiting") String tab){return service.view(code,id,q,status,page,from,to,tab);}
+    public Map<String,Object> view(@PathVariable String code,@PathVariable(required=false) String id,@RequestParam(defaultValue="") String q,@RequestParam(defaultValue="") String status,@RequestParam(defaultValue="0") int page,@RequestParam(defaultValue="") String from,@RequestParam(defaultValue="") String to,@RequestParam(defaultValue="waiting") String tab,@RequestParam(required=false) Integer year){return service.view(code,id,q,status,page,from,to,tab,year);}
     @PostMapping({"/{code}","/{code}/{id}"})
     public Map<String,Object> save(@PathVariable String code,@PathVariable(required=false) String id,@RequestBody Map<String,Object> input,HttpServletRequest request){
         audit(request,code,id,input);Map<String,Object> result=service.save(code,id,input);request.setAttribute("admin.targetId",result.get("id"));return result;

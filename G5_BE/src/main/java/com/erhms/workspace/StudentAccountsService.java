@@ -5,6 +5,7 @@ import com.erhms.role.DashboardRole;
 import com.erhms.role.entity.Role;
 import com.erhms.role.repository.RoleRepository;
 import com.erhms.user.entity.User;
+import com.erhms.user.StudentCode;
 import com.erhms.user.onboarding.StudentAccountMailer;
 import com.erhms.user.repository.UserRepository;
 import com.erhms.user.service.CurrentUser;
@@ -99,6 +100,7 @@ public class StudentAccountsService {
             if(reason.isEmpty())reason=profileIssue(row);
             if(pending&&!contractIssue.isEmpty())reason=contractIssue;
             row.put("accountId",account==null?null:account.get("id"));
+            row.put("studentCode",account!=null&&"STUDENT".equals(account.get("roleCode"))&&((Number)account.get("roleId")).longValue()==3 ? StudentCode.fromId(((Number)account.get("id")).longValue()) : null);
             row.put("accountStatus",status);
             row.put("canCreate",pending&&contractIssue.isEmpty()&&(status.equals("NONE")||reuse)&&reason.isEmpty());
             row.put("blockedReason",reason);
@@ -146,7 +148,7 @@ public class StudentAccountsService {
                 data.jdbc.update("INSERT INTO student_profiles(user_id,manager_id) VALUES (?,?)",accountId,actor.id);
             else data.jdbc.update("UPDATE student_profiles SET manager_id=?,version=version+1 WHERE user_id=?",actor.id,accountId);
             completeProfile(admission,accountId,email,actor);
-            return Map.of("accountId",accountId,"email",email,"notice","Đã gắn hợp đồng với tài khoản học viên hiện có theo email đã cung cấp. Trạng thái: Đã tạo hồ sơ.");
+            return Map.of("accountId",accountId,"studentCode",StudentCode.fromId(accountId),"email",email,"notice","Đã gắn hợp đồng với tài khoản học viên hiện có theo email đã cung cấp. Trạng thái: Đã tạo hồ sơ.");
         }
         Role studentRole=roles.findById(DashboardRole.STUDENT.id())
                 .filter(r->DashboardRole.resolve(r.id,r.code).orElse(null)==DashboardRole.STUDENT)
@@ -176,7 +178,7 @@ public class StudentAccountsService {
             throw new WorkflowException(HttpStatus.BAD_GATEWAY,"MAIL_DELIVERY_FAILED",
                     "Chưa gửi được email tài khoản. Tài khoản chưa được lưu; vui lòng thử lại sau.",Map.of());
         }
-        return Map.of("accountId",account.id,"email",email,"notice","Đã tạo tài khoản, gắn hợp đồng theo email học viên và gửi thông tin đăng nhập. Trạng thái: Đã tạo hồ sơ.");
+        return Map.of("accountId",account.id,"studentCode",account.getStudentCode(),"email",email,"notice","Đã tạo tài khoản, gắn hợp đồng theo email học viên và gửi thông tin đăng nhập. Trạng thái: Đã tạo hồ sơ.");
     }
 
     private boolean canUseExistingProfile(long student,User actor) {

@@ -34,6 +34,6 @@ public class UserProfileService {
     }
 
     private static UserView view(User user) {
-        return new UserView(user.id, user.email, user.fullName, user.getRoleCode(), user.getRoleId(), user.phone);
+        return new UserView(user.id, user.email, user.fullName, user.getRoleCode(), user.getRoleId(), user.phone, user.getStudentCode());
     }
 }

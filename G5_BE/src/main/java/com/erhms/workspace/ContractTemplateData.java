@@ -117,6 +117,11 @@ public class ContractTemplateData {
         effective.put("courseName",first(record,"registeredCourseName","courseName","enrollmentCourse"));
         effective.put("durationMonths",first(record,"registeredDurationMonths","durationMonths"));
         effective.put("startsOn",first(record,"startsOn"));effective.put("paymentDueOn",first(record,"paymentDueOn"));
+        if(record.get("classId")!=null&&Boolean.TRUE.equals(record.get("classPlanFixed"))){
+            effective.put("startsOn",first(record,"classStartsOn","startsOn"));
+            effective.put("endsOn",first(record,"classEndsOn"));
+            effective.put("latestOpeningOn",first(record,"classStartsOn","startsOn"));
+        }
         effective.put("tuitionDue",decimal(record.get("tuitionDue")));effective.put("depositDue",decimal(record.get("depositDue")));
         compute(effective);
         return effective;

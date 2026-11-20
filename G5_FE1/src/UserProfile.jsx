@@ -82,7 +82,7 @@ export default function UserProfile({user,onUserUpdate,onLogout,onBack,passwordO
   <button type="button" className="profile-back text-button" onClick={onBack} disabled={saving||changingPassword}><ArrowLeft size={16}/>Quay lại</button>
   <div className="page-heading"><div><span className="eyebrow">TÀI KHOẢN / THÔNG TIN CÁ NHÂN</span><h1 id="profile-heading" ref={heading} tabIndex={-1}>{passwordOnly?'Đổi mật khẩu':'Thông tin cá nhân'}</h1><p className="muted">{passwordOnly?'Xác minh mật khẩu hiện tại và thiết lập mật khẩu mới.':'Xem và cập nhật thông tin liên hệ của bạn.'}</p></div></div>
   <div className="profile-layout">
-   <aside className="profile-summary"><span className="profile-portrait"><UserRound size={34}/></span><h2>{user.fullName}</h2><p>{roleNames[resolveRole(user)]||'Vai trò không hợp lệ'}</p><span>Mã người dùng: {user.id}</span></aside>
+   <aside className="profile-summary"><span className="profile-portrait"><UserRound size={34}/></span><h2>{user.fullName}</h2><p>{roleNames[resolveRole(user)]||'Vai trò không hợp lệ'}</p><span>{user.studentCode?'Mã học viên: '+user.studentCode:'Mã người dùng: '+user.id}</span></aside>
    <div className="profile-forms">
    {!passwordOnly&&<section className="profile-panel" aria-labelledby="profile-contact-heading">
     <h2 id="profile-contact-heading">Thông tin liên hệ</h2>

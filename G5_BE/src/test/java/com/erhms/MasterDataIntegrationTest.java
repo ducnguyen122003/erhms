@@ -77,7 +77,7 @@ class MasterDataIntegrationTest {
  @Test void professionAndClassroomChoicesComeFromTheirMastersAndBankSeedsAreAvailable()throws Exception{
   String profession=create("ADMIN","Profession","EL","Điện"),room=create("ADMIN","Classroom","TH01","Phòng thực hành 1");
   mvc.perform(get("/api/workspace/screens/AddCourse").with(user(actors.get("ADMIN").email).roles("ADMIN"))).andExpect(status().isOk()).andExpect(jsonPath("$.options.professions[0].id").value(profession));
-  mvc.perform(get("/api/workspace/screens/TimeTable_EditSession").with(user(actors.get("MANAGER").email).roles("MANAGER"))).andExpect(status().isOk()).andExpect(jsonPath("$.options.classrooms[0].id").value(room));
+  mvc.perform(get("/api/workspace/screens/TimeTable_EditSession").with(user(actors.get("ADMIN").email).roles("ADMIN"))).andExpect(status().isOk()).andExpect(jsonPath("$.options.classrooms[0].id").value(room));
   mvc.perform(get("/api/workspace/screens/ListPayment").with(user(actors.get("ACCOUNTANT").email).roles("ACCOUNTANT"))).andExpect(status().isOk()).andExpect(jsonPath("$.options.banks.length()").value(10));
   assertEquals(10,jdbc.queryForObject("SELECT COUNT(*) FROM m_bank",Integer.class));
   var course=Map.<String,Object>of("name","Khóa học","code","KH-01","professionId",profession,"durationMonths",3,"totalSessions",20,"classCapacity",20,"tuitionFee",1000,"objectives","Thực hành","status","DRAFT","assessments",List.of());

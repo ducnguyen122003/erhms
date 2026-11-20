@@ -28,7 +28,7 @@ test('all workbook, master data and extended workspace screens have implementati
  assert.equal(business,96);assert.equal(pages,9);
 });
 test('screen access matches the current seven role totals including public and shared screens',()=>{
- const totals=[35,29,26,41,44,51,26];
+ const totals=[42,29,26,41,44,47,26];
  roles.forEach((role,index)=>{const user={role,roleId:index+1};assert.equal(Object.keys(screens).filter(code=>canScreen(code,user,grants(role))).length,totals[index],role);});
 });
 test('proposed rights and grants outside the declared role do not enable business screens',()=>{
@@ -37,15 +37,25 @@ test('proposed rights and grants outside the declared role do not enable busines
  assert.equal(canScreen('HistoryAssetAssignment',{role:'ACCOUNTANT'},['HistoryAssetAssignment']),false);
  assert.equal(canScreen('AssetIncidentDetail',{role:'MANAGER'},['AssetIncidentDetail']),false);
 });
-test('class creation requires a Manager role and its own grant independently of class viewing',()=>{
+test('class creation requires an Admin role and its own grant independently of class viewing',()=>{
  const path=screenPath('AddClass');
  assert.equal(path,'/screens/AddClass');
  assert.equal(screens.ListClass.action[1],'AddClass');
  assert.equal(screenRoute(path).screen.code,'AddClass');
  for(const [index,role] of roles.entries()){
   const user={roleId:index+1,role};
-  assert.equal(workspaceRoute(path,user,['AddClass']),role==='MANAGER'?'screen':'forbidden',role);
+  assert.equal(workspaceRoute(path,user,['AddClass']),role==='ADMIN'?'screen':'forbidden',role);
   assert.equal(workspaceRoute(path,user,['ListClass','ClassDetail']),'forbidden',role);
+ }
+});
+
+test('managers can view class plans and calendars while only Admin can edit them',()=>{
+ for(const code of ['ListClass','ClassDetail','TimeTable_Manager']){
+  for(const role of ['ADMIN','MANAGER'])assert.equal(canScreen(code,{role},[code]),true);
+ }
+ for(const code of ['AddClass','EditClass','TimeTable_EditSession','TimeTable_Conflict']){
+  assert.equal(canScreen(code,{role:'ADMIN'},[code]),true);
+  assert.equal(canScreen(code,{role:'MANAGER'},[code]),false);
  }
 });
 test('business routes validate identifiers and apply revocation and role scoping',()=>{

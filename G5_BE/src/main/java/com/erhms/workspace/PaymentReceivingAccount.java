@@ -2,8 +2,11 @@ package com.erhms.workspace;
 
 import java.math.BigDecimal;
 import java.nio.charset.StandardCharsets;
+import java.text.Normalizer;
+import java.util.ArrayList;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Objects;
 import org.springframework.stereotype.Component;
 import static com.erhms.workspace.WorkflowData.*;
 
@@ -20,10 +23,31 @@ public class PaymentReceivingAccount {
     }
 
     public String memo(Map<String,Object> contract,String kind){
-        if(!kind.equals("TUITION")&&!kind.equals("DEPOSIT"))throw invalid("kind","Chọn học phí hoặc tiền cọc.");
-        Object raw=contract.get("paymentReference");
-        if(!(raw instanceof Number reference)||reference.longValue()<=0)throw conflict("Hợp đồng chưa có mã thanh toán. Hãy tải lại sau khi cập nhật hệ thống.");
-        return (kind.equals("TUITION")?"BKHP ":"BKCOC ")+reference.longValue();
+        if(!kind.equals("TUITION")&&!kind.equals("DEPOSIT")&&!kind.equals("COMBINED"))throw invalid("kind","Chọn học phí hoặc tiền cọc.");
+        String code=Objects.toString(contract.get("studentCode"),"");
+        if(!code.matches("HV[0-9]{6,19}"))throw conflict("Học viên chưa có mã học viên hợp lệ. Hãy tải lại sau khi cập nhật hệ thống.");
+        String rawName=Objects.toString(contract.get("accountStudentName"),Objects.toString(contract.get("studentName"),""));
+        String name=Normalizer.normalize(rawName,Normalizer.Form.NFD).replaceAll("\\p{M}+","")
+                .replace('đ','d').replace('Đ','D').toUpperCase(Locale.ROOT).replaceAll("[^A-Z0-9 ]"," ").strip().replaceAll(" +"," ");
+        if(name.isEmpty())throw conflict("Tên học viên cần có ký tự Latin để tạo nội dung chuyển khoản không dấu.");
+        return bankName(name,25-code.length()-1)+" "+code;
+    }
+
+    private static String bankName(String name,int budget){
+        if(name.length()<=budget)return name;
+        var parts=new ArrayList<>(java.util.List.of(name.split(" ")));
+        // Preserve the full student code. Shorten middle names first, then the
+        // family name, keeping the given name where the bank's 25 chars permit.
+        for(int i=1;i<parts.size()-1;i++){
+            parts.set(i,parts.get(i).substring(0,1));
+            String shorter=String.join(" ",parts);if(shorter.length()<=budget)return shorter;
+        }
+        if(parts.size()==1)return name.substring(0,budget);
+        parts.set(0,parts.get(0).substring(0,1));
+        String shorter=String.join(" ",parts);if(shorter.length()<=budget)return shorter;
+        String given=parts.get(parts.size()-1),family=parts.get(0);
+        shorter=family+" "+given;
+        return shorter.length()<=budget?shorter:family+" "+given.substring(0,budget-2);
     }
 
     public String qrPayload(BigDecimal amount,String memo){

@@ -26,6 +26,72 @@ class FreshDatabaseMigrationTest {
     private static final String PASSWORD = "Demo@123456";
 
     @Test
+    void annualClassPlanUpgradePreservesLegacyCalendarsContractsAndReadOnlyManagerAccess()throws Exception{
+        String url=databaseUrl();UUID course=UUID.randomUUID(),planned=UUID.randomUUID(),undated=UUID.randomUUID(),session=UUID.randomUUID(),contract=UUID.randomUUID();long revision;
+        Flyway.configure().dataSource(url,"sa","").locations("classpath:db/migration").target("28").load().migrate();
+        try(Connection c=connection(url)){
+            long actor=scalarLong(c,"SELECT MIN(user_id) FROM m_user");revision=scalarLong(c,"SELECT version FROM permission_revision WHERE id=1");
+            execute(c,"INSERT INTO training_courses(id,code,name,profession,duration_months,total_sessions,tuition_fee,objectives,status,manager_id,class_capacity) VALUES (?,'LEGACY-PLAN-COURSE','Legacy course','Điện',4,10,1000,'Original objectives','OPEN',?,15)",course,actor);
+            execute(c,"INSERT INTO training_classes(id,code,name,course_id,manager_id,starts_on,ends_on,status,total_sessions,capacity) VALUES (?,'LEGACY-YEAR-CLASS','Legacy class',?,?,DATE '2026-01-01',DATE '2026-04-30','ACTIVE',10,15)",planned,course,actor);
+            execute(c,"INSERT INTO training_classes(id,code,name,status,total_sessions) VALUES (?,'LEGACY-UNDATED-CLASS','Undated class','PLANNED',1)",undated);
+            execute(c,"INSERT INTO training_sessions(id,class_id,title,starts_at,ends_at,room) VALUES (?,?,'Historical session',TIMESTAMP WITH TIME ZONE '2026-01-05 08:00:00+07:00',TIMESTAMP WITH TIME ZONE '2026-01-05 10:00:00+07:00','Original room')",session,planned);
+            execute(c,"INSERT INTO training_contracts(id,code,course_id,student_id,status,tuition_due,terms) VALUES (?,'LEGACY-PLAN-CONTRACT',?,?,'SIGNED',1000,'Agreed terms')",contract,course,actor);
+        }
+        assertEquals(1,flyway(url).migrate().migrationsExecuted);
+        try(Connection c=connection(url)){
+            assertEquals(1,scalarLong(c,"SELECT COUNT(*) FROM training_classes WHERE id='"+planned+"' AND plan_year=2026 AND plan_fixed=FALSE AND status='ACTIVE' AND total_sessions=10 AND capacity=15 AND starts_on=DATE '2026-01-01' AND ends_on=DATE '2026-04-30' AND weekdays IS NULL AND classroom_id IS NULL"));
+            assertEquals(1,scalarLong(c,"SELECT COUNT(*) FROM training_classes WHERE id='"+undated+"' AND plan_year IS NULL AND plan_fixed=FALSE"));
+            assertEquals(1,scalarLong(c,"SELECT COUNT(*) FROM training_sessions WHERE class_id='"+planned+"' AND id='"+session+"' AND title='Historical session' AND room='Original room'"));
+            assertEquals(1,scalarLong(c,"SELECT COUNT(*) FROM training_contracts WHERE id='"+contract+"' AND class_id IS NULL AND status='SIGNED' AND tuition_due=1000 AND terms='Agreed terms'"));
+            assertEquals(0,scalarLong(c,"SELECT COUNT(*) FROM training_enrollments WHERE contract_id='"+contract+"'"));
+            assertEquals(0,scalarLong(c,"SELECT COUNT(*) FROM role_function WHERE role_id<>1 AND function_code IN ('AddClass','EditClass','TimeTable_EditSession','TimeTable_Conflict')"));
+            assertEquals(7,scalarLong(c,"SELECT COUNT(*) FROM role_function WHERE role_id=1 AND function_code IN ('ListClass','ClassDetail','AddClass','EditClass','TimeTable_Manager','TimeTable_EditSession','TimeTable_Conflict')"));
+            assertEquals(3,scalarLong(c,"SELECT COUNT(*) FROM role_function WHERE role_id=6 AND function_code IN ('ListClass','ClassDetail','TimeTable_Manager')"));
+            assertEquals(revision+1,scalarLong(c,"SELECT version FROM permission_revision WHERE id=1"));
+            assertIntegrityViolation(c,"UPDATE training_contracts SET class_id='"+UUID.randomUUID()+"' WHERE id='"+contract+"'");
+            assertIntegrityViolation(c,"UPDATE training_classes SET plan_fixed=TRUE WHERE id='"+planned+"'");
+        }
+        assertEquals(0,flyway(url).migrate().migrationsExecuted);
+    }
+
+    @Test
+    void combinedPaymentUpgradePreservesHistoricalBillsAndBackfillsTheirOriginalAllocations()throws Exception{
+        String url=databaseUrl();UUID contract=UUID.randomUUID(),pending=UUID.randomUUID(),confirmed=UUID.randomUUID(),mismatch=UUID.randomUUID(),transaction=UUID.randomUUID();
+        Flyway.configure().dataSource(url,"sa","").locations("classpath:db/migration").target("27").load().migrate();
+        try(Connection c=connection(url)){
+            execute(c,"ALTER TABLE student_payment_submissions ADD CONSTRAINT ck_payment_kind_required CHECK(kind IS NOT NULL)");
+            long actor=scalarLong(c,"SELECT MIN(user_id) FROM m_user");
+            execute(c,"INSERT INTO training_contracts(id,code,student_id,status,tuition_due,deposit_due) VALUES (?,'BEFORE-COMBINED-PAYMENT',?,'SIGNED',1000,200)",contract,actor);
+            execute(c,"INSERT INTO financial_transactions(id,contract_id,kind,amount,status,bank_reference,memo) VALUES (?,?,'DEPOSIT',200,'CONFIRMED','LEGACY-DEPOSIT-BANK','Legacy confirmed bank memo')",transaction,contract);
+            UUID[] bills={pending,confirmed,mismatch};String[] kinds={"TUITION","DEPOSIT","TUITION"};int[] amounts={400,200,100};
+            for(int i=0;i<bills.length;i++){
+                UUID file=UUID.randomUUID();
+                execute(c,"INSERT INTO workflow_files(id,uploaded_by,filename,content_type,file_size,file_data,upload_screen) VALUES (?,?,'legacy.pdf','application/pdf',5,?,'TuitionDetail_Student')",file,actor,new byte[]{37,80,68,70,45});
+                execute(c,"INSERT INTO student_payment_submissions(id,contract_id,kind,amount,transfer_memo,paid_on,payer_name,receipt_file_id,submitted_by,receiving_bank_code,receiving_bank_bin,receiving_bank_name,receiving_account_number,receiving_account_holder,version) VALUES (?,?,?,?,?,DATE '2026-11-01','Legacy learner',?,?,'BIDV','970418','Historical receiving bank','3419120803','NGUYEN ANH DUC',7)",bills[i],contract,kinds[i],amounts[i],"LEGACY-"+kinds[i]+"-"+i,file,actor);
+            }
+            execute(c,"UPDATE student_payment_submissions SET status='CONFIRMED',transaction_id=?,reviewed_by=?,reviewed_at=CURRENT_TIMESTAMP,review_note='Previously verified',statement_bank_reference='LEGACY-DEPOSIT-BANK',statement_amount=200 WHERE id=?",transaction,actor,confirmed);
+            execute(c,"UPDATE student_payment_submissions SET status='MISMATCH',reviewed_by=?,reviewed_at=CURRENT_TIMESTAMP,review_note='Historical mismatch' WHERE id=?",actor,mismatch);
+        }
+        assertEquals(2,flyway(url).migrate().migrationsExecuted);
+        try(Connection c=connection(url)){
+            assertEquals(1,scalarLong(c,"SELECT COUNT(*) FROM student_payment_submissions WHERE id='"+pending+"' AND status='PENDING' AND tuition_amount=400 AND deposit_amount=0 AND transfer_memo='LEGACY-TUITION-0' AND version=7 AND transaction_id IS NULL AND deposit_transaction_id IS NULL"));
+            assertEquals(1,scalarLong(c,"SELECT COUNT(*) FROM student_payment_submissions WHERE id='"+confirmed+"' AND status='CONFIRMED' AND tuition_amount=0 AND deposit_amount=200 AND transfer_memo='LEGACY-DEPOSIT-1' AND version=7 AND transaction_id='"+transaction+"' AND deposit_transaction_id IS NULL AND statement_bank_reference='LEGACY-DEPOSIT-BANK' AND review_note='Previously verified'"));
+            assertEquals(1,scalarLong(c,"SELECT COUNT(*) FROM student_payment_submissions WHERE id='"+mismatch+"' AND status='MISMATCH' AND tuition_amount=100 AND deposit_amount=0 AND transfer_memo='LEGACY-TUITION-2' AND review_note='Historical mismatch' AND version=7"));
+            assertEquals(3,scalarLong(c,"SELECT COUNT(*) FROM student_payment_submissions WHERE receiving_bank_name='Historical receiving bank' AND receiving_account_number='3419120803' AND paid_on=DATE '2026-11-01'"));
+            assertEquals(1,scalarLong(c,"SELECT COUNT(*) FROM financial_transactions WHERE contract_id='"+contract+"'"));
+            assertEquals(1,scalarLong(c,"SELECT COUNT(*) FROM financial_transactions WHERE id='"+transaction+"' AND kind='DEPOSIT' AND amount=200 AND status='CONFIRMED' AND bank_reference='LEGACY-DEPOSIT-BANK' AND memo='Legacy confirmed bank memo'"));
+            assertIntegrityViolation(c,"UPDATE student_payment_submissions SET deposit_amount=1 WHERE id='"+pending+"'");
+            assertIntegrityViolation(c,"UPDATE student_payment_submissions SET kind='COMBINED' WHERE id='"+pending+"'");
+            execute(c,"UPDATE student_payment_submissions SET kind='COMBINED',tuition_amount=350,deposit_amount=50 WHERE id=?",pending);
+            assertEquals(1,scalarLong(c,"SELECT COUNT(*) FROM student_payment_submissions WHERE id='"+pending+"' AND kind='COMBINED' AND amount=400 AND tuition_amount=350 AND deposit_amount=50"));
+            assertIntegrityViolation(c,"UPDATE student_payment_submissions SET tuition_amount=349.5,deposit_amount=50.5 WHERE id='"+pending+"'");
+            assertEquals(1,scalarLong(c,"SELECT COUNT(*) FROM information_schema.table_constraints WHERE LOWER(table_name)='student_payment_submissions' AND LOWER(constraint_name)='ck_payment_kind_required'"));
+            assertIntegrityViolation(c,"UPDATE student_payment_submissions SET kind=NULL WHERE id='"+pending+"'");
+        }
+        assertEquals(0,flyway(url).migrate().migrationsExecuted);
+    }
+
+    @Test
     void studentPaymentUpgradeAssignsUniqueMemosWithoutCreditingExistingContracts()throws Exception{
         String url=databaseUrl();UUID first=UUID.randomUUID(),second=UUID.randomUUID(),transaction=UUID.randomUUID();
         Flyway.configure().dataSource(url,"sa","").locations("classpath:db/migration").target("26").load().migrate();
@@ -35,7 +101,7 @@ class FreshDatabaseMigrationTest {
             execute(c,"INSERT INTO training_contracts(id,code,student_email,applicant_name,status,tuition_due) VALUES (?,'BEFORE-PAYMENT-TWO','pending@student.test','Pending learner','DRAFT',2000)",second);
             execute(c,"INSERT INTO financial_transactions(id,contract_id,kind,amount,status,bank_reference,memo) VALUES (?,?,'TUITION',400,'CONFIRMED','LEGACY-BANK-REFERENCE','Historical memo')",transaction,first);
         }
-        assertEquals(1,flyway(url).migrate().migrationsExecuted);
+        assertEquals(3,flyway(url).migrate().migrationsExecuted);
         try(Connection c=connection(url)){
             assertEquals(2,scalarLong(c,"SELECT COUNT(DISTINCT payment_reference) FROM training_contracts WHERE id IN ('"+first+"','"+second+"')"));
             long firstReference=scalarLong(c,"SELECT payment_reference FROM training_contracts WHERE id='"+first+"'");
@@ -61,7 +127,7 @@ class FreshDatabaseMigrationTest {
             long actor=scalarLong(c,"SELECT MIN(user_id) FROM m_user");
             execute(c,"INSERT INTO workflow_files(id,uploaded_by,filename,content_type,file_size,file_data) VALUES (?,?,'existing.pdf','application/pdf',5,?)",file,actor,new byte[]{37,80,68,70,45});
         }
-        assertEquals(2,flyway(url).migrate().migrationsExecuted);
+        assertEquals(4,flyway(url).migrate().migrationsExecuted);
         try(Connection c=connection(url)){
             assertEquals(1,scalarLong(c,"SELECT COUNT(*) FROM workflow_files WHERE id='"+file+"' AND file_size=5"));
             assertEquals(1,scalarLong(c,"SELECT COUNT(*) FROM information_schema.table_constraints WHERE LOWER(table_name)='workflow_files' AND LOWER(constraint_name)='ck_file_size_required'"));
@@ -84,7 +150,7 @@ class FreshDatabaseMigrationTest {
             execute(c,"INSERT INTO training_contracts(id,code,student_email,applicant_name,status) VALUES (?,'PENDING-APPROVAL','pending@student.test','Pending learner','DRAFT')",draft);
             execute(c,"DELETE FROM role_function WHERE role_id=7 AND function_code='ListAdmissionApplication'");
         }
-        assertEquals(2,flyway(url).migrate().migrationsExecuted);
+        assertEquals(4,flyway(url).migrate().migrationsExecuted);
         try(Connection c=connection(url)){
             assertEquals(1,scalarLong(c,"SELECT COUNT(*) FROM training_contracts WHERE id='"+legacy+"' AND status='SIGNED' AND student_id IS NOT NULL AND signature_approved_at IS NOT NULL AND signature_evidence='Existing signature evidence'"));
             assertEquals(1,scalarLong(c,"SELECT COUNT(*) FROM training_contracts WHERE id='"+draft+"' AND status='DRAFT' AND signature_approved_at IS NULL AND student_id IS NULL"));
@@ -105,7 +171,7 @@ class FreshDatabaseMigrationTest {
         try(Connection c=connection(url)){
             execute(c,"INSERT INTO training_contracts(id,code,student_email,applicant_name,registered_course_name,registered_duration_months,tuition_due,status,terms) VALUES (?,'OLD-TEMPLATE-CONTRACT','old-student@test.local','Existing student','Existing program',4,13500000,'DRAFT','Agreed terms')",contract);
         }
-        assertEquals(3,flyway(url).migrate().migrationsExecuted);
+        assertEquals(5,flyway(url).migrate().migrationsExecuted);
         try(Connection c=connection(url)){
             assertEquals(1,scalarLong(c,"SELECT COUNT(*) FROM training_contracts WHERE id='"+contract+"' AND template_data='{}' AND tuition_due=13500000 AND terms='Agreed terms' AND registered_course_name='Existing program' AND registered_duration_months=4"));
         }
@@ -122,7 +188,7 @@ class FreshDatabaseMigrationTest {
             execute(c,"INSERT INTO training_courses(id,code,name,profession,duration_months,total_sessions,tuition_fee,objectives,status,manager_id,class_capacity) VALUES (?,'SNAPSHOT-COURSE','Existing course','Training',4,20,14200000,'Training','ACTIVE',?,20)",course,manager);
             execute(c,"INSERT INTO training_contracts(id,code,course_id,manager_id,tuition_due,status,terms,student_email,applicant_name) VALUES (?,'SNAPSHOT-CONTRACT',?,?,13500000,'DRAFT','Existing terms','snapshot-student@test.local','Existing applicant')",contract,course,manager);
         }
-        assertEquals(4,flyway(url).migrate().migrationsExecuted);
+        assertEquals(6,flyway(url).migrate().migrationsExecuted);
         try(Connection c=connection(url)){
             assertEquals(1,scalarLong(c,"SELECT COUNT(*) FROM training_contracts WHERE id='"+contract+"' AND registered_course_name='Existing course' AND registered_duration_months=4 AND tuition_due=13500000 AND terms='Existing terms'"));
             execute(c,"UPDATE training_courses SET name='Renamed course',duration_months=7 WHERE id=?",course);
@@ -139,7 +205,7 @@ class FreshDatabaseMigrationTest {
         try(Connection c=connection(url)){
             execute(c,"INSERT INTO consultation_registrations(id,full_name,phone,program_name,contact_time,created_date) VALUES (?,'Học viên cũ','0912345678','Sửa máy','any',CURRENT_TIMESTAMP)",admission);
         }
-        assertEquals(5,flyway(url).migrate().migrationsExecuted);
+        assertEquals(7,flyway(url).migrate().migrationsExecuted);
         try(Connection c=connection(url)){
             assertEquals(1,scalarLong(c,"SELECT COUNT(*) FROM consultation_registrations WHERE id='"+admission+"' AND program_name='Sửa máy' AND enrollment_course IS NULL"));
             for(String course:List.of("Sửa chữa máy tính Laptop chuyên nghiệp","Sửa chữa máy tính PC & máy in","Sửa chữa Điện tử - Điện gia dụng","Sửa chữa Điện lạnh, Điện gia dụng & Inverter"))
@@ -163,7 +229,7 @@ class FreshDatabaseMigrationTest {
             }
             execute(c,"INSERT INTO training_contracts(id,code,consultation_id,student_email,applicant_name,status) VALUES (?,'FORWARD-OLD-CONTRACT',?,'hocvien@gmail.com','Học viên','DRAFT')",UUID.randomUUID(),records.get("WITH_CONTRACT"));
         }
-        assertEquals(6,flyway(url).migrate().migrationsExecuted);
+        assertEquals(8,flyway(url).migrate().migrationsExecuted);
         try(Connection c=connection(url)){
             for(String state:List.of("PROFILE_PENDING","EXCEL"))assertEquals(1,scalarLong(c,"SELECT COUNT(*) FROM consultation_followups WHERE consultation_id='"+records.get(state)+"' AND forwarded_at IS NULL AND version=4"));
             for(String state:List.of("CONTRACTED","PROFILE_CREATED","WITH_CONTRACT"))assertEquals(1,scalarLong(c,"SELECT COUNT(*) FROM consultation_followups WHERE consultation_id='"+records.get(state)+"' AND forwarded_at IS NOT NULL AND forwarded_by IS NOT NULL AND version=4"));
@@ -182,7 +248,7 @@ class FreshDatabaseMigrationTest {
                 execute(c,"INSERT INTO consultation_registrations(id,full_name,phone,program_name,contact_time,created_date) VALUES (?,'Hồ sơ giữ nguyên','0912345678','Điện','any',CURRENT_TIMESTAMP)",admission);
                 if(revoked)execute(c,"DELETE FROM role_function WHERE role_id=7 AND function_code='ListAdmissionApplication'");
             }
-            assertEquals(7,flyway(url).migrate().migrationsExecuted);
+            assertEquals(9,flyway(url).migrate().migrationsExecuted);
             try(Connection c=connection(url)){
                 assertEquals(revoked?0:1,scalarLong(c,"SELECT COUNT(*) FROM role_function WHERE role_id=7 AND function_code='ListAdmissionEnrollment'"));
                 assertEquals(0,scalarLong(c,"SELECT COUNT(*) FROM role_function WHERE role_id<>7 AND function_code='ListAdmissionEnrollment'"));
@@ -205,7 +271,7 @@ class FreshDatabaseMigrationTest {
             execute(c,"INSERT INTO workflow_files(id,uploaded_by,filename,content_type,file_size,file_data) VALUES (?,?,'old.png','image/png',?,?)",file,actor,png.length,png);
             execute(c,"INSERT INTO consultation_followups(id,consultation_id,status,scan_file_id,profile_submitted_at) VALUES (?,?,'PROFILE_PENDING',?,CURRENT_TIMESTAMP)",followup,admission,file);
         }
-        assertEquals(8,flyway(url).migrate().migrationsExecuted);
+        assertEquals(10,flyway(url).migrate().migrationsExecuted);
         try(Connection c=connection(url)) {
             assertEquals(1,scalarLong(c,"SELECT COUNT(*) FROM admission_profile_documents WHERE consultation_id='"+admission+"' AND file_id='"+file+"' AND document_type='LEGACY_SCAN'"));
             assertEquals(1,scalarLong(c,"SELECT COUNT(*) FROM consultation_followups WHERE consultation_id='"+admission+"' AND scan_file_id='"+file+"' AND status='PROFILE_PENDING'"));
@@ -231,7 +297,7 @@ class FreshDatabaseMigrationTest {
                 execute(c,"INSERT INTO consultation_notes(id,consultation_id,actor_id,channel,outcome,content,appointment_at) VALUES (?,?,?,'PHONE',?,'Nội dung lịch sử',?)",UUID.randomUUID(),admission,actor,state.equals("EXCEL")?"CONTACTED":state,state.equals("APPOINTMENT")?callback:null);
             }
         }
-        assertEquals(9,flyway(url).migrate().migrationsExecuted);
+        assertEquals(11,flyway(url).migrate().migrationsExecuted);
         try(Connection c=connection(url)) {
             assertEquals(2,scalarLong(c,"SELECT COUNT(*) FROM consultation_followups WHERE status='NEEDS_COUNSELING' AND version=3"));
             assertEquals(1,scalarLong(c,"SELECT COUNT(*) FROM consultation_followups WHERE status='NEEDS_COUNSELING' AND appointment_at IS NOT NULL"));
@@ -256,7 +322,7 @@ class FreshDatabaseMigrationTest {
             student=scalarLong(c,"SELECT user_id FROM m_user WHERE email='old-contract@student.test'");
             execute(c,"INSERT INTO training_contracts(id,code,student_id,status) VALUES (?,'OLD-LINKED',?,'SIGNED')",old,student);
         }
-        assertEquals(10,flyway(url).migrate().migrationsExecuted);
+        assertEquals(12,flyway(url).migrate().migrationsExecuted);
         try(Connection c=connection(url)) {
             assertEquals(student,scalarLong(c,"SELECT student_id FROM training_contracts WHERE code='OLD-LINKED'"));
             assertEquals(1,scalarLong(c,"SELECT COUNT(*) FROM training_contracts c JOIN m_user u ON u.user_id=c.student_id WHERE c.id='"+old+"' AND c.student_email=LOWER(TRIM(u.email)) AND c.applicant_name=u.full_name"));
@@ -276,7 +342,7 @@ class FreshDatabaseMigrationTest {
             execute(c,"INSERT INTO consultation_registrations(id,full_name,phone,program_name,contact_time,created_date) VALUES (?,'Học viên cũ','0912345678','Khóa cũ','any',CURRENT_TIMESTAMP)",admission);
             execute(c,"INSERT INTO consultation_followups(id,consultation_id,status,version) VALUES (?,?,'CONTACTED',4)",followup,admission);
         }
-        assertEquals(11,flyway(url).migrate().migrationsExecuted);
+        assertEquals(13,flyway(url).migrate().migrationsExecuted);
         try(Connection c=connection(url)) {
             assertEquals(1,scalarLong(c,"SELECT COUNT(*) FROM consultation_followups WHERE status='NEEDS_COUNSELING' AND version=5 AND scan_file_id IS NULL"));
             execute(c,"UPDATE consultation_followups SET status='PROFILE_PENDING' WHERE id=?",followup);
@@ -294,11 +360,11 @@ class FreshDatabaseMigrationTest {
         try(Connection c=connection(url)) {
             execute(c,"INSERT INTO training_classes(id,code,name,status) VALUES (?,'LEGACY-CLASS','Lớp đã tồn tại','PLANNED')",existing);
         }
-        assertEquals(12,flyway(url).migrate().migrationsExecuted);
+        assertEquals(14,flyway(url).migrate().migrationsExecuted);
         try(Connection c=connection(url)) {
             assertEquals(1,scalarLong(c,"SELECT COUNT(*) FROM training_classes WHERE id='"+existing+"' AND code='LEGACY-CLASS' AND name='Lớp đã tồn tại'"));
             assertEquals(1,scalarLong(c,"SELECT COUNT(*) FROM role_function WHERE function_code='AddClass'"));
-            assertEquals(6,scalarLong(c,"SELECT role_id FROM role_function WHERE function_code='AddClass'"));
+            assertEquals(1,scalarLong(c,"SELECT role_id FROM role_function WHERE function_code='AddClass'"));
             assertEquals(1,scalarLong(c,"SELECT nextval('training_class_code_seq')"));
             assertEquals(2,scalarLong(c,"SELECT nextval('training_class_code_seq')"));
         }
@@ -314,10 +380,10 @@ class FreshDatabaseMigrationTest {
             usersBefore=scalarLong(c,"SELECT COUNT(*) FROM m_user");
             revision=scalarLong(c,"SELECT version FROM permission_revision WHERE id=1");
         }
-        assertEquals(14,flyway(url).migrate().migrationsExecuted);
+        assertEquals(16,flyway(url).migrate().migrationsExecuted);
         try(Connection c=connection(url)) {
             assertEquals(usersBefore,scalarLong(c,"SELECT COUNT(*) FROM m_user"));
-            assertEquals(revision+4,scalarLong(c,"SELECT version FROM permission_revision WHERE id=1"));
+            assertEquals(revision+5,scalarLong(c,"SELECT version FROM permission_revision WHERE id=1"));
             assertEquals(1,scalarLong(c,"SELECT COUNT(*) FROM role_function WHERE function_code='ListStudentAccount'"));
             assertEquals(6,scalarLong(c,"SELECT role_id FROM role_function WHERE function_code='ListStudentAccount'"));
             assertEquals(1,scalarLong(c,"SELECT COUNT(*) FROM m_function WHERE function_code='ListStudentAccount' AND path='/screens/ListStudentAccount'"));
@@ -339,11 +405,11 @@ class FreshDatabaseMigrationTest {
             execute(c,"INSERT INTO role_function(role_id,function_code) VALUES (1,'AddCourse')");
             execute(c,"INSERT INTO role_function(role_id,function_code) VALUES (3,'ListProfession')");
         }
-        assertEquals(15,flyway(url).migrate().migrationsExecuted);
+        assertEquals(17,flyway(url).migrate().migrationsExecuted);
         try(Connection c=connection(url)) {
             assertEquals(0,scalarLong(c,"SELECT COUNT(*) FROM role_function WHERE role_id<>1 AND function_code IN "+codes));
             assertEquals(7,scalarLong(c,"SELECT COUNT(*) FROM role_function WHERE role_id=1 AND function_code IN "+codes));
-            assertEquals(revision+5,scalarLong(c,"SELECT version FROM permission_revision WHERE id=1"));
+            assertEquals(revision+6,scalarLong(c,"SELECT version FROM permission_revision WHERE id=1"));
             assertEquals(1,scalarLong(c,"SELECT COUNT(*) FROM training_courses WHERE code='EXISTING' AND name='Khóa cũ' AND version=0 AND manager_id="+manager));
             assertEquals(1,scalarLong(c,"SELECT COUNT(*) FROM m_profession WHERE code='EXISTING' AND name='Ngành cũ'"));
             assertEquals(0,flyway(url).migrate().migrationsExecuted);
@@ -363,7 +429,7 @@ class FreshDatabaseMigrationTest {
             execute(c,"INSERT INTO training_courses(id,code,name,profession,duration_months,total_sessions,tuition_fee,objectives,status,manager_id,class_capacity) VALUES (?,'TRANSFER-COURSE','Khóa cũ','Điện',3,20,1000,'Mục tiêu','OPEN',?,20)",course,manager);
             execute(c,"INSERT INTO training_contracts(id,code,student_id,course_id,status,created_by,terms) VALUES (?,'TRANSFER-DRAFT',?,?,'DRAFT',?,'Điều khoản cũ')",contract,hr,course,hr);
         }
-        assertEquals(16,flyway(url).migrate().migrationsExecuted);
+        assertEquals(18,flyway(url).migrate().migrationsExecuted);
         try(Connection c=connection(url)) {
             assertEquals(0,scalarLong(c,"SELECT COUNT(*) FROM role_function WHERE role_id=7 AND function_code IN ('ListTrainingContract','AddTrainingContract','EditTrainingContract','TrainingContractDetail','ContractSignature')"));
             assertEquals(5,scalarLong(c,"SELECT COUNT(*) FROM role_function WHERE role_id=6 AND function_code IN ('ListTrainingContract','AddTrainingContract','EditTrainingContract','TrainingContractDetail','ContractSignature')"));
@@ -387,7 +453,7 @@ class FreshDatabaseMigrationTest {
             execute(c,"INSERT INTO training_contracts(id,code,student_id,status) VALUES (?,'OLD-CONTRACT',?,'DRAFT')",contract,user);
             execute(c,"INSERT INTO financial_transactions(id,contract_id,kind,amount,status,bank_name) VALUES (?,?,'TUITION',100,'PENDING','vietcombank')",payment,contract);
         }
-        assertEquals(17,flyway(url).migrate().migrationsExecuted);
+        assertEquals(19,flyway(url).migrate().migrationsExecuted);
         try(Connection c=connection(url)) {
             assertEquals(1,scalarLong(c,"SELECT COUNT(*) FROM m_equipment_group"));
             assertEquals(10,scalarLong(c,"SELECT COUNT(*) FROM m_bank"));
@@ -404,7 +470,7 @@ class FreshDatabaseMigrationTest {
     void migrationsCreateFinalSchemaAndRunOnlyOnce() throws Exception {
         String url = databaseUrl();
         Flyway flyway = flyway(url);
-        assertEquals(27, flyway.migrate().migrationsExecuted);
+        assertEquals(29, flyway.migrate().migrationsExecuted);
         try (Connection connection = connection(url)) {
             assertEquals(Set.of("m_role", "m_user", "recruitment_requests", "request_events",
                             "consultation_registrations", "user_login_events", "training_classes",
@@ -479,7 +545,7 @@ class FreshDatabaseMigrationTest {
         }
         var upgrade = Flyway.configure().dataSource(url, "sa", "")
                 .locations("classpath:db/migration").baselineOnMigrate(true).baselineVersion("1").load();
-        assertEquals(26, upgrade.migrate().migrationsExecuted);
+        assertEquals(28, upgrade.migrate().migrationsExecuted);
         try (Connection connection = connection(url)) {
             assertEquals(3, scalarLong(connection, "SELECT COUNT(*) FROM m_user"));
             assertEquals(1, scalarLong(connection, "SELECT COUNT(*) FROM m_user WHERE full_name = 'Existing user'"));
@@ -523,7 +589,7 @@ class FreshDatabaseMigrationTest {
         }
 
         Flyway upgrade = flyway(url);
-        assertEquals(25, upgrade.migrate().migrationsExecuted);
+        assertEquals(27, upgrade.migrate().migrationsExecuted);
         try (Connection connection = connection(url)) {
             assertEquals(Set.of("id", "full_name", "phone", "email", "contact_time",
                             "description", "created_date", "program_name", "intake_source", "imported_by", "enrollment_course"),

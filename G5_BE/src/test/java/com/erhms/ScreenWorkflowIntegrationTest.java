@@ -38,7 +38,7 @@ class ScreenWorkflowIntegrationTest {
  ResultActions read(User user,String code,String id)throws Exception{return mvc.perform(get(path(code,id)).with(user(user.email).roles(user.getRoleCode())));}
  JsonNode body(MvcResult result)throws Exception{return json.readTree(result.getResponse().getContentAsString(StandardCharsets.UTF_8));}
  JsonNode view(User user,String code,String id)throws Exception{return body(read(user,code,id).andExpect(status().isOk()).andReturn());}
- ResultActions write(User user,String code,String id,Map<String,Object> input)throws Exception{return mvc.perform(post(path(code,id)).with(user(user.email).roles(user.getRoleCode())).with(csrf()).contentType("application/json").content(json.writeValueAsString(input)));}
+ ResultActions write(User user,String code,String id,Map<String,Object> input)throws Exception{if(code.equals("AddTrainingContract")||code.equals("EditTrainingContract"))input=ClassPlanTestFixtures.withClass(jdbc,user.id,input);return mvc.perform(post(path(code,id)).with(user(user.email).roles(user.getRoleCode())).with(csrf()).contentType("application/json").content(json.writeValueAsString(input)));}
  JsonNode save(User user,String code,String id,Map<String,Object> input)throws Exception{return body(write(user,code,id,input).andExpect(status().isOk()).andReturn());}
  ResultActions act(User user,String code,String id,String action,Map<String,Object> input)throws Exception{return mvc.perform(post(path(code,id)+"/actions/"+action).with(user(user.email).roles(user.getRoleCode())).with(csrf()).contentType("application/json").content(json.writeValueAsString(input)));}
  JsonNode action(User user,String code,String id,String action,Map<String,Object> input)throws Exception{return body(act(user,code,id,action,input).andExpect(status().isOk()).andReturn());}
@@ -64,7 +64,7 @@ class ScreenWorkflowIntegrationTest {
  void placePaidStudent(String contract)throws Exception{
   var ct=view(manager,"TrainingContractDetail",contract).path("record");
   assertEquals(0,jdbc.queryForObject("SELECT COUNT(*) FROM training_enrollments WHERE contract_id=?",Integer.class,UUID.fromString(contract)));
-  String cl=save(manager,"AddClass",null,values("courseId",ct.path("courseId").asText(),"name","Lớp thực hành","lecturerId",lecturer.id,"capacity",10,"startsOn",ct.path("startsOn").asText(),"endsOn","2027-03-31")).path("id").asText();
+  String cl=ct.path("classId").asText();
   assertTrue(view(manager,"ClassDetail",cl).path("related").path("unassignedStudents").toString().contains(student.email));
   action(manager,"ClassDetail",cl,"add-students",values("version",0,"students",List.of(values("id",student.id))));
  }
@@ -111,7 +111,7 @@ class ScreenWorkflowIntegrationTest {
   assertEquals(manager.id,view(admin,"CourseDetail",course).path("record").path("managerId").asLong());
   importAndConfirm(contract,"TUITION",1000);
   assertEquals(1,view(admin,"CourseDetail",course).path("related").path("classes").size());
-  read(admin,"ListClass",null).andExpect(status().isForbidden());
+  read(admin,"ListClass",null).andExpect(status().isOk());
  }
  @Test void courseManagerMustBeActiveAndHaveTheManagerRole()throws Exception{
   var input=courseInput();input.remove("managerId");write(admin,"AddCourse",null,input).andExpect(status().isBadRequest()).andExpect(jsonPath("$.fields.managerId").exists());
@@ -142,25 +142,26 @@ class ScreenWorkflowIntegrationTest {
  }
  @Test void schedulesBlockOverlapsForRoomClassAndLecturerAndRejectStaleEdits()throws Exception{
   String ct=createContract(createCourse());importAndConfirm(ct,"TUITION",1000);String cl=view(manager,"ListClass",null).path("items").get(0).path("id").asText();
-  var session=values("classId",cl,"title","Thực hành","startsAt","2026-11-15T01:00:00Z","endsAt","2026-11-15T03:00:00Z","classroomId",ROOM,"changeNote","Lập lịch");String id=save(manager,"TimeTable_EditSession",null,session).path("id").asText();
-  write(manager,"TimeTable_EditSession",null,session).andExpect(status().isConflict()).andExpect(jsonPath("$.code").value("TIMETABLE_CONFLICT"));
+  jdbc.update("UPDATE training_classes SET plan_fixed=FALSE WHERE id=?",UUID.fromString(cl));jdbc.update("DELETE FROM training_sessions WHERE class_id=?",UUID.fromString(cl));
+  var session=values("classId",cl,"title","Thực hành","startsAt","2026-11-15T01:00:00Z","endsAt","2026-11-15T03:00:00Z","classroomId",ROOM,"changeNote","Lập lịch");String id=save(admin,"TimeTable_EditSession",null,session).path("id").asText();
+  write(admin,"TimeTable_EditSession",null,session).andExpect(status().isConflict()).andExpect(jsonPath("$.code").value("TIMETABLE_CONFLICT"));
   jdbc.update("UPDATE m_classroom SET name='Phòng đã đổi tên',name_key='phòng đã đổi tên' WHERE id=?",UUID.fromString(ROOM));
-  assertEquals("Phòng đã đổi tên",view(manager,"TimeTable_EditSession",id).path("record").path("room").asText());
-  write(manager,"TimeTable_EditSession",null,session).andExpect(status().isConflict()).andExpect(jsonPath("$.code").value("TIMETABLE_CONFLICT"));
-  session.put("version",9);write(manager,"TimeTable_EditSession",id,session).andExpect(status().isConflict());
+  assertEquals("Phòng đã đổi tên",view(admin,"TimeTable_EditSession",id).path("record").path("room").asText());
+  write(admin,"TimeTable_EditSession",null,session).andExpect(status().isConflict()).andExpect(jsonPath("$.code").value("TIMETABLE_CONFLICT"));
+  session.put("version",9);write(admin,"TimeTable_EditSession",id,session).andExpect(status().isConflict());
   write(lecturer,"TimeTable_EditSession",id,session).andExpect(status().isForbidden());
   assertEquals(1,view(student,"TimeTable_Student",null).path("total").asInt());assertEquals(0,view(otherStudent,"TimeTable_Student",null).path("total").asInt());
   jdbc.update("INSERT INTO training_enrollments(id,class_id,student_id,status) VALUES (?,?,?,'ACTIVE')",UUID.randomUUID(),UUID.fromString(cl),otherStudent.id);
   assertEquals(1,view(student,"TimeTable_Student",id).path("related").path("attendance").size());
   mvc.perform(get(path("TimeTable_Manager",null)).param("from","2026-11-15").param("to","2026-11-15").with(user(manager.email).roles("MANAGER"))).andExpect(status().isOk()).andExpect(jsonPath("$.total").value(1)).andExpect(jsonPath("$.stats[0].value").value(1));
   mvc.perform(get(path("TimeTable_Manager",null)).param("from","2026-11-16").param("to","2026-11-22").with(user(manager.email).roles("MANAGER"))).andExpect(status().isOk()).andExpect(jsonPath("$.total").value(0)).andExpect(jsonPath("$.stats[0].value").value(0));
-  assertEquals(0,view(manager,"TimeTable_Conflict",null).path("total").asInt());
+  assertEquals(0,view(admin,"TimeTable_Conflict",null).path("total").asInt());
   jdbc.update("INSERT INTO training_sessions(id,class_id,title,starts_at,ends_at,room) VALUES (?,?,?,? ,?,?)",UUID.randomUUID(),UUID.fromString(cl),"Lịch cũ đang xung đột",OffsetDateTime.parse("2026-11-15T02:00:00Z"),OffsetDateTime.parse("2026-11-15T04:00:00Z"),"P-01");
-  assertEquals(2,view(manager,"TimeTable_Conflict",null).path("total").asInt());
+  assertEquals(2,view(admin,"TimeTable_Conflict",null).path("total").asInt());
  }
  @Test void gradePublicationAttendanceAndClosureRequireTheResponsibleRolesAndCompleteData()throws Exception{
   String ct=createContract(createCourse());jdbc.update("UPDATE training_contracts SET deposit_due=0 WHERE id=?",UUID.fromString(ct));importAndConfirm(ct,"TUITION",1000);String cl=view(manager,"ListClass",null).path("items").get(0).path("id").asText();String enrollment=view(manager,"AutoAssignmentReview",null).path("items").get(0).path("id").asText();
-  String session=save(manager,"TimeTable_EditSession",null,values("classId",cl,"title","Buổi thực hành","startsAt","2026-11-15T01:00:00Z","endsAt","2026-11-15T03:00:00Z","classroomId",ROOM,"changeNote","Lập lịch")).path("id").asText();
+  String session=jdbc.queryForObject("SELECT CAST(id AS VARCHAR) FROM training_sessions WHERE class_id=? ORDER BY starts_at FETCH FIRST 1 ROW ONLY",String.class,UUID.fromString(cl));
   act(manager,"ClassAttendance",session,"save",values("version",0,"records",List.of(),"finalize",true)).andExpect(status().isForbidden());
   action(lecturer,"ClassAttendance",session,"save",values("version",0,"records",List.of(values("studentId",student.id,"status","PRESENT","note","")),"finalize",true));
   saveAttendanceAfterFinalization(session);

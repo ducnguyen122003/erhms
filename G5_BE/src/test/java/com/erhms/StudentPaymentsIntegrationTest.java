@@ -39,6 +39,7 @@ class StudentPaymentsIntegrationTest {
 
     @BeforeEach void setup(){
         manager=actor("MANAGER");otherManager=actor("MANAGER");accountant=actor("ACCOUNTANT");otherAccountant=actor("ACCOUNTANT");hr=actor("HR");admin=actor("ADMIN");student=actor("STUDENT");otherStudent=actor("STUDENT");
+        student.fullName="Nguyễn Ánh Đức";users.saveAndFlush(student);
         jdbc.update("INSERT INTO student_profiles(user_id,manager_id) VALUES (?,?),(?,?)",student.id,manager.id,otherStudent.id,otherManager.id);
         course=UUID.randomUUID();cl=UUID.randomUUID();
         jdbc.update("INSERT INTO training_courses(id,code,name,profession,duration_months,total_sessions,tuition_fee,objectives,status,manager_id,class_capacity) VALUES (?,?,?,'Máy tính',4,20,1000,'Thực hành','OPEN',?,20)",course,course.toString(),EnrollmentCourses.NAMES.get(0),manager.id);
@@ -60,6 +61,10 @@ class StudentPaymentsIntegrationTest {
     String receipt(User actor)throws Exception{return upload(actor,"TuitionDetail_Student",PDF,"bill.pdf").path("id").asText();}
     JsonNode upload(User actor,String screen,byte[] bytes,String filename)throws Exception{return body(mvc.perform(multipart("/api/workspace/files").file(new MockMultipartFile("file",filename,"application/pdf",bytes)).param("screen",screen).with(user(actor.email).roles(actor.getRoleCode())).with(csrf())).andExpect(status().isOk()).andReturn());}
     Map<String,Object> submission(User actor,UUID id,String kind,int amount,String file)throws Exception{return values("kind",kind,"amount",amount,"payerName",actor.fullName,"paidOn",paidOn,"transferMemo",memo(actor,id,kind),"receiptFileId",file,"declaredBankReference","CLAIM-"+UUID.randomUUID(),"note","Bill học viên cung cấp");}
+    Map<String,Object> combinedSubmission(int tuition,int deposit)throws Exception{
+        var p=submission(student,contract,"TUITION",tuition+deposit,receipt(student));p.put("kind","COMBINED");p.put("tuitionAmount",tuition);p.put("depositAmount",deposit);return p;
+    }
+    String submitCombined(int tuition,int deposit)throws Exception{return body(write(student,API+"/contracts/"+contract+"/submissions",combinedSubmission(tuition,deposit)).andExpect(status().isOk()).andReturn()).path("id").asText();}
     String submit(User actor,UUID id,String kind,int amount)throws Exception{return body(write(actor,API+"/contracts/"+id+"/submissions",submission(actor,id,kind,amount,receipt(actor))).andExpect(status().isOk()).andReturn()).path("id").asText();}
     JsonNode review(String id)throws Exception{return body(read(accountant,API+"/review/"+id).andExpect(status().isOk()).andReturn());}
     Map<String,Object> confirmation(String id,String reference)throws Exception{
@@ -92,13 +97,33 @@ class StudentPaymentsIntegrationTest {
         assertFalse(eligible());assertEquals(1,jdbc.queryForObject("SELECT COUNT(*) FROM training_enrollments WHERE contract_id=?",Integer.class,contract));
     }
 
-    @Test void transferGuideAndQrUseTheConfiguredRecipientAndAnImmutablePerContractMemo()throws Exception{
+    @Test void transferGuideAndQrUseTheConfiguredRecipientAndLearnerNameWithStableStudentCode()throws Exception{
         var guide=guide(student,contract);assertTrue(guide.path("bank").toString().contains("3419120803"));assertTrue(guide.path("bank").toString().contains("NGUYEN ANH DUC"));assertTrue(guide.path("bank").toString().contains("BIDV"));
-        String tuition=memo(student,contract,"TUITION"),deposit=memo(student,contract,"DEPOSIT");assertFalse(tuition.isBlank());assertTrue(tuition.length()<=25);assertNotEquals(tuition,deposit);
+        String code=String.format(Locale.ROOT,"HV%06d",student.id);
+        assertEquals(code,guide.path("contract").path("studentCode").asText());
+        String tuition=memo(student,contract,"TUITION"),deposit=memo(student,contract,"DEPOSIT");assertEquals("NGUYEN ANH DUC "+code,tuition);assertEquals(tuition,deposit);
+        UUID second=contract(student,manager,accountant,1000,200);assertEquals(tuition,memo(student,second,"TUITION"));
         var qr=body(read(student,API+"/contracts/"+contract+"/qr?kind=TUITION&amount=1000").andExpect(status().isOk()).andReturn());
         assertEquals(tuition,qr.path("transferMemo").asText());assertEquals(1000,qr.path("amount").asInt());assertTrue(qr.path("qrPayload").asText().startsWith("000201"));assertTrue(qr.path("qrPayload").asText().contains("3419120803"));assertTrue(qr.path("qrPayload").asText().contains(tuition));
         read(student,API+"/contracts/"+contract+"/qr?kind=TUITION&amount=1001").andExpect(status().isBadRequest());
         var p=submission(student,contract,"TUITION",100,receipt(student));p.put("transferMemo","NỘI DUNG TỰ ĐỔI");write(student,API+"/contracts/"+contract+"/submissions",p).andExpect(status().isBadRequest());assertEquals(0,transactions(contract));
+    }
+
+    @Test void historicalPendingBillRetainsItsMemoSnapshotAfterLearnerNameAndMemoFormatChange()throws Exception{
+        String id=submit(student,contract,"TUITION",400);
+        String legacy="BKHP "+jdbc.queryForObject("SELECT payment_reference FROM training_contracts WHERE id=?",Long.class,contract);
+        jdbc.update("UPDATE student_payment_submissions SET transfer_memo=? WHERE id=?",legacy,UUID.fromString(id));
+        student.fullName="Đỗ Thị Hồng";users.saveAndFlush(student);
+        var currentGuide=guide(student,contract);String code=String.format(Locale.ROOT,"HV%06d",student.id);
+        assertEquals(code,currentGuide.path("contract").path("studentCode").asText());
+        assertEquals("DO THI HONG "+code,memo(student,contract,"TUITION"));
+        var detail=review(id);assertEquals(legacy,detail.path("expectedTransferMemo").asText());
+        assertEquals(legacy,detail.path("submission").path("transferMemo").asText());
+        assertTrue(currentGuide.path("submissions").toString().contains(legacy));
+        var verification=confirmation(id,"LEGACY-MEMO-"+UUID.randomUUID());
+        verification.put("statementMemo",memo(student,contract,"TUITION"));
+        write(accountant,API+"/review/"+id+"/confirm",verification).andExpect(status().isBadRequest());
+        confirm(id,"LEGACY-MEMO-"+UUID.randomUUID());assertEquals(400,received(contract));assertFalse(eligible());
     }
 
     @Test void ownershipRolesGrantsAndCsrfProtectGuidesBillsAndReview()throws Exception{
@@ -194,5 +219,59 @@ class StudentPaymentsIntegrationTest {
         jdbc.update("UPDATE training_contracts SET tuition_due=0 WHERE id=?",contract);
         assertFalse(eligible());var contractView=body(read(accountant,"/api/workspace/screens/TuitionDetail/"+contract).andExpect(status().isOk()).andReturn());
         write(accountant,"/api/workspace/screens/TuitionDetail/"+contract+"/actions/activate-zero",values("version",contractView.path("record").path("version").asLong(),"changeNote","Miễn học phí theo hợp đồng")).andExpect(status().isOk());assertTrue(eligible());
+    }
+
+    @Test void oneCombinedBankTransferCreditsSeparateTuitionAndDepositOnlyAfterAccountantConfirmation()throws Exception{
+        var qr=body(read(student,API+"/contracts/"+contract+"/qr?kind=COMBINED&amount=1200").andExpect(status().isOk()).andReturn());
+        assertEquals(1200,qr.path("amount").asInt());assertEquals(memo(student,contract,"TUITION"),qr.path("transferMemo").asText());
+        String id=submitCombined(1000,200),reference="COMBINED-"+UUID.randomUUID();
+        assertEquals(0,transactions(contract));assertEquals("SIGNED",statusOfContract(contract));assertFalse(eligible());
+        JsonNode pending=review(id).path("submission");assertEquals("COMBINED",pending.path("kind").asText());assertEquals(1200,pending.path("amount").asInt());assertEquals(1000,pending.path("tuitionAmount").asInt());assertEquals(200,pending.path("depositAmount").asInt());
+        confirm(id,reference);assertEquals(2,transactions(contract));assertEquals(1000,received(contract));
+        var result=guide(student,contract).path("contract");assertEquals(200,result.path("depositPaid").asInt());assertEquals(0,result.path("tuitionRemaining").asInt());assertEquals(0,result.path("depositRemaining").asInt());
+        assertEquals("ACTIVE",statusOfContract(contract));assertTrue(eligible());
+        assertEquals(1,jdbc.queryForObject("SELECT COUNT(*) FROM financial_transactions WHERE bank_reference=?",Integer.class,reference));
+        assertEquals(1200,jdbc.queryForObject("SELECT SUM(amount) FROM financial_transactions WHERE contract_id=? AND status='CONFIRMED'",Integer.class,contract));
+        JsonNode reviewed=review(id).path("submission");assertFalse(reviewed.path("transactionId").asText().isBlank());assertFalse(reviewed.path("depositTransactionId").asText().isBlank());assertNotEquals(reviewed.path("transactionId").asText(),reviewed.path("depositTransactionId").asText());
+        assertEquals(1,jdbc.queryForObject("SELECT COUNT(*) FROM financial_transactions WHERE id=? AND kind='DEPOSIT' AND amount=200 AND bank_reference IS NULL AND status='CONFIRMED'",Integer.class,UUID.fromString(reviewed.path("depositTransactionId").asText())));
+        String secondaryId=reviewed.path("depositTransactionId").asText();
+        JsonNode secondary=body(read(accountant,"/api/workspace/screens/PaymentDetail/"+secondaryId).andExpect(status().isOk()).andReturn()).path("record");
+        assertEquals(reference,secondary.path("bankReference").asText());assertTrue(secondary.path("rawBankReference").isNull());
+        for(String action:List.of("confirm","mismatch","resolve")){
+            String screen=action.equals("resolve")?"PaymentDetail_Mismatch":"PaymentDetail";
+            write(accountant,"/api/workspace/screens/"+screen+"/"+secondaryId+"/actions/"+action,values("version",secondary.path("version").asInt(),"memo","Already verified","changeNote","Already verified","identityVerified",true,"amountVerified",true,"referenceVerified",true)).andExpect(status().isConflict());
+        }
+        write(accountant,API+"/review/"+id+"/confirm",confirmation(id,reference)).andExpect(status().isConflict());assertEquals(2,transactions(contract));
+        UUID other=contract(otherStudent,otherManager,accountant,1000,200);String duplicate=submit(otherStudent,other,"DEPOSIT",200);
+        write(accountant,API+"/review/"+duplicate+"/confirm",confirmation(duplicate,reference)).andExpect(status().isConflict());assertEquals(0,transactions(other));
+    }
+
+    @Test void combinedClaimsValidateBothAllocationsAndBlockOverlappingPendingBills()throws Exception{
+        var input=combinedSubmission(400,50);
+        for(Map<String,Object> invalid:List.of(values("amount",451),values("tuitionAmount",0,"depositAmount",450),values("tuitionAmount",1001,"depositAmount",50,"amount",1051),values("tuitionAmount",400,"depositAmount",201,"amount",601),values("tuitionAmount",399.5,"depositAmount",50.5))){
+            var p=new LinkedHashMap<>(input);p.putAll(invalid);write(student,API+"/contracts/"+contract+"/submissions",p).andExpect(status().isBadRequest());
+        }
+        String id=body(write(student,API+"/contracts/"+contract+"/submissions",input).andExpect(status().isOk()).andReturn()).path("id").asText();
+        for(String kind:List.of("TUITION","DEPOSIT"))write(student,API+"/contracts/"+contract+"/submissions",submission(student,contract,kind,50,receipt(student))).andExpect(status().isConflict());
+        write(student,API+"/contracts/"+contract+"/submissions",combinedSubmission(100,50)).andExpect(status().isConflict());
+        write(accountant,API+"/review/"+id+"/mismatch",values("version",0,"reviewNote","Chưa thấy giao dịch trên sao kê")).andExpect(status().isOk());assertEquals(0,transactions(contract));
+        String tuition=submit(student,contract,"TUITION",100);
+        write(student,API+"/contracts/"+contract+"/submissions",combinedSubmission(100,50)).andExpect(status().isConflict());
+        assertEquals("PENDING",review(tuition).path("submission").path("status").asText());
+    }
+
+    @Test void importedPendingCombinedTotalIsSplitWithoutRecordingTheTransferTwice()throws Exception{
+        String id=submitCombined(400,50),reference="COMBINED-IMPORT-"+UUID.randomUUID();String imported=imported("TUITION",450,reference,memo(student,contract,"TUITION"));
+        assertEquals(1,transactions(contract));var result=confirm(id,reference);assertEquals(imported,result.path("transactionId").asText());
+        assertEquals(2,transactions(contract));assertEquals(400,received(contract));assertEquals(50,guide(student,contract).path("contract").path("depositPaid").asInt());
+        assertEquals(450,jdbc.queryForObject("SELECT SUM(amount) FROM financial_transactions WHERE contract_id=? AND status='CONFIRMED'",Integer.class,contract));
+        assertEquals(400,jdbc.queryForObject("SELECT amount FROM financial_transactions WHERE bank_reference=?",Integer.class,reference));
+        assertEquals("SIGNED",statusOfContract(contract));assertFalse(eligible());
+    }
+
+    @Test void combinedReviewIsAtomicWhenAnotherPaymentAlreadyFilledOneAllocation()throws Exception{
+        String combined=submitCombined(1000,200);String deposit=imported("DEPOSIT",200,"OTHER-DEPOSIT-"+UUID.randomUUID(),memo(student,contract,"DEPOSIT"));confirmImported(deposit);
+        write(accountant,API+"/review/"+combined+"/confirm",confirmation(combined,"STALE-COMBINED-"+UUID.randomUUID())).andExpect(status().isConflict());
+        assertEquals(1,transactions(contract));assertEquals(0,received(contract));assertEquals("PENDING",review(combined).path("submission").path("status").asText());assertEquals("SIGNED",statusOfContract(contract));assertFalse(eligible());
     }
 }

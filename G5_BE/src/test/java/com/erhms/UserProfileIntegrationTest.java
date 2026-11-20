@@ -62,8 +62,30 @@ class UserProfileIntegrationTest {
                 .andExpect(jsonPath("$.fullName").value(owner.fullName))
                 .andExpect(jsonPath("$.role").value(Role.HR))
                 .andExpect(jsonPath("$.phone").isEmpty())
+                .andExpect(jsonPath("$.studentCode").isEmpty())
                 .andExpect(jsonPath("$.password").doesNotHaveJsonPath())
                 .andExpect(jsonPath("$.passwordHash").doesNotHaveJsonPath());
+    }
+
+    @Test
+    void everyStudentHasAUniqueReadOnlyCodeWhichSurvivesProfileChanges() throws Exception {
+        var student = seedUser("student-" + UUID.randomUUID() + "@profile.test", "Nguyễn Anh Đức", Role.STUDENT);
+        var second = seedUser("student-" + UUID.randomUUID() + "@profile.test", "Nguyễn Anh Đức", Role.STUDENT);
+        String code = student.getStudentCode();
+        assertNotNull(code);
+        assertNotEquals(code, second.getStudentCode());
+        var session = login(student.email);
+        mvc.perform(get(ME).session(session)).andExpect(status().isOk())
+                .andExpect(jsonPath("$.studentCode").value(code));
+        var payload = input();
+        payload.put("studentCode", second.getStudentCode());
+        payload.put("fullName", "Nguyễn Văn An");
+        update(session, payload).andExpect(status().isOk())
+                .andExpect(jsonPath("$.fullName").value("Nguyễn Văn An"))
+                .andExpect(jsonPath("$.studentCode").value(code));
+        mvc.perform(get(ME).session(session)).andExpect(status().isOk())
+                .andExpect(jsonPath("$.studentCode").value(code));
+        assertEquals(code, users.findWithRoleById(student.id).orElseThrow().getStudentCode());
     }
 
     @Test

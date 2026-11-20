@@ -51,6 +51,16 @@ test('computed contract fields reflect the current authoritative values and cann
  assert.deepEqual(editableTemplateData(values.templateData),{studentBirthDate:'2000-01-02'});
 });
 
+test('planned class dates override editable template dates and remain read-only',()=>{
+ const values={templateData:{endsOn:'2026-01-01',latestOpeningOn:'2026-01-02',studentBirthDate:'2000-01-01'}};
+ const selection={selectedClass:{startsOn:'2027-03-01',endsOn:'2027-07-31'}};
+ assert.equal(contractTemplateValue({key:'endsOn'},values,selection),'2027-07-31');
+ assert.equal(contractTemplateValue({key:'latestOpeningOn'},values,selection),'2027-03-01');
+ assert.equal(isComputedTemplateField({key:'endsOn'}),true);
+ assert.equal(isComputedTemplateField({key:'latestOpeningOn'}),true);
+ assert.deepEqual(editableTemplateData(values.templateData),{studentBirthDate:'2000-01-01'});
+});
+
 test('section progress counts entered values and leaves incomplete PDF-required fields valid for draft data',()=>{
  const config=options(),values={consultationId:'first',templateData:{studentBirthDate:''}};
  assert.equal(templateSectionFilled(metadata.sections[0],values,trainingContractSelection(values,config)),1);

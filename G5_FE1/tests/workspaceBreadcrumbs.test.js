@@ -114,10 +114,10 @@ test('direct links never invent another entity ID for student contracts or equip
 });
 
 test('class timetable editing returns to its actual class when a valid context is present',()=>{
- const functions=grants('MANAGER'),target='/screens/TimeTable_EditSession/'+record+'?returnClassId='+other;
- assert.deepEqual(paths(initialBreadcrumbTrail(target,manager,functions)),['/dashboard/manager','/screens/ListClass','/screens/ClassDetail/'+other,target]);
+ const functions=grants('ADMIN'),target='/screens/TimeTable_EditSession/'+record+'?returnClassId='+other;
+ assert.deepEqual(paths(initialBreadcrumbTrail(target,admin,functions)),['/dashboard/admin','/screens/ListClass','/screens/ClassDetail/'+other,target]);
  const invalid='/screens/TimeTable_EditSession/'+record+'?returnClassId=not-a-valid-id';
- assert.deepEqual(paths(initialBreadcrumbTrail(invalid,manager,functions)),['/dashboard/manager','/screens/TimeTable_Manager',invalid]);
+ assert.deepEqual(paths(initialBreadcrumbTrail(invalid,admin,functions)),['/dashboard/admin','/screens/TimeTable_Manager',invalid]);
 });
 
 test('record siblings replace the current record, while returning from edit truncates to its parent',()=>{

@@ -1529,16 +1529,17 @@
     "fe": "FE-09",
     "title": "Lớp học & giảng viên",
     "roles": [
+      "ADMIN",
       "MANAGER"
     ],
     "proposedRoles": [],
     "public": false,
     "scope": "Học viên, khóa / lớp, lịch, xếp lớp và hồ sơ hoàn tất được phân công quản lý.",
-    "actions": "Quản lý sinh viên xem danh sách lớp trung tâm. Lecturer dùng ListClass_Lecturer với phạm vi lớp được giao.",
+    "actions": "Admin lập kế hoạch lớp theo từng năm. Quản lý học viên xem lớp thuộc phạm vi phụ trách và xếp học viên đã đủ học phí.",
     "variant": "Màn hình chính",
     "kind": "list",
     "functionCode": "ListClass",
-    "description": "Tạo lớp, thêm học viên đã đóng đủ học phí và chưa được xếp lớp, quản lý lịch học.",
+    "description": "Kế hoạch lớp theo năm, giảng viên và lịch học cố định. Quản lý học viên xếp học viên theo lớp đã chọn trên hợp đồng.",
     "headers": [
       "LỚP / KHÓA",
       "GIẢNG VIÊN",
@@ -1563,6 +1564,7 @@
     "fe": "FE-09",
     "title": "Chi tiết lớp học",
     "roles": [
+      "ADMIN",
       "MANAGER"
     ],
     "proposedRoles": [],
@@ -1596,16 +1598,16 @@
     "fe": "FE-09",
     "title": "Tạo lớp học",
     "roles": [
-      "MANAGER"
+      "ADMIN"
     ],
     "proposedRoles": [],
     "public": false,
-    "scope": "Khóa học và học viên được phân công quản lý.",
-    "actions": "Tạo lớp học với mã tự tăng, ngày bắt đầu, sĩ số và giảng viên phụ trách.",
+    "scope": "Kế hoạch lớp của trung tâm theo từng năm.",
+    "actions": "Admin chọn khóa học, giảng viên bắt buộc, phòng và lịch cố định để tạo toàn bộ buổi học.",
     "variant": "Màn hình chính",
     "kind": "form",
     "functionCode": "AddClass",
-    "description": "Chọn khóa học và ngày bắt đầu. Mã lớp được cấp tự động khi tạo thành công.",
+    "description": "Tạo kế hoạch riêng cho từng năm. Ngày học, các thứ, giờ và phòng được cố định sau khi tạo lớp.",
     "back": "ListClass",
     "save": "Tạo lớp học",
     "sections": []
@@ -1615,16 +1617,16 @@
     "fe": "FE-09",
     "title": "Điều chỉnh lớp & phân công",
     "roles": [
-      "MANAGER"
+      "ADMIN"
     ],
     "proposedRoles": [],
     "public": false,
     "scope": "Học viên, khóa / lớp, lịch, xếp lớp và hồ sơ hoàn tất được phân công quản lý.",
-    "actions": "Quản lý sinh viên điều chỉnh phương án theo quyền; kiểm tra lịch, sức chứa và lưu lý do thay đổi.",
+    "actions": "Admin điều chỉnh sĩ số, giảng viên và trạng thái; lịch kế hoạch đã cố định được giữ nguyên.",
     "variant": "Màn hình chính",
     "kind": "form",
     "functionCode": "EditClass",
-    "description": "Cập nhật ngày học, sĩ số và phân công giảng viên cho lớp.",
+    "description": "Cập nhật sĩ số, trạng thái và giảng viên. Ngày học, giờ học và phòng của kế hoạch không thay đổi.",
     "notes": [
       "Kiểm tra lịch giảng viên, phòng và sĩ số.",
       "Lưu người thực hiện và lý do điều chỉnh."
@@ -1738,12 +1740,13 @@
     "fe": "FE-10",
     "title": "Thời khóa biểu đào tạo",
     "roles": [
+      "ADMIN",
       "MANAGER"
     ],
     "proposedRoles": [],
     "public": false,
     "scope": "Học viên, khóa / lớp, lịch, xếp lớp và hồ sơ hoàn tất được phân công quản lý.",
-    "actions": "Quản lý sinh viên xem toàn bộ lịch thuộc phạm vi quản lý và điều chỉnh lịch theo quyền.",
+    "actions": "Admin xem lịch trung tâm. Quản lý học viên xem lịch cố định thuộc phạm vi phụ trách.",
     "variant": "Biến thể theo vai trò của TimeTable",
     "kind": "timetable",
     "functionCode": "TimeTable_Manager",
@@ -1789,12 +1792,12 @@
     "fe": "FE-10",
     "title": "Điều chỉnh buổi học",
     "roles": [
-      "MANAGER"
+      "ADMIN"
     ],
     "proposedRoles": [],
     "public": false,
     "scope": "Học viên, khóa / lớp, lịch, xếp lớp và hồ sơ hoàn tất được phân công quản lý.",
-    "actions": "Quản lý sinh viên chỉnh buổi học; chặn lưu khi trùng lớp, phòng hoặc giảng viên.",
+    "actions": "Admin bảo trì buổi học cũ chưa thuộc kế hoạch cố định; chặn sửa lịch kế hoạch năm và lịch trùng lớp, phòng hoặc giảng viên.",
     "variant": "Popup sửa buổi học từ TimeTable",
     "kind": "form",
     "functionCode": "TimeTable_EditSession",
@@ -1851,7 +1854,7 @@
     "fe": "FE-10",
     "title": "Xử lý xung đột lịch học",
     "roles": [
-      "MANAGER"
+      "ADMIN"
     ],
     "proposedRoles": [],
     "public": false,

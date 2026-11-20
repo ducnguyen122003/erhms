@@ -1,6 +1,7 @@
 package com.erhms.user.entity;
 
 import com.erhms.role.entity.Role;
+import com.erhms.user.StudentCode;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.FetchType;
@@ -55,6 +56,10 @@ public class User {
 
     public Long getId() {
         return id;
+    }
+
+    public String getStudentCode() {
+        return hasRole("STUDENT") ? StudentCode.fromId(id) : null;
     }
 
     public String getRoleCode() {

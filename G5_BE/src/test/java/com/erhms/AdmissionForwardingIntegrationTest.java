@@ -55,7 +55,7 @@ class AdmissionForwardingIntegrationTest {
     }
     Map<String,Object> contract(UUID admission){
         UUID course=UUID.randomUUID();jdbc.update("INSERT INTO training_courses(id,code,name,profession,duration_months,total_sessions,tuition_fee,objectives,status,manager_id,class_capacity) VALUES (?,?,?,'Điện',3,20,1000,'Training','OPEN',?,20)",course,course.toString(),COURSES.get(0),manager.id);
-        return Map.of("consultationId",admission.toString(),"courseId",course.toString(),"startsOn","2026-12-20","paymentDueOn","2026-12-19","tuitionDue",1000,"depositDue",0,"terms","Điều khoản");
+        return ClassPlanTestFixtures.withClass(jdbc,manager.id,Map.of("consultationId",admission.toString(),"courseId",course.toString(),"startsOn","2026-12-20","paymentDueOn","2026-12-19","tuitionDue",1000,"depositDue",0,"terms","Điều khoản"));
     }
 
     @Test void completeProfilesWaitForHrBeforeAcademicQueueDocumentsContractsAndAccountsBecomeAvailable()throws Exception{
@@ -167,6 +167,7 @@ class AdmissionForwardingIntegrationTest {
     }
 
     ResultActions saveContract(String code,String id,Map<String,Object> values)throws Exception{
+        values=ClassPlanTestFixtures.withClass(jdbc,manager.id,values);
         return mvc.perform(post("/api/workspace/screens/"+code+(id==null?"":"/"+id)).with(user(manager.email).roles("MANAGER")).with(csrf()).contentType("application/json").content(json.writeValueAsString(values)));
     }
     JsonNode contractView(String id)throws Exception{
@@ -211,23 +212,23 @@ class AdmissionForwardingIntegrationTest {
         saveContract("AddTrainingContract",null,values).andExpect(status().isBadRequest()).andExpect(jsonPath("$.fields.courseId").exists());
         jdbc.update("UPDATE training_courses SET name=?,manager_id=? WHERE id=?",COURSES.get(0),actor("MANAGER").id,course);
         saveContract("AddTrainingContract",null,values).andExpect(status().isNotFound());
-        values.remove("courseId");String id=body(saveContract("AddTrainingContract",null,values).andExpect(status().isOk()).andReturn()).path("id").asText();
-        assertTrue(contractView(id).path("courseId").isNull());assertEquals(manager.id.longValue(),contractView(id).path("managerId").asLong());
+        values.remove("courseId");values.remove("classId");String id=body(saveContract("AddTrainingContract",null,values).andExpect(status().isOk()).andReturn()).path("id").asText();
+        assertFalse(contractView(id).path("courseId").isNull());assertEquals(manager.id.longValue(),contractView(id).path("managerId").asLong());
         assertEquals(COURSES.get(0),contractView(id).path("courseName").asText());
     }
 
-    @Test void duplicateOperationalNamesDoNotBlockDirectContractsAndDuplicateContractsAreStillRejected()throws Exception{
+    @Test void selectingAPlannedClassResolvesDuplicateCourseNamesAndDuplicateContractsAreStillRejected()throws Exception{
         UUID admission=admission(hr,5);forward(hr,input(item(admission,0))).andExpect(status().isOk());
         var values=new LinkedHashMap<>(contract(admission));contract(admission);
         values.remove("courseId");values.put("tuitionDue",0);
         String id=body(saveContract("AddTrainingContract",null,values).andExpect(status().isOk()).andReturn()).path("id").asText();
-        assertEquals(0,contractView(id).path("tuitionDue").asLong());assertTrue(contractView(id).path("courseId").isNull());
-        // Leave the intake stage eligible, so this specifically exercises duplicate detection for a null course_id.
+        assertEquals(0,contractView(id).path("tuitionDue").asLong());assertFalse(contractView(id).path("courseId").isNull());
+        // Leave intake eligible so this specifically exercises duplicate contract detection.
         jdbc.update("UPDATE consultation_followups SET status='PROFILE_PENDING' WHERE consultation_id=?",admission);
         saveContract("AddTrainingContract",null,values).andExpect(status().isBadRequest()).andExpect(jsonPath("$.fields.consultationId").exists());
     }
 
-    @Test void allFourAdmissionProgramsCanCreateContractsWithAnEmptyOperationalCourseCatalog()throws Exception{
+    @Test void allFourAdmissionProgramsRetainTheirPricesWhenAPlannedClassSuppliesTheOperationalCourse()throws Exception{
         long[] prices={14200000,13000000,11000000,21900000};int[] months={4,4,4,7};
         assertEquals(0,jdbc.queryForObject("SELECT COUNT(*) FROM training_courses WHERE manager_id=?",Integer.class,manager.id));
         for(int index=0;index<COURSES.size();index++){
@@ -236,7 +237,7 @@ class AdmissionForwardingIntegrationTest {
             var values=new LinkedHashMap<String,Object>(Map.of("consultationId",admission.toString(),"startsOn","2026-12-20","paymentDueOn","2026-12-19","depositDue",0,"terms","Điều khoản"));
             values.put("registeredCourseName","Client must not choose the snapshot");values.put("registeredDurationMonths",99);
             String id=body(saveContract("AddTrainingContract",null,values).andExpect(status().isOk()).andReturn()).path("id").asText();
-            var record=contractView(id);assertTrue(record.path("courseId").isNull());assertEquals(COURSES.get(index),record.path("courseName").asText());
+            var record=contractView(id);assertFalse(record.path("courseId").isNull());assertFalse(record.path("classId").isNull());assertEquals(COURSES.get(index),record.path("courseName").asText());
             assertEquals(months[index],record.path("durationMonths").asInt());assertEquals(prices[index],record.path("tuitionDue").asLong());assertEquals(manager.id.longValue(),record.path("managerId").asLong());
             mvc.perform(get("/api/workspace/screens/TrainingContractDetail/"+id).with(user(actor("MANAGER").email).roles("MANAGER"))).andExpect(status().isNotFound());
             values.put("version",0);values.put("tuitionDue",prices[index]-1000000);
@@ -244,6 +245,6 @@ class AdmissionForwardingIntegrationTest {
             values.remove("tuitionDue");values.put("version",1);
             saveContract("EditTrainingContract",id,values).andExpect(status().isOk());assertEquals(prices[index]-1000000,contractView(id).path("tuitionDue").asLong());
         }
-        assertEquals(0,jdbc.queryForObject("SELECT COUNT(*) FROM training_courses WHERE manager_id=?",Integer.class,manager.id));
+        assertEquals(4,jdbc.queryForObject("SELECT COUNT(*) FROM training_courses WHERE manager_id=?",Integer.class,manager.id));
     }
 }

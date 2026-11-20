@@ -133,7 +133,7 @@ class StudentAccountExcelIntegrationTest {
         UUID course=UUID.randomUUID();
         jdbc.update("INSERT INTO training_courses(id,code,name,profession,duration_months,total_sessions,tuition_fee,objectives,status,manager_id,class_capacity) VALUES (?,?,?,?,3,20,1000,'Training','ACTIVE',?,20)",
                 course,course.toString(),unique+" Course","Nghề",manager.id);
-        var input=Map.of("consultationId",id,"courseId",course.toString(),"startsOn","2026-12-15","paymentDueOn","2026-12-14","tuitionDue",1000,"depositDue",0,"terms","Điều khoản đào tạo");
+        var input=ClassPlanTestFixtures.withClass(jdbc,manager.id,Map.of("consultationId",id,"courseId",course.toString(),"startsOn","2026-12-15","paymentDueOn","2026-12-14","tuitionDue",1000,"depositDue",0,"terms","Điều khoản đào tạo"));
         JsonNode contract=body(mvc.perform(post("/api/workspace/screens/AddTrainingContract").with(user(manager.email).roles("MANAGER")).with(csrf()).contentType("application/json").content(json.writeValueAsString(input))).andExpect(status().isOk()).andReturn());
         UUID contractId=UUID.fromString(contract.path("id").asText());
         assertNull(jdbc.queryForObject("SELECT student_id FROM training_contracts WHERE id=?",Long.class,contractId));

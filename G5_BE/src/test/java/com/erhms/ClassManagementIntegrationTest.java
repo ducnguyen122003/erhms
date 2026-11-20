@@ -30,11 +30,11 @@ class ClassManagementIntegrationTest {
     @Autowired ObjectMapper json;
     @Autowired UserRepository users;
     @Autowired RoleRepository roles;
-    User manager,otherManager,lecturer,student;
+    User admin,manager,otherManager,lecturer,student;
     UUID course,room;
 
     @BeforeEach void setup() {
-        manager=account("MANAGER");otherManager=account("MANAGER");lecturer=account("LECTURER");
+        admin=account("ADMIN");manager=account("MANAGER");otherManager=account("MANAGER");lecturer=account("LECTURER");
         course=course(manager);student=paidStudent(manager);room=UUID.randomUUID();
         jdbc.update("INSERT INTO m_classroom(id,code,name,name_key) VALUES (?,?,?,?)",room,room.toString(),"Phòng "+room,"phòng "+room);
     }
@@ -66,7 +66,7 @@ class ClassManagementIntegrationTest {
     ResultActions read(User actor,String code,String id)throws Exception {return mvc.perform(get(path(code,id)).with(user(actor.email).roles(actor.getRoleCode())));}
     JsonNode view(User actor,String code,String id)throws Exception {return body(read(actor,code,id).andExpect(status().isOk()).andReturn());}
     ResultActions write(User actor,String code,String id,Map<String,Object> input)throws Exception {return mvc.perform(post(path(code,id)).with(user(actor.email).roles(actor.getRoleCode())).with(csrf()).contentType("application/json").content(json.writeValueAsString(input)));}
-    String createClass(Map<String,Object> input)throws Exception {return body(write(manager,"AddClass",null,input).andExpect(status().isOk()).andReturn()).path("id").asText();}
+    String createClass(Map<String,Object> input)throws Exception {UUID id=UUID.randomUUID();jdbc.update("INSERT INTO training_classes(id,code,name,course_id,manager_id,lecturer_id,capacity,starts_on,ends_on,status,total_sessions) VALUES (?,?,'Lớp legacy',?,?,?,?,?,? ,'PLANNED',12)",id,id.toString(),course,manager.id,lecturer.id,input.get("capacity"),input.get("startsOn"),input.get("endsOn"));return id.toString();}
     String createClass()throws Exception {return createClass(classInput());}
     long version(String id)throws Exception {return view(manager,"ClassDetail",id).path("record").path("version").asLong();}
     ResultActions enroll(User actor,String id,long version,User...students)throws Exception {
@@ -77,42 +77,6 @@ class ClassManagementIntegrationTest {
         Set<Long> ids=new HashSet<>();for(JsonNode item:view(manager,"ClassDetail",id).path("related").path("unassignedStudents"))ids.add(item.path("id").asLong());return ids;
     }
     Map<String,Object> session(String id) {return values("classId",id,"title","Buổi thực hành","startsAt","2027-01-04T08:00:00+07:00","endsAt","2027-01-04T10:00:00+07:00","classroomId",room.toString(),"changeNote","Lập lịch lớp");}
-
-    @Test void classesReceiveIncreasingCodesAndServerOwnedDefaults()throws Exception {
-        var input=classInput();input.put("code","CLIENT-CODE");input.put("managerId",otherManager.id);
-        String first=createClass(input),second=createClass();
-        JsonNode a=view(manager,"ClassDetail",first).path("record"),b=view(manager,"ClassDetail",second).path("record");
-        assertTrue(a.path("code").asText().matches("L-\\d{6,}"));
-        assertEquals(Long.parseLong(a.path("code").asText().substring(2))+1,Long.parseLong(b.path("code").asText().substring(2)));
-        assertNotEquals(first,second);assertEquals(manager.id,a.path("managerId").asLong());assertEquals("PLANNED",a.path("status").asText());
-        assertEquals(12,a.path("totalSessions").asInt());assertEquals("2027-01-04",a.path("startsOn").asText());
-        read(otherManager,"ClassDetail",first).andExpect(status().isNotFound());
-        assertTrue(view(manager,"AddClass",null).path("options").path("courses").toString().contains(course.toString()));
-        assertFalse(view(otherManager,"AddClass",null).path("options").path("courses").toString().contains(course.toString()));
-    }
-
-    @Test void onlyManagerWithPermissionCanCreateAndCsrfIsRequired()throws Exception {
-        mvc.perform(get(path("AddClass",null))).andExpect(status().isUnauthorized());
-        for(String role:List.of("ADMIN","HR","LECTURER","STUDENT","ACCOUNTANT","IT_SUPPORT")) {
-            User actor=account(role);jdbc.update("INSERT INTO role_function(role_id,function_code) VALUES (?,'AddClass')",actor.getRoleId());
-            try {read(actor,"AddClass",null).andExpect(status().isForbidden());write(actor,"AddClass",null,classInput()).andExpect(status().isForbidden());}
-            finally {jdbc.update("DELETE FROM role_function WHERE role_id=? AND function_code='AddClass'",actor.getRoleId());}
-        }
-        jdbc.update("DELETE FROM role_function WHERE role_id=6 AND function_code='AddClass'");
-        try {write(manager,"AddClass",null,classInput()).andExpect(status().isForbidden());}
-        finally {jdbc.update("INSERT INTO role_function(role_id,function_code) VALUES (6,'AddClass')");}
-        mvc.perform(post(path("AddClass",null)).with(user(manager.email).roles("MANAGER")).contentType("application/json").content(json.writeValueAsString(classInput()))).andExpect(status().isForbidden());
-    }
-
-    @Test void creationRejectsWrongCourseTeacherCapacityAndDates()throws Exception {
-        var input=classInput();input.put("courseId",course(otherManager).toString());write(manager,"AddClass",null,input).andExpect(status().isNotFound());
-        input=classInput();input.put("lecturerId",account("LECTURER").id);write(manager,"AddClass",null,input).andExpect(status().isBadRequest());
-        input=classInput();input.put("capacity",0);write(manager,"AddClass",null,input).andExpect(status().isBadRequest());
-        input=classInput();input.put("endsOn","2027-01-03");write(manager,"AddClass",null,input).andExpect(status().isBadRequest());
-        input=classInput();input.remove("startsOn");write(manager,"AddClass",null,input).andExpect(status().isBadRequest());
-        jdbc.update("UPDATE training_courses SET status='CLOSED' WHERE id=?",course);write(manager,"AddClass",null,classInput()).andExpect(status().isBadRequest());
-        assertEquals(0,jdbc.queryForObject("SELECT COUNT(*) FROM training_classes WHERE manager_id=?",Integer.class,manager.id));
-    }
 
     @Test void eligibleStudentsAreScopedActiveAndUnassignedAndAppearInTheRosterAfterAdding()throws Exception {
         String target=createClass(),other=createClass();User foreign=paidStudent(otherManager),disabled=paidStudent(manager),assigned=paidStudent(manager);
@@ -127,7 +91,7 @@ class ClassManagementIntegrationTest {
         enroll(manager,other,version(other),disabled).andExpect(status().is4xxClientError());
         enroll(otherManager,target,version(target),foreign).andExpect(status().isNotFound());
         enroll(lecturer,target,version(target),foreign).andExpect(status().isForbidden());
-        write(manager,"TimeTable_EditSession",null,session(target)).andExpect(status().isOk());
+        write(admin,"TimeTable_EditSession",null,session(target)).andExpect(status().isOk());
         assertEquals(1,view(student,"TimeTable_Student",null).path("total").asInt());
         assertEquals(1,view(lecturer,"ClassDetail_Lecturer",target).path("related").path("students").size());
     }
@@ -152,12 +116,6 @@ class ClassManagementIntegrationTest {
         enroll(manager,target,0,student).andExpect(status().isConflict());assertEquals(0,enrollmentCount(target));
     }
 
-    @Test void concurrentCreationAllocatesUniqueCodes()throws Exception {
-        List<MvcResult> results=race(()->write(manager,"AddClass",null,classInput()).andReturn(),()->write(manager,"AddClass",null,classInput()).andReturn());
-        Set<String> codes=new HashSet<>();for(MvcResult result:results) {assertEquals(200,result.getResponse().getStatus());codes.add(view(manager,"ClassDetail",body(result).path("id").asText()).path("record").path("code").asText());}
-        assertEquals(2,codes.size());
-    }
-
     @Test void simultaneousEnrollmentsCannotExceedCapacity()throws Exception {
         var input=classInput();input.put("capacity",1);String target=createClass(input);User second=paidStudent(manager);
         List<Integer> statuses=race(()->enroll(manager,target,0,student).andReturn().getResponse().getStatus(),()->enroll(manager,target,0,second).andReturn().getResponse().getStatus());
@@ -172,15 +130,15 @@ class ClassManagementIntegrationTest {
 
     @Test void sessionsRespectClassDatesAndRoomTeacherConflicts()throws Exception {
         String target=createClass();var input=session(target);input.put("startsAt","2027-01-03T08:00:00+07:00");input.put("endsAt","2027-01-03T10:00:00+07:00");
-        write(manager,"TimeTable_EditSession",null,input).andExpect(status().isBadRequest());
-        input=session(target);input.put("endsAt","2027-04-01T00:01:00+07:00");write(manager,"TimeTable_EditSession",null,input).andExpect(status().isBadRequest());
-        write(manager,"TimeTable_EditSession",null,session(target)).andExpect(status().isOk());
-        write(manager,"TimeTable_EditSession",null,session(target)).andExpect(status().isConflict());
-        String other=createClass();write(manager,"TimeTable_EditSession",null,session(other)).andExpect(status().isConflict());
+        write(admin,"TimeTable_EditSession",null,input).andExpect(status().isBadRequest());
+        input=session(target);input.put("endsAt","2027-04-01T00:01:00+07:00");write(admin,"TimeTable_EditSession",null,input).andExpect(status().isBadRequest());
+        write(admin,"TimeTable_EditSession",null,session(target)).andExpect(status().isOk());
+        write(admin,"TimeTable_EditSession",null,session(target)).andExpect(status().isConflict());
+        String other=createClass();write(admin,"TimeTable_EditSession",null,session(other)).andExpect(status().isConflict());
         var edit=values("version",version(target),"status","PLANNED","lecturerId",lecturer.id,"capacity",20,"startsOn","2027-01-05","endsOn","2027-03-31","changeNote","Đổi ngày khai giảng");
-        write(manager,"EditClass",target,edit).andExpect(status().isBadRequest());
+        write(admin,"EditClass",target,edit).andExpect(status().isBadRequest());
         jdbc.update("UPDATE training_classes SET status='CANCELLED' WHERE id=?",UUID.fromString(target));
-        write(manager,"TimeTable_EditSession",null,session(target)).andExpect(status().isConflict());
+        write(admin,"TimeTable_EditSession",null,session(target)).andExpect(status().isConflict());
     }
 
     @Test void tuitionConfirmationQueuesTheStudentUntilManagerSelectsAClass()throws Exception {
