@@ -147,9 +147,9 @@ class ScreenWorkflowIntegrationTest {
  void saveAttendanceAfterFinalization(String session)throws Exception{act(lecturer,"ClassAttendance",session,"save",values("version",1,"records",List.of(values("studentId",student.id,"status","ABSENT","note","")),"finalize",true)).andExpect(status().isConflict());}
  @Test void handoverRecoveryAndRefundAreAtomicScopedAndCannotBeRepeated()throws Exception{
   String ct=createContract(createCourse());importAndConfirm(ct,"TUITION",1000);importAndConfirm(ct,"DEPOSIT",200);String cl=view(manager,"ListClass",null).path("items").get(0).path("id").asText();
-  String req=save(lecturer,"AddEquipmentRequest",null,values("classId",cl,"studentId",student.id,"title","Bộ thiết bị thực hành","quantity",1,"requestType","INITIAL","equipmentGroupId",GROUP,"neededOn","2026-11-15","description","Dùng trong buổi thực hành")).path("id").asText();
+  String req=save(lecturer,"AddEquipmentRequest",null,values("classId",cl,"studentId",student.id,"title","Bộ thiết bị thực hành","quantity",1,"requestType","INITIAL","neededOn","2026-11-15","description","Dùng trong buổi thực hành")).path("id").asText();
   write(student,"AddEquipmentRequest",null,Map.of()).andExpect(status().isForbidden());action(it,"EquipmentRequestDetail_IT",req,"prepare",values("version",0));action(it,"EquipmentRequestDetail_IT",req,"ready",values("version",1));
-  String asset=save(it,"AddAsset",null,values("code","TS-"+UUID.randomUUID().toString().substring(0,8),"name","Bộ thực hành","equipmentGroupId",GROUP,"serialNumber","SN1","purchasedOn","2026-11-01","recordedValue",500,"assetCondition","Tốt","storageLocationId",LOCATION,"accessories","Đầy đủ","status","AVAILABLE")).path("id").asText();
+  String asset=save(it,"AddAsset",null,values("code","TS-"+UUID.randomUUID().toString().substring(0,8),"name","Bộ thực hành","serialNumber","SN1","purchasedOn","2026-11-01","recordedValue",500,"assetCondition","Tốt","accessories","Đầy đủ","status","AVAILABLE")).path("id").asText();
   String loan=save(it,"AssetHandover",req,values("version",2,"assets",List.of(values("id",asset)),"equipmentChecked",true,"studentChecked",true,"signedBy",student.fullName,"receiptEvidence","Biên bản ký","receivedAt","2026-11-07T01:00:00Z","returnDueAt","2027-02-15T01:00:00Z")).path("id").asText();
   read(student,"StudentAssetReceipt",loan).andExpect(status().isOk());read(otherStudent,"StudentAssetReceipt",loan).andExpect(status().isNotFound());
   write(accountant,"DepositRefund",ct,values("version",2)).andExpect(status().isConflict());
@@ -177,9 +177,9 @@ class ScreenWorkflowIntegrationTest {
  }
  Map<String,String> loanFixture()throws Exception{
   String ct=createContract(createCourse());importAndConfirm(ct,"TUITION",1000);importAndConfirm(ct,"DEPOSIT",200);String cl=view(manager,"ListClass",null).path("items").get(0).path("id").asText();String en=view(manager,"AutoAssignmentReview",null).path("items").get(0).path("id").asText();
-  String request=save(lecturer,"AddEquipmentRequest",null,values("classId",cl,"studentId",student.id,"title","Thiết bị học tập","quantity",1,"requestType","INITIAL","equipmentGroupId",GROUP,"neededOn","2026-11-15","description","Học thực hành")).path("id").asText();
+  String request=save(lecturer,"AddEquipmentRequest",null,values("classId",cl,"studentId",student.id,"title","Thiết bị học tập","quantity",1,"requestType","INITIAL","neededOn","2026-11-15","description","Học thực hành")).path("id").asText();
   action(it,"EquipmentRequestDetail_IT",request,"prepare",values("version",0));action(it,"EquipmentRequestDetail_IT",request,"ready",values("version",1));
-  String asset=save(it,"AddAsset",null,values("code","TS-"+UUID.randomUUID().toString().substring(0,8),"name","Bộ thực hành","equipmentGroupId",GROUP,"serialNumber","SN1","purchasedOn","2026-11-01","recordedValue",500,"assetCondition","Tốt","storageLocationId",LOCATION,"accessories","Đầy đủ","status","AVAILABLE")).path("id").asText();
+  String asset=save(it,"AddAsset",null,values("code","TS-"+UUID.randomUUID().toString().substring(0,8),"name","Bộ thực hành","serialNumber","SN1","purchasedOn","2026-11-01","recordedValue",500,"assetCondition","Tốt","accessories","Đầy đủ","status","AVAILABLE")).path("id").asText();
   String loan=save(it,"AssetHandover",request,values("version",2,"assets",List.of(values("id",asset)),"equipmentChecked",true,"studentChecked",true,"signedBy",student.fullName,"receiptEvidence","Biên bản ký","receivedAt","2026-11-07T01:00:00Z","returnDueAt","2027-02-15T01:00:00Z")).path("id").asText();return Map.of("contract",ct,"class",cl,"enrollment",en,"asset",asset,"loan",loan);
  }
  @Test void approvedDamageOffsetsDepositOnceAndTechnicalAndFinancialDutiesStaySeparate()throws Exception{
@@ -284,7 +284,7 @@ class ScreenWorkflowIntegrationTest {
   write(accountant,"PaymentInstruction",contract,values("version",1,"content","Không còn quyền")).andExpect(status().isForbidden());
   assertEquals(update.get("content"),jdbc.queryForObject("SELECT content FROM payment_instructions WHERE contract_id=?",String.class,contractId));
  }
- String maintenanceAsset()throws Exception{return save(it,"AddAsset",null,values("code","BT-"+UUID.randomUUID().toString().substring(0,8),"name","Thiết bị cần bảo trì","equipmentGroupId",GROUP,"storageLocationId",LOCATION,"purchasedOn","2026-11-01","recordedValue",500,"assetCondition","Cần kiểm tra","status","AVAILABLE")).path("id").asText();}
+ String maintenanceAsset()throws Exception{return save(it,"AddAsset",null,values("code","BT-"+UUID.randomUUID().toString().substring(0,8),"name","Thiết bị cần bảo trì","purchasedOn","2026-11-01","recordedValue",500,"assetCondition","Cần kiểm tra","status","AVAILABLE")).path("id").asText();}
  Map<String,Object> maintenanceInput(String asset){return values("assetId",asset,"ownerId",it.id,"source","Kiểm tra định kỳ","maintenanceType","Bảo dưỡng","discoveredOn","2026-11-07","description","Kiểm tra và thay dây kết nối","dueOn","2026-11-14","note","Theo phiếu kỹ thuật");}
  @Test void maintenanceHistoryAndAssetStateCompleteTogetherWithRoleAndVersionChecks()throws Exception{
   String asset=maintenanceAsset();UUID assetId=UUID.fromString(asset);var input=maintenanceInput(asset);

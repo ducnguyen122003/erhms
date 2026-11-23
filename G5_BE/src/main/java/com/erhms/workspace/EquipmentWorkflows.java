@@ -10,8 +10,8 @@ import static com.erhms.workspace.TrainingWorkflows.saved;
 
 @Service
 public class EquipmentWorkflows {
-    final WorkflowData d;final TrainingWorkflows training;final MasterDataService masters;
-    public EquipmentWorkflows(WorkflowData d,TrainingWorkflows training,MasterDataService masters){this.d=d;this.training=training;this.masters=masters;}
+    final WorkflowData d;final TrainingWorkflows training;
+    public EquipmentWorkflows(WorkflowData d,TrainingWorkflows training){this.d=d;this.training=training;}
     public Map<String,Object> asset(String id,Map<String,Object> p,User u){
         role(u,"IT_SUPPORT");UUID key=id==null?UUID.randomUUID():uuid(id);
         if(id!=null){d.record("assets",id,u);d.lock("equipment_assets",key,p);}
@@ -20,14 +20,18 @@ public class EquipmentWorkflows {
         if(assigned&&!status.equals("ASSIGNED"))throw invalid("status","Thiết bị đang bàn giao. Thu hồi trước khi thay đổi trạng thái");
         if(!assigned&&status.equals("ASSIGNED"))throw invalid("status","Trạng thái đang cấp phát được tạo bởi biên bản bàn giao");
         if(d.count("SELECT COUNT(*) FROM equipment_assets WHERE code=? AND id<>?",code,key)>0)throw invalid("code","Mã thiết bị đã tồn tại");
-        Object[] fields={code,name,masters.requireActive("equipmentGroups",p,"equipmentGroupId").get("name").toString(),text(p,"serialNumber",120,false),date(p,"purchasedOn",true),money(p,"recordedValue"),text(p,"assetCondition",500,true),masters.requireActive("storageLocations",p,"storageLocationId").get("name").toString(),text(p,"accessories",1000,false),status,uuid(p,"equipmentGroupId"),uuid(p,"storageLocationId"),key};
-        if(id==null)d.jdbc.update("INSERT INTO equipment_assets(code,name,category,serial_number,purchased_on,recorded_value,asset_condition,location,accessories,status,equipment_group_id,storage_location_id,id) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)",fields);
-        else d.jdbc.update("UPDATE equipment_assets SET code=?,name=?,category=?,serial_number=?,purchased_on=?,recorded_value=?,asset_condition=?,location=?,accessories=?,status=?,equipment_group_id=?,storage_location_id=?,version=version+1 WHERE id=?",fields);
+        Object[] fields={code,name,text(p,"serialNumber",120,false),date(p,"purchasedOn",true),money(p,"recordedValue"),
+                text(p,"assetCondition",500,true),text(p,"accessories",1000,false),status,key};
+        if(id==null)d.jdbc.update("INSERT INTO equipment_assets(code,name,serial_number,purchased_on,recorded_value,asset_condition,accessories,status,id) VALUES (?,?,?,?,?,?,?,?,?)",fields);
+        else d.jdbc.update("UPDATE equipment_assets SET code=?,name=?,serial_number=?,purchased_on=?,recorded_value=?,asset_condition=?,accessories=?,status=?,version=version+1 WHERE id=?",fields);
         return saved("AssetDetail",key);
     }
     public Map<String,Object> request(Map<String,Object> p,User u){
         role(u,"LECTURER");UUID classId=uuid(p,"classId");d.record("classes",classId.toString(),u);long student=number(p,"studentId",1,Long.MAX_VALUE);d.requireClassStudent(classId,student);
-        UUID key=UUID.randomUUID();d.jdbc.update("INSERT INTO equipment_requests(id,requested_by,class_id,title,quantity,status,student_id,request_type,group_name,needed_on,description,equipment_group_id) VALUES (?,?,?,?,?,'NEW',?,?,?,?,?,?)",key,u.id,classId,text(p,"title",160,true),number(p,"quantity",1,100),student,choice(p,"requestType","INITIAL","REPLACEMENT","SUPPLEMENT"),masters.requireActive("equipmentGroups",p,"equipmentGroupId").get("name").toString(),date(p,"neededOn",true),text(p,"description",2000,true),uuid(p,"equipmentGroupId"));
+        UUID key=UUID.randomUUID();
+        d.jdbc.update("INSERT INTO equipment_requests(id,requested_by,class_id,title,quantity,status,student_id,request_type,needed_on,description) VALUES (?,?,?,?,?,'NEW',?,?,?,?)",
+                key,u.id,classId,text(p,"title",160,true),number(p,"quantity",1,100),student,
+                choice(p,"requestType","INITIAL","REPLACEMENT","SUPPLEMENT"),date(p,"neededOn",true),text(p,"description",2000,true));
         return saved("EquipmentRequestDetail_Lecturer",key);
     }
     public Map<String,Object> requestState(String id,Map<String,Object> p,User u,String action){

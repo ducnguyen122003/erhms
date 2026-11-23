@@ -28,7 +28,7 @@ test('all workbook, master data and extended workspace screens have implementati
  assert.equal(business,97);assert.equal(pages,9);
 });
 test('screen access matches the current seven role totals including public and shared screens',()=>{
- const totals=[35,29,26,41,44,47,26];
+ const totals=[35,29,26,41,38,47,26];
  roles.forEach((role,index)=>{const user={role,roleId:index+1};assert.equal(Object.keys(screens).filter(code=>canScreen(code,user,grants(role))).length,totals[index],role);});
 });
 test('proposed rights and grants outside the declared role do not enable business screens',()=>{
@@ -90,7 +90,7 @@ test('dashboard records and tasks lead to the appropriate role screen and respec
 });
 
 test('master data screens have distinct components and strict role permissions',()=>{
- const groups=[['EquipmentGroup','IT_SUPPORT'],['StorageLocation','IT_SUPPORT'],['Classroom','ADMIN']];
+ const groups=[['Classroom','ADMIN']];
  for(const [suffix,role] of groups){
   for(const mode of ['List','Add','Edit']){
    const code=mode+suffix;assert.equal(screens[code].functionCode,code);
@@ -100,10 +100,10 @@ test('master data screens have distinct components and strict role permissions',
   assert.ok(screenNavigation({role},grants(role)).some(item=>item.code==='List'+suffix));
  }
 });
-test('retired profession and course editors stay blocked for all roles even with stale grants',()=>{
- const codes=['ListProfession','AddProfession','EditProfession','ListCourse','AddCourse','EditCourse','CourseDetail'];
+test('retired catalog and course editors stay blocked for all roles even with stale grants',()=>{
+ const codes=['ListProfession','AddProfession','EditProfession','ListCourse','AddCourse','EditCourse','CourseDetail','ListEquipmentGroup','AddEquipmentGroup','EditEquipmentGroup','ListStorageLocation','AddStorageLocation','EditStorageLocation'];
  for(const code of codes){
-  const path=screenPath(code,['EditProfession','EditCourse','CourseDetail'].includes(code)?42:null);
+  const path=screenPath(code,code.startsWith('Edit')||code==='CourseDetail'?42:null);
   assert.equal(workspaceRoute(path,{roleId:1,role:'ADMIN'},codes),'forbidden',code);
   assert.equal(workspaceRoute(path,{roleId:1,role:'ADMIN'},[]),'forbidden',code);
   for(const [index,role] of roles.entries())if(role!=='ADMIN'){
@@ -113,7 +113,7 @@ test('retired profession and course editors stay blocked for all roles even with
  }
  for(const role of roles){
   const menu=screenNavigation({role},codes).map(item=>item.code);
-  for(const code of ['ListProfession','ListCourse'])assert.equal(menu.includes(code),false,role+': '+code);
+  for(const code of ['ListProfession','ListCourse','ListEquipmentGroup','ListStorageLocation'])assert.equal(menu.includes(code),false,role+': '+code);
  }
  assert.equal(canScreen('PublicCourseDetail',null,[]),true);
 });

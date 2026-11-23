@@ -1525,8 +1525,8 @@
     ],
     "proposedRoles": [],
     "public": false,
-    "scope": "Học viên, khóa / lớp, lịch, xếp lớp và hồ sơ hoàn tất được phân công quản lý.",
-    "actions": "Admin lập kế hoạch lớp theo từng năm. Quản lý học viên xem lớp thuộc phạm vi phụ trách và xếp học viên đã đủ học phí.",
+    "scope": "Kế hoạch lớp dùng chung của trung tâm; hồ sơ học viên được quản lý theo phân công riêng.",
+    "actions": "Admin lập kế hoạch lớp dùng chung theo từng năm. Các quản lý học viên xem kế hoạch và xếp học viên đã đủ học phí trong phạm vi hồ sơ được giao.",
     "variant": "Màn hình chính",
     "kind": "list",
     "functionCode": "ListClass",
@@ -1560,7 +1560,7 @@
     ],
     "proposedRoles": [],
     "public": false,
-    "scope": "Học viên, khóa / lớp, lịch, xếp lớp và hồ sơ hoàn tất được phân công quản lý.",
+    "scope": "Kế hoạch lớp dùng chung của trung tâm; hồ sơ học viên được quản lý theo phân công riêng.",
     "actions": [
       [
         "Điều chỉnh lớp",
@@ -1612,7 +1612,7 @@
     ],
     "proposedRoles": [],
     "public": false,
-    "scope": "Học viên, khóa / lớp, lịch, xếp lớp và hồ sơ hoàn tất được phân công quản lý.",
+    "scope": "Admin điều chỉnh kế hoạch lớp dùng chung của trung tâm.",
     "actions": "Admin điều chỉnh sĩ số, giảng viên và trạng thái; lịch kế hoạch đã cố định được giữ nguyên.",
     "variant": "Màn hình chính",
     "kind": "form",
@@ -1736,12 +1736,12 @@
     ],
     "proposedRoles": [],
     "public": false,
-    "scope": "Học viên, khóa / lớp, lịch, xếp lớp và hồ sơ hoàn tất được phân công quản lý.",
-    "actions": "Admin xem lịch trung tâm. Quản lý học viên xem lịch cố định thuộc phạm vi phụ trách.",
+    "scope": "Lịch học cố định dùng chung của trung tâm.",
+    "actions": "Admin và các quản lý học viên xem lịch học cố định dùng chung của trung tâm.",
     "variant": "Biến thể theo vai trò của TimeTable",
     "kind": "timetable",
     "functionCode": "TimeTable_Manager",
-    "description": "Theo dõi và xử lý dữ liệu mới nhất trong phạm vi được phân công.",
+    "description": "Theo dõi lịch học cố định của các lớp trong trung tâm.",
     "sections": []
   },
   {
@@ -2085,10 +2085,6 @@
           },
           {
             "label": "Học viên nhận *",
-            "type": "select"
-          },
-          {
-            "label": "Nhóm thiết bị *",
             "type": "select"
           },
           {
@@ -2497,7 +2493,6 @@
     "description": "Quản lý từng tài sản và trạng thái sẵn sàng cấp phát.",
     "headers": [
       "THIẾT BỊ / MÃ",
-      "NHÓM THIẾT BỊ",
       "NGƯỜI ĐANG GIỮ",
       "TRẠNG THÁI",
       "THAO TÁC"
@@ -2509,7 +2504,6 @@
     "target": "AssetDetail",
     "edit": "EditAsset",
     "filter": [
-      "Tất cả nhóm thiết bị",
       "Tất cả trạng thái"
     ],
     "sections": []
@@ -2548,10 +2542,6 @@
             "type": "text"
           },
           {
-            "label": "Nhóm thiết bị *",
-            "type": "select"
-          },
-          {
             "label": "Ngày nhập *",
             "type": "text"
           },
@@ -2562,15 +2552,11 @@
         ]
       },
       {
-        "title": "Hiện trạng & lưu kho",
+        "title": "Hiện trạng & phụ kiện",
         "fields": [
           {
             "label": "Tình trạng *",
             "type": "select"
-          },
-          {
-            "label": "Vị trí lưu kho *",
-            "type": "text"
           },
           {
             "label": "Phụ kiện đi kèm",
@@ -2614,10 +2600,6 @@
             "type": "text"
           },
           {
-            "label": "Nhóm thiết bị *",
-            "type": "select"
-          },
-          {
             "label": "Ngày nhập *",
             "type": "text"
           },
@@ -2628,15 +2610,11 @@
         ]
       },
       {
-        "title": "Hiện trạng & lưu kho",
+        "title": "Hiện trạng & phụ kiện",
         "fields": [
           {
             "label": "Tình trạng *",
             "type": "select"
-          },
-          {
-            "label": "Vị trí lưu kho *",
-            "type": "text"
           },
           {
             "label": "Phụ kiện đi kèm",
@@ -3349,9 +3327,7 @@
     "title": "Nhóm thiết bị",
     "kind": "master_list",
     "functionCode": "ListEquipmentGroup",
-    "roles": [
-      "IT_SUPPORT"
-    ],
+    "roles": [],
     "public": false,
     "description": "Quản lý danh mục nhóm thiết bị dùng chung.",
     "masterType": "equipmentGroups",
@@ -3364,9 +3340,7 @@
     "title": "Tạo nhóm thiết bị",
     "kind": "master_add",
     "functionCode": "AddEquipmentGroup",
-    "roles": [
-      "IT_SUPPORT"
-    ],
+    "roles": [],
     "public": false,
     "description": "Quản lý danh mục nhóm thiết bị dùng chung.",
     "masterType": "equipmentGroups",
@@ -3379,9 +3353,7 @@
     "title": "Cập nhật nhóm thiết bị",
     "kind": "master_edit",
     "functionCode": "EditEquipmentGroup",
-    "roles": [
-      "IT_SUPPORT"
-    ],
+    "roles": [],
     "public": false,
     "description": "Quản lý danh mục nhóm thiết bị dùng chung.",
     "masterType": "equipmentGroups",
@@ -3394,9 +3366,7 @@
     "title": "Vị trí kho",
     "kind": "master_list",
     "functionCode": "ListStorageLocation",
-    "roles": [
-      "IT_SUPPORT"
-    ],
+    "roles": [],
     "public": false,
     "description": "Quản lý danh mục vị trí kho dùng chung.",
     "masterType": "storageLocations",
@@ -3409,9 +3379,7 @@
     "title": "Tạo vị trí kho",
     "kind": "master_add",
     "functionCode": "AddStorageLocation",
-    "roles": [
-      "IT_SUPPORT"
-    ],
+    "roles": [],
     "public": false,
     "description": "Quản lý danh mục vị trí kho dùng chung.",
     "masterType": "storageLocations",
@@ -3424,9 +3392,7 @@
     "title": "Cập nhật vị trí kho",
     "kind": "master_edit",
     "functionCode": "EditStorageLocation",
-    "roles": [
-      "IT_SUPPORT"
-    ],
+    "roles": [],
     "public": false,
     "description": "Quản lý danh mục vị trí kho dùng chung.",
     "masterType": "storageLocations",
@@ -3555,7 +3521,7 @@
     "proposedRoles": [],
     "public": false,
     "scope": "Bốn khóa đào tạo cố định và kế hoạch lịch học riêng từng năm của trung tâm.",
-    "actions": "Admin chọn khóa, năm kế hoạch, người phụ trách và giảng viên để lập lịch lớp cố định.",
+    "actions": "Admin chọn khóa, năm kế hoạch, giảng viên và phòng học để lập lịch lớp cố định dùng chung cho các quản lý học viên.",
     "variant": "Màn hình chính",
     "kind": "course_schedules",
     "functionCode": "CourseSchedules",

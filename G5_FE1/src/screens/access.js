@@ -23,7 +23,7 @@ const menu={
  LECTURER:['ListClass_Lecturer','TimeTable_Lecturer','ListAttendance','ListEquipmentRequest','Reports_Lecturer'],
  STUDENT:['StudentProfileDetail_Student','TimeTable_Student','StudentAttendance','StudentResults','TuitionDetail_Student','StudentAssets'],
  ACCOUNTANT:['ListPayment','ListTuitionManagement','DepositList','ListTrainingContract','ListAssetIncident','ListAssetRecovery','ListTrainingClosure','Reports_Accountant'],
- IT_SUPPORT:['ListEquipmentGroup','ListStorageLocation','ListAsset','ListEquipmentRequest_IT','ListAssetRecovery','ListAssetIncident','ListTrainingClosure','Reports_IT_Support']
+ IT_SUPPORT:['ListAsset','ListEquipmentRequest_IT','ListAssetRecovery','ListAssetIncident','ListTrainingClosure','Reports_IT_Support']
 };
 export function screenNavigation(user,functions){return [...(menu[user?.role]||[]),'ListNotification'].filter(code=>canScreen(code,user,functions)).map(code=>({code,label:screens[code].title,path:screenPath(code),fe:screens[code].fe}));}
 export function dashboardLink(user,detail,functions){

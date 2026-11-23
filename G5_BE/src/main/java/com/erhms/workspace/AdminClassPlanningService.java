@@ -31,9 +31,10 @@ public class AdminClassPlanningService {
         String name=text(p,"name",160,true);
         long capacity=number(p,"capacity",1,500),teacher=number(p,"lecturerId",1,Long.MAX_VALUE);
         d.requireRoleId(teacher,2);
-        long manager=number(p,"managerId",1,Long.MAX_VALUE);d.requireRoleId(manager,6);
         int year=(int)number(p,"planYear",1900,9999);
-        LocalDate first=date(p,"startsOn",true),last=date(p,"endsOn",true);
+        LocalDate first=date(p,"startsOn",true);
+        LocalDate last=date(p,"endsOn",false);
+        if(last==null)last=first.plusMonths(((Number)course.get("durationMonths")).longValue());
         if(first.getYear()!=year)throw invalid("planYear","Năm kế hoạch phải là năm bắt đầu lớp");
         if(last.isBefore(first)||ChronoUnit.DAYS.between(first,last)>366)throw invalid("endsOn","Ngày kết thúc phải từ ngày bắt đầu và trong phạm vi một năm học");
         var weekdays=weekdays(p);
@@ -41,12 +42,19 @@ public class AdminClassPlanningService {
         if(!end.isAfter(start))throw invalid("endTime","Giờ kết thúc phải sau giờ bắt đầu trong cùng ngày");
         UUID roomId=uuid(p,"classroomId");String room=masters.requireActive("classrooms",p,"classroomId").get("name").toString();
         List<LocalDate> dates=new ArrayList<>();
-        for(LocalDate day=first;!day.isAfter(last);day=day.plusDays(1))if(weekdays.contains(day.getDayOfWeek().getValue()))dates.add(day);
-        if(dates.isEmpty())throw invalid("weekdays","Khoảng ngày đã chọn không có buổi học theo các thứ này");
+        Set<Integer> missingDays=new HashSet<>(weekdays);
+        for(LocalDate day=first;!day.isAfter(last);day=day.plusDays(1)){
+            int dayOfWeek=day.getDayOfWeek().getValue();
+            if(weekdays.contains(dayOfWeek)){
+                dates.add(day);
+                missingDays.remove(dayOfWeek);
+            }
+        }
+        if(!missingDays.isEmpty())throw invalid("endsOn","Khoảng ngày chưa đủ để xếp buổi cho tất cả các thứ đã chọn. Hãy chọn ngày kết thúc muộn hơn.");
         UUID key=UUID.randomUUID();
         for(var day:dates)checkConflict(key,null,teacher,roomId,room,day.atTime(start).atZone(ZONE).toOffsetDateTime(),day.atTime(end).atZone(ZONE).toOffsetDateTime());
-        d.jdbc.update("INSERT INTO training_classes(id,code,name,lecturer_id,starts_on,ends_on,status,total_sessions,course_id,manager_id,capacity,plan_year,weekdays,start_time,end_time,classroom_id,plan_fixed) VALUES (?,?,?,?,?,?,'PLANNED',?,?,?,?,?,?,?,?,?,TRUE)",
-                key,nextCode(),name,teacher,first,last,dates.size(),courseId,manager,capacity,year,csv(weekdays),start,end,roomId);
+        d.jdbc.update("INSERT INTO training_classes(id,code,name,lecturer_id,starts_on,ends_on,status,total_sessions,course_id,capacity,plan_year,weekdays,start_time,end_time,classroom_id,plan_fixed) VALUES (?,?,?,?,?,?,'PLANNED',?,?,?,?,?,?,?,?,TRUE)",
+                key,nextCode(),name,teacher,first,last,dates.size(),courseId,capacity,year,csv(weekdays),start,end,roomId);
         int index=0;
         for(var day:dates){String title="Buổi "+(++index)+" - "+name;if(title.length()>160)title=title.substring(0,160);d.jdbc.update("INSERT INTO training_sessions(id,class_id,title,starts_at,ends_at,room,classroom_id,change_note) VALUES (?,?,?,?,?,?,?,?)",UUID.randomUUID(),key,title,day.atTime(start).atZone(ZONE).toOffsetDateTime(),day.atTime(end).atZone(ZONE).toOffsetDateTime(),room,roomId,"Lịch cố định theo kế hoạch năm "+year);}
         return TrainingWorkflows.saved("ClassDetail",key);

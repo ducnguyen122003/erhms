@@ -35,7 +35,7 @@ class FixedCourseSchedulesIntegrationTest {
     ResultActions write(User actor,String path,Map<String,Object> input)throws Exception{return mvc.perform(post(BASE+path).with(user(actor.email).roles(actor.getRoleCode())).with(csrf()).contentType("application/json").content(json.writeValueAsString(input)));}
     JsonNode body(MvcResult result)throws Exception{return json.readTree(result.getResponse().getContentAsString(StandardCharsets.UTF_8));}
     JsonNode schedules(String query)throws Exception{return body(read(admin,"CourseSchedules"+query).andExpect(status().isOk()).andReturn());}
-    Map<String,Object> plan(String course,long owner,int year,int hour,String title){return values("courseId",course,"managerId",owner,"name",title,"planYear",year,"startsOn",year+"-01-04","endsOn",year+"-01-17","weekdays",List.of(1,3),"startTime",String.format(Locale.ROOT,"%02d:00",hour),"endTime",String.format(Locale.ROOT,"%02d:00",hour+2),"classroomId",room.toString(),"lecturerId",teacher.id,"capacity",20);}
+    Map<String,Object> plan(String course,int year,int hour,String title){return values("courseId",course,"name",title,"planYear",year,"startsOn",year+"-01-04","endsOn",year+"-01-17","weekdays",List.of(1,3),"startTime",String.format(Locale.ROOT,"%02d:00",hour),"endTime",String.format(Locale.ROOT,"%02d:00",hour+2),"classroomId",room.toString(),"lecturerId",teacher.id,"capacity",20);}
     String create(Map<String,Object> input)throws Exception{return body(write(admin,"AddClass",input).andExpect(status().isOk()).andReturn()).path("id").asText();}
     UUID legacyCourse(){UUID id=UUID.randomUUID();jdbc.update("INSERT INTO training_courses(id,code,name,profession,duration_months,total_sessions,tuition_fee,objectives,status,manager_id,class_capacity) VALUES (?,?, 'Historical course','Điện',3,10,900,'Historical objectives','OPEN',?,20)",id,id.toString(),manager.id);return id;}
 
@@ -56,21 +56,27 @@ class FixedCourseSchedulesIntegrationTest {
         }
         write(admin,"AddCourse",values("name","Fifth course")).andExpect(status().isForbidden());
         mvc.perform(post("/api/master-data/screens/AddProfession").with(user(admin.email).roles("ADMIN")).with(csrf()).contentType("application/json").content("{}")).andExpect(status().isForbidden());
-        var p=plan(legacy.toString(),manager.id,2027,8,"Legacy plan");write(admin,"AddClass",p).andExpect(status().isBadRequest()).andExpect(jsonPath("$.fields.courseId").exists());
+        var p=plan(legacy.toString(),2027,8,"Legacy plan");write(admin,"AddClass",p).andExpect(status().isBadRequest()).andExpect(jsonPath("$.fields.courseId").exists());
         assertEquals(4,schedules("").path("courses").size());assertEquals("Historical course",jdbc.queryForObject("SELECT name FROM training_courses WHERE id=?",String.class,legacy));
     }
 
-    @Test void administratorsChooseManagerAndAnyActiveLecturerSeparatelyForEachClass()throws Exception{
+    @Test void allManagersCanReadAndChooseSharedPlansIncludingPreviouslyAssignedPlans()throws Exception{
         assertEquals(0,jdbc.queryForObject("SELECT COUNT(*) FROM course_lecturers WHERE lecturer_id=?",Integer.class,teacher.id));
-        String own=create(plan(FIRST,manager.id,2027,8,"Manager one")),other=create(plan(FIRST,otherManager.id,2027,10,"Manager two"));
-        read(manager,"ClassDetail/"+own).andExpect(status().isOk());read(manager,"ClassDetail/"+other).andExpect(status().isNotFound());read(otherManager,"ClassDetail/"+other).andExpect(status().isOk());read(otherManager,"ClassDetail/"+own).andExpect(status().isNotFound());
-        var ownOptions=body(read(manager,"AddTrainingContract").andExpect(status().isOk()).andReturn()).path("options").path("classes");assertTrue(ownOptions.toString().contains(own));assertFalse(ownOptions.toString().contains(other));
+        String shared=create(plan(FIRST,2027,8,"Shared plan")),previouslyAssigned=create(plan(FIRST,2027,10,"Previously assigned plan"));
+        assertEquals(2,jdbc.queryForObject("SELECT COUNT(*) FROM training_classes WHERE id IN (?,?) AND manager_id IS NULL",Integer.class,UUID.fromString(shared),UUID.fromString(previouslyAssigned)));
+        jdbc.update("UPDATE training_classes SET manager_id=? WHERE id=?",otherManager.id,UUID.fromString(previouslyAssigned));
+        for(User actor:List.of(manager,otherManager)){
+            read(actor,"ClassDetail/"+shared).andExpect(status().isOk());read(actor,"ClassDetail/"+previouslyAssigned).andExpect(status().isOk());
+            var options=body(read(actor,"AddTrainingContract").andExpect(status().isOk()).andReturn()).path("options").path("classes");assertTrue(options.toString().contains(shared));assertTrue(options.toString().contains(previouslyAssigned));
+            assertTrue(body(read(actor,"ListClass").andExpect(status().isOk()).andReturn()).path("items").toString().contains(previouslyAssigned));
+            write(actor,"EditClass/"+shared,values("version",0,"lecturerId",teacher.id,"capacity",20,"changeNote","Attempt to change shared calendar")).andExpect(status().isForbidden());
+        }
         assertEquals(0,jdbc.queryForObject("SELECT COUNT(*) FROM training_courses WHERE fixed_catalog=TRUE AND manager_id IS NOT NULL",Integer.class));
     }
 
     @Test void configurationFiltersReturnOnlyTheSelectedCourseYearAndStatus()throws Exception{
-        String first=create(plan(FIRST,manager.id,2027,8,"Laptop January")),second=create(plan(SECOND,otherManager.id,2027,10,"PC January"));
-        String future=create(plan(FIRST,manager.id,2028,8,"Laptop next year"));
+        String first=create(plan(FIRST,2027,8,"Laptop January")),second=create(plan(SECOND,2027,10,"PC January"));
+        String future=create(plan(FIRST,2028,8,"Laptop next year"));
         var data=schedules("?courseId="+FIRST+"&year=2027&q=Laptop&status=PLANNED");assertEquals(1,data.path("total").asInt());assertEquals(first,data.path("items").get(0).path("id").asText());assertEquals(data.path("items"),data.path("plans"));assertFalse(data.path("items").toString().contains(second));assertFalse(data.path("items").toString().contains(future));
         assertEquals(1,data.path("courses").get(0).path("classCount").asInt());assertTrue(data.path("options").path("planYears").toString().contains("2028"));
         read(admin,"CourseSchedules?courseId="+UUID.randomUUID()).andExpect(status().isBadRequest());read(admin,"CourseSchedules?year=1899").andExpect(status().isBadRequest());read(admin,"CourseSchedules?status=UNKNOWN").andExpect(status().isBadRequest());

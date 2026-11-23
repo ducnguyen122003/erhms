@@ -11,11 +11,9 @@ import static com.erhms.workspace.WorkflowData.*;
 @Service
 public class MasterDataService {
     record Definition(String table,String suffix,String role,int nameLength,List<String> references) {
-        String codeLabel(){return switch(suffix){case "EquipmentGroup"->"Mã nhóm thiết bị";case "StorageLocation"->"Mã vị trí";case "Profession"->"Mã ngành nghề";case "Classroom"->"Mã phòng học";default->"Mã ngân hàng";};}
+        String codeLabel(){return switch(suffix){case "Profession"->"Mã ngành nghề";case "Classroom"->"Mã phòng học";default->"Mã ngân hàng";};}
     }
     private static final Map<String,Definition> TYPES=Map.of(
-        "equipmentGroups",new Definition("m_equipment_group","EquipmentGroup","IT_SUPPORT",120,List.of("equipment_assets:equipment_group_id","equipment_requests:equipment_group_id")),
-        "storageLocations",new Definition("m_storage_location","StorageLocation","IT_SUPPORT",160,List.of("equipment_assets:storage_location_id")),
         "professions",new Definition("m_profession","Profession","ADMIN",120,List.of("training_courses:profession_id")),
         "classrooms",new Definition("m_classroom","Classroom","ADMIN",100,List.of("training_sessions:classroom_id")),
         "banks",new Definition("m_bank","Bank","ACCOUNTANT",160,List.of("financial_transactions:bank_id")));
@@ -52,11 +50,24 @@ public class MasterDataService {
     public Map<String,Object> save(String code,String id,Map<String,Object> input){
         var def=access(code,id==null?"Add":"Edit");UUID key=id==null?UUID.randomUUID():uuid(id);
         if(id!=null)d.lock(def.table(),key,input);
-        String masterCode=text(input,"code",40,true).toUpperCase(Locale.ROOT),name=text(input,"name",def.nameLength(),true),nameKey=name.toLowerCase(Locale.ROOT);
+        String masterCode=text(input,"code",40,true).toUpperCase(Locale.ROOT);
         if(!masterCode.matches("[A-Z0-9][A-Z0-9_-]{0,39}"))throw invalid("code","Mã chỉ gồm chữ không dấu, số, dấu gạch ngang hoặc gạch dưới");
+        boolean classroom=def.suffix().equals("Classroom");
+        String name=text(input,"name",def.nameLength(),!classroom);
+        boolean derivedName=name.isEmpty();
+        if(derivedName){
+            name="Phòng "+masterCode;
+            if(id!=null){
+                var room=d.one("SELECT code,name FROM m_classroom WHERE id=?",key);
+                String previousName=room.get("name").toString();
+                if(!previousName.equals("Phòng "+room.get("code")))name=previousName;
+            }
+        }
+        String nameKey=name.toLowerCase(Locale.ROOT);
         String status=choice(input,"status","ACTIVE","INACTIVE"),description=text(input,"description",500,false);
         if(d.count("SELECT COUNT(*) FROM "+def.table()+" WHERE code=? AND id<>?",masterCode,key)>0)throw invalid("code",def.codeLabel()+" đã tồn tại");
-        if(d.count("SELECT COUNT(*) FROM "+def.table()+" WHERE name_key=? AND id<>?",nameKey,key)>0)throw invalid("name","Tên danh mục đã tồn tại");
+        if(d.count("SELECT COUNT(*) FROM "+def.table()+" WHERE name_key=? AND id<>?",nameKey,key)>0)
+            throw derivedName?invalid("code","Mã phòng này tạo ra tên đã được sử dụng. Chọn mã phòng khác."):invalid("name","Tên danh mục đã tồn tại");
         if(id==null)d.jdbc.update("INSERT INTO "+def.table()+"(id,code,name,name_key,description,status) VALUES (?,?,?,?,?,?)",key,masterCode,name,nameKey,description,status);
         else d.jdbc.update("UPDATE "+def.table()+" SET code=?,name=?,name_key=?,description=?,status=?,version=version+1,updated_at=CURRENT_TIMESTAMP WHERE id=?",masterCode,name,nameKey,description,status,key);
         return Map.of("id",key.toString(),"screen","List"+def.suffix(),"notice",id==null?"Tạo danh mục thành công.":"Cập nhật danh mục thành công.");

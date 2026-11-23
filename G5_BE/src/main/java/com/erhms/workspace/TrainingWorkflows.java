@@ -165,10 +165,7 @@ public class TrainingWorkflows {
             throw invalid("classId","Lớp đã đủ sĩ số, bao gồm các hợp đồng đang giữ chỗ. Chọn lớp còn chỗ trống.");
         String courseName=sameCourse&&existing.get("registeredCourseName")!=null?existing.get("registeredCourseName").toString():registeredCourse!=null?registeredCourse.name():co.get("name").toString();
         int courseMonths=sameCourse&&existing.get("registeredDurationMonths")!=null?((Number)existing.get("registeredDurationMonths")).intValue():registeredCourse!=null?registeredCourse.durationMonths():((Number)co.get("durationMonths")).intValue();
-        Object managerId=targetClass.get("managerId")!=null?targetClass.get("managerId"):co.get("managerId");
-        if(!(managerId instanceof Number manager)||manager.longValue()!=u.id)
-            throw invalid("classId","Lớp đã chọn phải thuộc quản lý học vụ đang lập hợp đồng.");
-        d.requireRoleId(((Number)managerId).longValue(),6);
+        long managerId=u.id;
         if(d.count("SELECT COUNT(*) FROM training_contracts WHERE consultation_id=? AND (registered_course_name=? OR course_id=?) AND id<>? AND status<>'CANCELLED'",admission,courseName,course,key)>0)throw invalid("consultationId","Hồ sơ này đã có hợp đồng cho khóa học được chọn");
         String email=text(application,"email",190,true).toLowerCase(Locale.ROOT);
         if(!email.matches("[^\\s@]+@[^\\s@]+\\.[^\\s@]+"))throw invalid("email","Cần cập nhật email hợp lệ của học viên trước khi lập hợp đồng");

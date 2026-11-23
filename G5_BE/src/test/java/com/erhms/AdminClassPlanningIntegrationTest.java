@@ -36,7 +36,7 @@ class AdminClassPlanningIntegrationTest {
     UUID course(User owner){return UUID.fromString("64000000-0000-0000-0000-000000000001");}
     UUID room(){UUID id=UUID.randomUUID();jdbc.update("INSERT INTO m_classroom(id,code,name,name_key) VALUES (?,?,?,?)",id,id.toString(),"Phòng "+id,"phòng "+id);return id;}
     Map<String,Object> values(Object...pairs){var result=new LinkedHashMap<String,Object>();for(int i=0;i<pairs.length;i+=2)result.put((String)pairs[i],pairs[i+1]);return result;}
-    Map<String,Object> plan(){return values("courseId",course.toString(),"managerId",manager.id,"name","Lớp kế hoạch","planYear",2027,"startsOn","2027-01-04","endsOn","2027-01-17","weekdays",List.of(3,1),"startTime","08:00","endTime","10:00","classroomId",room.toString(),"lecturerId",teacher.id,"capacity",20);}
+    Map<String,Object> plan(){return values("courseId",course.toString(),"name","Lớp kế hoạch","planYear",2027,"startsOn","2027-01-04","endsOn","2027-01-17","weekdays",List.of(3,1),"startTime","08:00","endTime","10:00","classroomId",room.toString(),"lecturerId",teacher.id,"capacity",20);}
     String path(String screen,String id){return "/api/workspace/screens/"+screen+(id==null?"":"/"+id);}
     ResultActions write(User actor,String screen,String id,Map<String,Object> input)throws Exception{return mvc.perform(post(path(screen,id)).with(user(actor.email).roles(actor.getRoleCode())).with(csrf()).contentType("application/json").content(json.writeValueAsString(input)));}
     ResultActions read(User actor,String screen,String id)throws Exception{return mvc.perform(get(path(screen,id)).with(user(actor.email).roles(actor.getRoleCode())));}
@@ -44,18 +44,18 @@ class AdminClassPlanningIntegrationTest {
     JsonNode detail(User actor,String id)throws Exception{return body(read(actor,"ClassDetail",id).andExpect(status().isOk()).andReturn());}
     String create(Map<String,Object> input)throws Exception{return body(write(admin,"AddClass",null,input).andExpect(status().isOk()).andReturn()).path("id").asText();}
     Map<String,Object> edit(String id)throws Exception{return values("version",detail(admin,id).path("record").path("version").asLong(),"lecturerId",teacher.id,"capacity",20,"status","PLANNED","changeNote","Điều chỉnh phân công");}
-    int classes(){return jdbc.queryForObject("SELECT COUNT(*) FROM training_classes WHERE course_id=? AND manager_id IN (?,?)",Integer.class,course,manager.id,otherManager.id);}
+    int classes(){return jdbc.queryForObject("SELECT COUNT(*) FROM training_classes WHERE course_id=? AND lecturer_id=?",Integer.class,course,teacher.id);}
 
     @Test void adminCreatesAnAnnualPlanAndGeneratesExactlyItsWeeklyLocalDates()throws Exception{
-        var p=plan();p.put("code","CLIENT-CODE");String first=create(p);
-        var record=detail(admin,first).path("record");assertTrue(record.path("code").asText().matches("L-\\d{6,}"));assertTrue(record.path("planFixed").asBoolean());assertEquals(manager.id,record.path("managerId").asLong());assertEquals(2027,record.path("planYear").asInt());assertEquals(4,record.path("totalSessions").asInt());
+        var p=plan();p.put("code","CLIENT-CODE");p.put("managerId",otherManager.id);String first=create(p);
+        var record=detail(admin,first).path("record");assertTrue(record.path("code").asText().matches("L-\\d{6,}"));assertTrue(record.path("planFixed").asBoolean());assertTrue(record.path("managerId").isNull());assertEquals(2027,record.path("planYear").asInt());assertEquals(4,record.path("totalSessions").asInt());
         assertEquals(List.of("2027-01-04","2027-01-06","2027-01-11","2027-01-13"),jdbc.query("SELECT starts_at FROM training_sessions WHERE class_id=? ORDER BY starts_at",(rs,n)->rs.getObject(1,OffsetDateTime.class).atZoneSameInstant(ZoneId.of("Asia/Ho_Chi_Minh")).toLocalDate().toString(),UUID.fromString(first)));
         assertEquals(4,jdbc.queryForObject("SELECT COUNT(*) FROM training_sessions WHERE class_id=? AND classroom_id=?",Integer.class,UUID.fromString(first),room));
-        assertEquals(teacher.id,detail(manager,first).path("record").path("lecturerId").asLong());read(otherManager,"ClassDetail",first).andExpect(status().isNotFound());
+        assertEquals(teacher.id,detail(manager,first).path("record").path("lecturerId").asLong());read(otherManager,"ClassDetail",first).andExpect(status().isOk());
         var next=plan();next.put("planYear",2028);next.put("startsOn","2028-01-03");next.put("endsOn","2028-01-16");String second=create(next);
         assertEquals(Long.parseLong(record.path("code").asText().substring(2))+1,Long.parseLong(detail(admin,second).path("record").path("code").asText().substring(2)));
         var year=body(mvc.perform(get(path("CourseSchedules",null)).param("year","2027").with(user(admin.email).roles("ADMIN"))).andExpect(status().isOk()).andReturn());assertTrue(year.path("items").toString().contains(first));assertFalse(year.path("items").toString().contains(second));
-        var foreign=plan();foreign.put("managerId",otherManager.id);foreign.put("startTime","10:00");foreign.put("endTime","12:00");String other=create(foreign);assertEquals(otherManager.id,detail(admin,other).path("record").path("managerId").asLong());read(manager,"ClassDetail",other).andExpect(status().isNotFound());
+        var secondPlan=plan();secondPlan.put("managerId","IGNORED-CLIENT-ASSIGNMENT");secondPlan.put("startTime","10:00");secondPlan.put("endTime","12:00");String other=create(secondPlan);assertTrue(detail(admin,other).path("record").path("managerId").isNull());read(manager,"ClassDetail",other).andExpect(status().isOk());
     }
 
     @Test void onlyAdminCanWritePlansAndCalendarEvenWithAnInjectedRoleGrant()throws Exception{
@@ -72,9 +72,26 @@ class AdminClassPlanningIntegrationTest {
     }
 
     @Test void invalidYearsWeekdaysHoursLecturersAndCoursesNeverCreatePartialPlans()throws Exception{
-        for(Map<String,Object> change:List.of(values("planYear",2026),values("weekdays",List.of()),values("weekdays",List.of(1,1)),values("weekdays",List.of(8)),values("startTime","10:00","endTime","08:00"),values("startTime","08:00","endTime","08:00"),values("endsOn","2026-12-31"),values("endsOn","2028-01-06"),values("startsOn","2027-01-05","endsOn","2027-01-05","weekdays",List.of(1)),values("lecturerId",actor("STUDENT").id),values("managerId",teacher.id))){var p=plan();p.putAll(change);write(admin,"AddClass",null,p).andExpect(status().isBadRequest());}
+        for(Map<String,Object> change:List.of(values("planYear",2026),values("weekdays",List.of()),values("weekdays",List.of(1,1)),values("weekdays",List.of(8)),values("startTime","10:00","endTime","08:00"),values("startTime","08:00","endTime","08:00"),values("endsOn","2026-12-31"),values("endsOn","2028-01-06"),values("startsOn","2027-01-05","endsOn","2027-01-05","weekdays",List.of(1)),values("lecturerId",actor("STUDENT").id))){var p=plan();p.putAll(change);write(admin,"AddClass",null,p).andExpect(status().isBadRequest());}
         jdbc.update("UPDATE m_user SET account_locked=TRUE WHERE user_id=?",teacher.id);write(admin,"AddClass",null,plan()).andExpect(status().isBadRequest());jdbc.update("UPDATE m_user SET account_locked=FALSE WHERE user_id=?",teacher.id);
-        var missing=plan();missing.remove("managerId");write(admin,"AddClass",null,missing).andExpect(status().isBadRequest());assertEquals(0,classes());
+        assertEquals(0,classes());
+    }
+
+    @Test void weekdayPlansRejectTruncatedRangesAndDefaultToTheCourseDuration()throws Exception{
+        var plan=plan();
+        plan.put("weekdays",List.of(1,2,3,4,5));
+        plan.put("endsOn",plan.get("startsOn"));
+        write(admin,"AddClass",null,plan).andExpect(status().isBadRequest()).andExpect(jsonPath("$.fields.endsOn").exists());
+        assertEquals(0,classes());
+
+        plan.remove("endsOn");
+        String id=create(plan);
+        var result=detail(admin,id);
+        assertEquals("2027-05-04",result.path("record").path("endsOn").asText());
+        ZoneId zone=ZoneId.of("Asia/Ho_Chi_Minh");
+        var firstWeek=jdbc.query("SELECT starts_at FROM training_sessions WHERE class_id=? ORDER BY starts_at FETCH FIRST 5 ROWS ONLY",
+                (rs,n)->rs.getObject(1,OffsetDateTime.class).atZoneSameInstant(zone).toLocalDate().toString(),UUID.fromString(id));
+        assertEquals(List.of("2027-01-04","2027-01-05","2027-01-06","2027-01-07","2027-01-08"),firstWeek);
     }
 
     @Test void roomAndTeacherConflictsRollbackWholePlansWhileTouchingTimeRangesAreAllowed()throws Exception{

@@ -22,7 +22,9 @@ export default function MasterDataScreen({code,accountId:id,user,functions=[],on
  const can=target=>canScreen(target,user,functions);
  async function save(values,clearDirty){
   if(pending.current)return false;pending.current=true;setBusy(true);setError('');setErrors({});const controller=new AbortController();controllerRef.current=controller;
-  try{const result=await api(url,{method:id?'PUT':'POST',body:JSON.stringify(values),signal:controller.signal});if(!mounted.current)return false;clearDirty();onChanged?.();onNavigate(screenPath(result.screen),{notice:result.notice});return true;}
+  const input={...values};
+  if(suffix==='Classroom')delete input.name;
+  try{const result=await api(url,{method:id?'PUT':'POST',body:JSON.stringify(input),signal:controller.signal});if(!mounted.current)return false;clearDirty();onChanged?.();onNavigate(screenPath(result.screen),{notice:result.notice});return true;}
   catch(cause){if(!controller.signal.aborted){if(cause.status===401)onLogout();else{setError(cause.message);setErrors(cause.fields||{});}}return false;}
   finally{pending.current=false;if(mounted.current)setBusy(false);}
  }
@@ -32,7 +34,12 @@ export default function MasterDataScreen({code,accountId:id,user,functions=[],on
   catch(cause){if(!controller.signal.aborted){if(cause.status===401)onLogout();else setError(cause.message);}}
   finally{pending.current=false;if(mounted.current)setBusy(false);}
  }
- const fields=[{key:'code',label:codeLabel,type:'text',required:true,maxLength:40},{key:'name',label:'Tên '+screens['List'+suffix].title.toLowerCase(),type:'text',required:true,maxLength:spec.nameLength},{key:'status',label:'Trạng thái',type:'select',source:[{id:'ACTIVE',name:'Đang sử dụng'},{id:'INACTIVE',name:'Ngừng sử dụng'}],required:true},{key:'description',label:'Mô tả',type:'textarea',maxLength:500}];
+ const fields=[
+  {key:'code',label:codeLabel,type:'text',required:true,maxLength:40},
+  ...(suffix==='Classroom'?[]:[{key:'name',label:'Tên '+screens['List'+suffix].title.toLowerCase(),type:'text',required:true,maxLength:spec.nameLength}]),
+  {key:'status',label:'Trạng thái',type:'select',source:[{id:'ACTIVE',name:'Đang sử dụng'},{id:'INACTIVE',name:'Ngừng sử dụng'}],required:true},
+  {key:'description',label:'Mô tả',type:'textarea',maxLength:500}
+ ];
  const page=<AdminPage title={spec.title} description={spec.description} code={code} eyebrow={dashboardRoles[user.role]?.category||'DANH MỤC DÙNG CHUNG'}>
   {remote.loading||remote.error?<AdminLoading error={remote.error} onRetry={remote.retry}/>:isList?<><AdminMessage error={!deleting?error:''} notice={notice}/><section className="admin-card admin-list-card master-catalogue"><header className="admin-card-heading"><div><h2>{spec.title}</h2><p className="admin-muted">Tìm kiếm, cập nhật và quản lý danh mục dùng chung.</p></div>{can('Add'+suffix)&&<button type="button" onClick={()=>onNavigate(screenPath('Add'+suffix))}><Plus size={15}/>Tạo mới</button>}</header>
   <div className="screen-toolbar"><label className="screen-search"><Search size={15}/><input aria-label="Tìm theo mã hoặc tên" placeholder="Tìm theo mã hoặc tên…" value={search} onChange={e=>setSearch(e.target.value)} maxLength={200}/></label><select aria-label="Lọc trạng thái" value={filter.status} onChange={e=>setFilter(current=>({...current,status:e.target.value,page:0}))}><option value="">Tất cả trạng thái</option><option value="ACTIVE">Đang sử dụng</option><option value="INACTIVE">Ngừng sử dụng</option></select></div>

@@ -35,7 +35,7 @@ class MasterDataIntegrationTest {
  ResultActions business(String role,String code,String id,Map<String,Object> input)throws Exception{return mvc.perform(post("/api/workspace/screens/"+code+(id==null?"":"/"+id)).with(user(actors.get(role).email).roles(role)).with(csrf()).contentType("application/json").content(json.writeValueAsString(input)));}
 
  @Test void eachCatalogueSupportsCrudAndOnlyTheResponsibleRoleCanManageIt()throws Exception{
-  for(String[] spec:List.of(new String[]{"EquipmentGroup","IT_SUPPORT"},new String[]{"StorageLocation","IT_SUPPORT"},new String[]{"Classroom","ADMIN"})){
+  for(String[] spec:List.<String[]>of(new String[]{"Classroom","ADMIN"})){
    String suffix=spec[0],role=spec[1],id=create(role,suffix,"MD-01","Danh mục "+suffix);
    getScreen(role,"List"+suffix,null).andExpect(status().isOk()).andExpect(jsonPath("$.total").value(1));
    getScreen(role,"Edit"+suffix,id).andExpect(status().isOk()).andExpect(jsonPath("$.record.name").value("Danh mục "+suffix));
@@ -52,36 +52,71 @@ class MasterDataIntegrationTest {
   }
  }
  @Test void duplicateNamesCodesAndRevokedGrantsAreRejected()throws Exception{
-  create("IT_SUPPORT","EquipmentGroup","EL","Điện công nghiệp");
-  write("IT_SUPPORT","AddEquipmentGroup",null,input("el","Tên khác","ACTIVE",0)).andExpect(status().isBadRequest()).andExpect(jsonPath("$.fields.code").exists());
-  write("IT_SUPPORT","AddEquipmentGroup",null,input("NEW"," điện công nghiệp ","ACTIVE",0)).andExpect(status().isBadRequest()).andExpect(jsonPath("$.fields.name").exists());
-  mvc.perform(get(url("ListEquipmentGroup",null)).param("q","Điện").with(user(actors.get("IT_SUPPORT").email).roles("IT_SUPPORT"))).andExpect(status().isOk()).andExpect(jsonPath("$.total").value(1));
-  jdbc.update("DELETE FROM role_function WHERE role_id=5 AND function_code='AddEquipmentGroup'");
-  write("IT_SUPPORT","AddEquipmentGroup",null,input("X","Mới","ACTIVE",0)).andExpect(status().isForbidden());
-  mvc.perform(post(url("AddEquipmentGroup",null)).with(user(actors.get("IT_SUPPORT").email).roles("IT_SUPPORT")).contentType("application/json").content("{}")).andExpect(status().isForbidden());
+  create("ADMIN","Classroom","EL","Điện công nghiệp");
+  write("ADMIN","AddClassroom",null,input("el","Tên khác","ACTIVE",0)).andExpect(status().isBadRequest()).andExpect(jsonPath("$.fields.code").exists());
+  write("ADMIN","AddClassroom",null,input("NEW"," điện công nghiệp ","ACTIVE",0)).andExpect(status().isBadRequest()).andExpect(jsonPath("$.fields.name").exists());
+  mvc.perform(get(url("ListClassroom",null)).param("q","Điện").with(user(actors.get("ADMIN").email).roles("ADMIN"))).andExpect(status().isOk()).andExpect(jsonPath("$.total").value(1));
+  jdbc.update("DELETE FROM role_function WHERE role_id=1 AND function_code='AddClassroom'");
+  write("ADMIN","AddClassroom",null,input("X","Mới","ACTIVE",0)).andExpect(status().isForbidden());
+  mvc.perform(post(url("AddClassroom",null)).with(user(actors.get("ADMIN").email).roles("ADMIN")).contentType("application/json").content("{}")).andExpect(status().isForbidden());
  }
- @Test void assetReferencesArePersistedRenamesAreVisibleAndReferencedMastersCannotBeDeleted()throws Exception{
-  String group=create("IT_SUPPORT","EquipmentGroup","EL","Điện"),location=create("IT_SUPPORT","StorageLocation","A","Kho A");
-  var payload=new HashMap<String,Object>(Map.of("code","TS-01","name","Thiết bị","equipmentGroupId",group,"storageLocationId",location,"purchasedOn","2026-11-01","recordedValue",100,"assetCondition","Tốt","status","AVAILABLE"));
-  String asset=body(business("IT_SUPPORT","AddAsset",null,payload).andExpect(status().isOk()).andReturn()).path("id").asText();
-  assertEquals(UUID.fromString(group),jdbc.queryForObject("SELECT equipment_group_id FROM equipment_assets WHERE id=?",UUID.class,UUID.fromString(asset)));
-  remove("IT_SUPPORT","ListEquipmentGroup",group,0).andExpect(status().isConflict());remove("IT_SUPPORT","ListStorageLocation",location,0).andExpect(status().isConflict());
-  write("IT_SUPPORT","EditEquipmentGroup",group,input("EL","Điện và điện tử","ACTIVE",0)).andExpect(status().isOk());
-  mvc.perform(get("/api/workspace/screens/AssetDetail/"+asset).with(user(actors.get("IT_SUPPORT").email).roles("IT_SUPPORT"))).andExpect(status().isOk()).andExpect(jsonPath("$.record.category").value("Điện và điện tử"));
-  write("IT_SUPPORT","EditEquipmentGroup",group,input("EL","Điện và điện tử","INACTIVE",1)).andExpect(status().isOk());
-  mvc.perform(get("/api/workspace/screens/AddAsset").with(user(actors.get("IT_SUPPORT").email).roles("IT_SUPPORT"))).andExpect(status().isOk()).andExpect(jsonPath("$.options.equipmentGroups.length()").value(0));
-  payload.put("code","TS-02");business("IT_SUPPORT","AddAsset",null,payload).andExpect(status().isBadRequest()).andExpect(jsonPath("$.fields.equipmentGroupId").exists());
-  payload.put("equipmentGroupId",UUID.randomUUID().toString());business("IT_SUPPORT","AddAsset",null,payload).andExpect(status().isBadRequest());
-  payload.remove("equipmentGroupId");payload.put("category","Tự nhập");business("IT_SUPPORT","AddAsset",null,payload).andExpect(status().isBadRequest()).andExpect(jsonPath("$.fields.equipmentGroupId").exists());
+ @Test void assetsDoNotRequireRetiredCataloguesAndEditingPreservesHistoricalReferences()throws Exception{
+  var payload=new HashMap<String,Object>(Map.of("code","TS-01","name","Thiết bị","purchasedOn","2026-11-01","recordedValue",100,"assetCondition","Tốt","status","AVAILABLE"));
+  String created=body(business("IT_SUPPORT","AddAsset",null,payload).andExpect(status().isOk()).andReturn()).path("id").asText();
+  assertEquals(1,jdbc.queryForObject("SELECT COUNT(*) FROM equipment_assets WHERE id=? AND equipment_group_id IS NULL AND storage_location_id IS NULL AND category IS NULL AND location IS NULL",Integer.class,UUID.fromString(created)));
+  payload.put("code","TS-02");payload.put("equipmentGroupId","FORGED-OLD-GROUP");payload.put("storageLocationId","FORGED-OLD-LOCATION");payload.put("category","FORGED-CATEGORY");payload.put("location","FORGED-LOCATION");
+  String ignored=body(business("IT_SUPPORT","AddAsset",null,payload).andExpect(status().isOk()).andReturn()).path("id").asText();
+  assertEquals(1,jdbc.queryForObject("SELECT COUNT(*) FROM equipment_assets WHERE id=? AND equipment_group_id IS NULL AND storage_location_id IS NULL AND category IS NULL AND location IS NULL",Integer.class,UUID.fromString(ignored)));
+  UUID group=UUID.randomUUID(),location=UUID.randomUUID(),legacy=UUID.randomUUID();
+  jdbc.update("INSERT INTO m_equipment_group(id,code,name,name_key) VALUES (?,'OLD-GROUP','Nhóm cũ','nhóm cũ')",group);jdbc.update("INSERT INTO m_storage_location(id,code,name,name_key) VALUES (?,'OLD-LOCATION','Kho cũ','kho cũ')",location);
+  jdbc.update("INSERT INTO equipment_assets(id,code,name,status,equipment_group_id,storage_location_id,category,location) VALUES (?,'OLD-ASSET','Thiết bị cũ','AVAILABLE',?,?,'Historical category','Historical location')",legacy,group,location);
+  payload.put("code","OLD-ASSET");payload.put("name","Thiết bị đã cập nhật");payload.put("version",0);business("IT_SUPPORT","EditAsset",legacy.toString(),payload).andExpect(status().isOk());
+  assertEquals(1,jdbc.queryForObject("SELECT COUNT(*) FROM equipment_assets WHERE id=? AND equipment_group_id=? AND storage_location_id=? AND category='Historical category' AND location='Historical location' AND name='Thiết bị đã cập nhật' AND version=1",Integer.class,legacy,group,location));
+  mvc.perform(get("/api/workspace/screens/AssetDetail/"+legacy).with(user(actors.get("IT_SUPPORT").email).roles("IT_SUPPORT"))).andExpect(status().isOk()).andExpect(jsonPath("$.record.category").value("Nhóm cũ")).andExpect(jsonPath("$.record.location").value("Kho cũ"));
+  mvc.perform(get("/api/workspace/screens/AddAsset").with(user(actors.get("IT_SUPPORT").email).roles("IT_SUPPORT"))).andExpect(status().isOk()).andExpect(jsonPath("$.options.equipmentGroups").doesNotExist()).andExpect(jsonPath("$.options.storageLocations").doesNotExist());
+ }
+
+ @Test void equipmentRequestsUseTheTypedPurposeWithoutAnEquipmentGroup()throws Exception{
+  UUID cl=UUID.randomUUID();User lecturer=actors.get("LECTURER"),learner=actors.get("STUDENT");
+  jdbc.update("INSERT INTO training_classes(id,code,name,lecturer_id,status) VALUES (?,?, 'Lớp thực hành',?,'ACTIVE')",cl,cl.toString(),lecturer.id);
+  jdbc.update("INSERT INTO training_enrollments(id,class_id,student_id,status) VALUES (?,?,?,'ACTIVE')",UUID.randomUUID(),cl,learner.id);
+  var request=new HashMap<String,Object>(Map.of("classId",cl.toString(),"studentId",learner.id,"title","Bộ dụng cụ sửa laptop","quantity",2,"requestType","INITIAL","neededOn","2027-01-04","description","Dùng để thực hành tháo lắp laptop"));
+  request.put("equipmentGroupId","IGNORED-OLD-FIELD");request.put("groupName","IGNORED-OLD-GROUP");
+  String id=body(business("LECTURER","AddEquipmentRequest",null,request).andExpect(status().isOk()).andReturn()).path("id").asText();
+  assertEquals(1,jdbc.queryForObject("SELECT COUNT(*) FROM equipment_requests WHERE id=? AND equipment_group_id IS NULL AND group_name IS NULL AND title='Bộ dụng cụ sửa laptop' AND quantity=2 AND description='Dùng để thực hành tháo lắp laptop'",Integer.class,UUID.fromString(id)));
+  mvc.perform(get("/api/workspace/screens/AddEquipmentRequest").with(user(lecturer.email).roles("LECTURER"))).andExpect(status().isOk()).andExpect(jsonPath("$.options.equipmentGroups").doesNotExist());
+ }
+
+ @Test void retiredEquipmentCataloguesStayBlockedEvenWithInjectedGrants()throws Exception{
+  String id=UUID.randomUUID().toString();
+  for(String role:actors.keySet())for(String suffix:List.of("EquipmentGroup","StorageLocation")){
+   for(String mode:List.of("List","Add","Edit"))jdbc.update("INSERT INTO role_function(role_id,function_code) VALUES (?,?)",actors.get(role).getRoleId(),mode+suffix);
+   getScreen(role,"List"+suffix,null).andExpect(status().isForbidden());getScreen(role,"Add"+suffix,null).andExpect(status().isForbidden());getScreen(role,"Edit"+suffix,id).andExpect(status().isForbidden());
+   write(role,"Add"+suffix,null,input("FORBIDDEN","Sai quyền","ACTIVE",0)).andExpect(status().isForbidden());write(role,"Edit"+suffix,id,input("FORBIDDEN","Sai quyền","ACTIVE",0)).andExpect(status().isForbidden());remove(role,"List"+suffix,id,0).andExpect(status().isForbidden());
+  }
  }
  @Test void professionAndClassroomChoicesComeFromTheirMastersAndBankSeedsAreAvailable()throws Exception{
-  String room=create("ADMIN","Classroom","TH01","Phòng thực hành 1");
+  var createRoom=Map.<String,Object>of("code","th01","status","ACTIVE");
+  String room=body(write("ADMIN","AddClassroom",null,createRoom).andExpect(status().isOk()).andReturn()).path("id").asText();
   mvc.perform(get("/api/workspace/screens/AddCourse").with(user(actors.get("ADMIN").email).roles("ADMIN"))).andExpect(status().isForbidden());
-  mvc.perform(get("/api/workspace/screens/TimeTable_EditSession").with(user(actors.get("ADMIN").email).roles("ADMIN"))).andExpect(status().isOk()).andExpect(jsonPath("$.options.classrooms[0].id").value(room));
+  mvc.perform(get("/api/workspace/screens/TimeTable_EditSession").with(user(actors.get("ADMIN").email).roles("ADMIN")))
+   .andExpect(status().isOk()).andExpect(jsonPath("$.options.classrooms[0].id").value(room))
+   .andExpect(jsonPath("$.options.classrooms[0].name").value("Phòng TH01"));
   mvc.perform(get("/api/workspace/screens/ListPayment").with(user(actors.get("ACCOUNTANT").email).roles("ACCOUNTANT"))).andExpect(status().isOk()).andExpect(jsonPath("$.options.banks.length()").value(10));
   assertEquals(10,jdbc.queryForObject("SELECT COUNT(*) FROM m_bank",Integer.class));
   var course=Map.<String,Object>of("name","Khóa học","code","KH-01","durationMonths",3,"totalSessions",20,"classCapacity",20,"tuitionFee",1000,"objectives","Thực hành","status","DRAFT","assessments",List.of());
   var payload=new HashMap<>(course);payload.put("lecturers",List.of());payload.put("managerId",actors.get("MANAGER").id);business("ADMIN","AddCourse",null,payload).andExpect(status().isForbidden());
+ }
+
+ @Test void editingRoomCodesWithoutANameUpdatesGeneratedLabelsAndPreservesExistingCustomNames()throws Exception{
+  String generated=body(write("ADMIN","AddClassroom",null,Map.of("code","TH01","status","ACTIVE"))
+   .andExpect(status().isOk()).andReturn()).path("id").asText();
+  String custom=create("ADMIN","Classroom","LT01","Phòng lý thuyết");
+
+  write("ADMIN","EditClassroom",generated,Map.of("code","TH02","status","ACTIVE","version",0)).andExpect(status().isOk());
+  getScreen("ADMIN","EditClassroom",generated).andExpect(jsonPath("$.record.name").value("Phòng TH02"));
+  write("ADMIN","EditClassroom",custom,Map.of("code","LT02","status","ACTIVE","version",0)).andExpect(status().isOk());
+  getScreen("ADMIN","EditClassroom",custom).andExpect(jsonPath("$.record.name").value("Phòng lý thuyết"));
  }
  @Test void masterScreensAppearInPermissionMatrixAndChangesAreAudited()throws Exception{
   String id=create("ADMIN","Classroom","A1","Phòng A1");write("ADMIN","EditClassroom",id,input("A1","Phòng A2","ACTIVE",0)).andExpect(status().isOk());remove("ADMIN","ListClassroom",id,1).andExpect(status().isOk());

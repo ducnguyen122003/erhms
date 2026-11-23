@@ -44,17 +44,15 @@ class ContractClassIntegrationTest {
     Map<String,Object> values(Object...pairs){var p=new LinkedHashMap<String,Object>();for(int i=0;i<pairs.length;i+=2)p.put((String)pairs[i],pairs[i+1]);return p;}
     UUID course(User owner,String name){return UUID.fromString(String.format(Locale.ROOT,"64000000-0000-0000-0000-%012d",EnrollmentCourses.NAMES.indexOf(name)+1));}
     UUID plan(UUID selectedCourse,String start,int capacity)throws Exception{
-        return plan(selectedCourse,start,capacity,manager);
-    }
-    UUID plan(UUID selectedCourse,String start,int capacity,User owner)throws Exception{
         UUID room=UUID.randomUUID();jdbc.update("INSERT INTO m_classroom(id,code,name,name_key) VALUES (?,?,?,?)",room,room.toString(),"Phòng "+room,"phòng "+room);
         LocalDate first=LocalDate.parse(start);int hour=8+2*planSlot++;
-        var input=values("courseId",selectedCourse.toString(),"managerId",owner.id,"name","Lớp "+room,"planYear",first.getYear(),"startsOn",start,"endsOn",first.plusMonths(4).toString(),"weekdays",List.of(first.getDayOfWeek().getValue()),"startTime",String.format(Locale.ROOT,"%02d:00",hour),"endTime",String.format(Locale.ROOT,"%02d:00",hour+2),"classroomId",room.toString(),"lecturerId",teacher.id,"capacity",capacity);
+        var input=values("courseId",selectedCourse.toString(),"name","Lớp "+room,"planYear",first.getYear(),"startsOn",start,"endsOn",first.plusMonths(4).toString(),"weekdays",List.of(first.getDayOfWeek().getValue()),"startTime",String.format(Locale.ROOT,"%02d:00",hour),"endTime",String.format(Locale.ROOT,"%02d:00",hour+2),"classroomId",room.toString(),"lecturerId",teacher.id,"capacity",capacity);
         return UUID.fromString(body(write(admin,"AddClass",null,input).andExpect(status().isOk()).andReturn()).path("id").asText());
     }
     Map<String,Object> input(){return values("consultationId",admission.toString(),"classId",cl.toString(),"paymentDueOn","2027-01-01","tuitionDue",1000,"depositDue",200,"terms","Theo lớp đã đăng ký");}
     String path(String screen,String id){return "/api/workspace/screens/"+screen+(id==null?"":"/"+id);}
     ResultActions write(User actor,String screen,String id,Map<String,Object> input)throws Exception{return mvc.perform(post(path(screen,id)).with(user(actor.email).roles(actor.getRoleCode())).with(csrf()).contentType("application/json").content(json.writeValueAsString(input)));}
+    ResultActions fetch(User actor,String screen,String id)throws Exception{return mvc.perform(get(path(screen,id)).with(user(actor.email).roles(actor.getRoleCode())));}
     JsonNode body(MvcResult r)throws Exception{return json.readTree(r.getResponse().getContentAsString(StandardCharsets.UTF_8));}
     JsonNode read(String screen,String id)throws Exception{return body(mvc.perform(get(path(screen,id)).with(user(manager.email).roles("MANAGER"))).andExpect(status().isOk()).andReturn());}
     String create(Map<String,Object> input)throws Exception{return body(write(manager,"AddTrainingContract",null,input).andExpect(status().isOk()).andReturn()).path("id").asText();}
@@ -74,11 +72,46 @@ class ContractClassIntegrationTest {
     }
 
     @Test void foreignWrongCourseUnfixedAndClosedClassesCannotBeBound()throws Exception{
-        UUID foreign=plan(course(otherManager,EnrollmentCourses.NAMES.get(0)),"2027-01-04",20,otherManager);var p=input();p.put("classId",foreign.toString());write(manager,"AddTrainingContract",null,p).andExpect(status().isNotFound());
+        UUID legacyCourse=UUID.randomUUID();jdbc.update("INSERT INTO training_courses(id,code,name,profession,duration_months,total_sessions,tuition_fee,objectives,status,manager_id,class_capacity) VALUES (?,?,?,'Điện',4,16,1000,'Legacy fixture','OPEN',?,20)",legacyCourse,legacyCourse.toString(),EnrollmentCourses.NAMES.get(0),otherManager.id);
+        String foreign=ClassPlanTestFixtures.withClass(jdbc,otherManager.id,values("consultationId",admission.toString(),"courseId",legacyCourse.toString(),"startsOn","2027-01-04")).get("classId").toString();var p=input();p.put("classId",foreign);write(manager,"AddTrainingContract",null,p).andExpect(status().isNotFound());
         UUID other=plan(course(manager,EnrollmentCourses.NAMES.get(1)),"2027-01-04",20);p=input();p.put("classId",other.toString());p.put("courseId",course.toString());write(manager,"AddTrainingContract",null,p).andExpect(status().isBadRequest()).andExpect(jsonPath("$.fields.classId").exists());
-        jdbc.update("UPDATE training_classes SET plan_fixed=FALSE WHERE id=?",cl);write(manager,"AddTrainingContract",null,input()).andExpect(status().isBadRequest());jdbc.update("UPDATE training_classes SET plan_fixed=TRUE WHERE id=?",cl);
+        jdbc.update("UPDATE training_classes SET plan_fixed=FALSE, manager_id=? WHERE id=?",manager.id,cl);
+        write(manager,"AddTrainingContract",null,input()).andExpect(status().isBadRequest()).andExpect(jsonPath("$.fields.classId").exists());
+        jdbc.update("UPDATE training_classes SET plan_fixed=TRUE, manager_id=NULL WHERE id=?",cl);
         for(String state:List.of("COMPLETED","CANCELLED")){jdbc.update("UPDATE training_classes SET status=? WHERE id=?",state,cl);write(manager,"AddTrainingContract",null,input()).andExpect(status().isBadRequest());}
         assertEquals(0,jdbc.queryForObject("SELECT COUNT(*) FROM training_contracts WHERE consultation_id=?",Integer.class,admission));
+    }
+
+    @Test void sharedPlansKeepEachManagersContractsCandidatesAndEnrolledLearnersPrivate()throws Exception{
+        jdbc.update("UPDATE training_classes SET manager_id=? WHERE id=?",otherManager.id,cl);
+        for(User actor:List.of(manager,otherManager)){
+            fetch(actor,"ClassDetail",cl.toString()).andExpect(status().isOk());
+            assertTrue(body(fetch(actor,"AddTrainingContract",null).andExpect(status().isOk()).andReturn()).path("options").path("classes").toString().contains(cl.toString()));
+        }
+        String own=create(input());assertEquals(manager.id,read("TrainingContractDetail",own).path("record").path("managerId").asLong());
+        User otherStudent=actor("STUDENT");jdbc.update("INSERT INTO student_profiles(user_id,manager_id) VALUES (?,?)",otherStudent.id,otherManager.id);
+        var second=input();second.put("consultationId",admission(otherStudent,EnrollmentCourses.NAMES.get(0)).toString());
+        String other=body(write(otherManager,"AddTrainingContract",null,second).andExpect(status().isOk()).andReturn()).path("id").asText();
+        assertEquals(otherManager.id,body(fetch(otherManager,"TrainingContractDetail",other).andExpect(status().isOk()).andReturn()).path("record").path("managerId").asLong());
+        fetch(otherManager,"TrainingContractDetail",own).andExpect(status().isNotFound());fetch(manager,"TrainingContractDetail",other).andExpect(status().isNotFound());
+        var firstEdit=input();firstEdit.put("version",0);write(manager,"EditTrainingContract",own,firstEdit).andExpect(status().isOk());
+        var secondEdit=new LinkedHashMap<>(second);secondEdit.put("version",0);write(otherManager,"EditTrainingContract",other,secondEdit).andExpect(status().isOk());
+        write(otherManager,"EditTrainingContract",own,firstEdit).andExpect(status().isNotFound());write(manager,"EditTrainingContract",other,secondEdit).andExpect(status().isNotFound());
+        fetch(otherManager,"StudentProfileDetail",student.id.toString()).andExpect(status().isNotFound());fetch(manager,"StudentProfileDetail",otherStudent.id.toString()).andExpect(status().isNotFound());
+        for(String id:List.of(own,other)){
+            UUID contract=UUID.fromString(id);jdbc.update("UPDATE training_contracts SET status='ACTIVE',handed_over_at=CURRENT_TIMESTAMP,signature_approved_at=CURRENT_TIMESTAMP WHERE id=?",contract);
+            jdbc.update("INSERT INTO financial_transactions(id,contract_id,kind,amount,status) VALUES (?,?,'TUITION',1000,'CONFIRMED')",UUID.randomUUID(),contract);
+        }
+        assertEquals(student.id,read("ClassDetail",cl.toString()).path("related").path("unassignedStudents").get(0).path("id").asLong());
+        var otherCandidates=body(fetch(otherManager,"ClassDetail",cl.toString()).andExpect(status().isOk()).andReturn()).path("related").path("unassignedStudents");assertEquals(1,otherCandidates.size());assertEquals(otherStudent.id,otherCandidates.get(0).path("id").asLong());
+        write(manager,"ClassDetail",cl+"/actions/add-students",values("version",0,"students",List.of(Map.of("id",student.id)))).andExpect(status().isOk());
+        write(otherManager,"ClassDetail",cl+"/actions/add-students",values("version",1,"students",List.of(Map.of("id",otherStudent.id)))).andExpect(status().isOk());
+        for(User actor:List.of(manager,otherManager)){
+            long expected=actor==manager?student.id:otherStudent.id;
+            var roster=body(fetch(actor,"ClassDetail",cl.toString()).andExpect(status().isOk()).andReturn()).path("related").path("students");assertEquals(1,roster.size());assertEquals(expected,roster.get(0).path("studentId").asLong());
+            String session=jdbc.queryForObject("SELECT CAST(id AS VARCHAR) FROM training_sessions WHERE class_id=? ORDER BY starts_at FETCH FIRST 1 ROW ONLY",String.class,cl);
+            var attendance=body(fetch(actor,"TimeTable_Manager",session).andExpect(status().isOk()).andReturn()).path("related").path("attendance");assertEquals(1,attendance.size());assertEquals(expected,attendance.get(0).path("studentId").asLong());
+        }
     }
 
     @Test void contractReservationsConsumeCapacityAndEditingTheSameDraftDoesNotCountItTwice()throws Exception{
