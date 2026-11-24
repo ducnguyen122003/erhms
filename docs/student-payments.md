@@ -18,7 +18,7 @@ Kế toán mở **Giao dịch thanh toán → Bill học viên gửi**, so bill 
 
 Tiền chỉ được ghi nhận khi kế toán xác nhận. Nếu giao dịch sao kê đang chờ đã được nhập trước đó và khớp hoàn toàn, hệ thống dùng lại bản ghi đó. Giao dịch đã được xác nhận hoặc đã gắn bill khác không được thu thêm lần nữa. Khoản chuyển gộp được ghi nhận thành hai khoản học phí và cọc trong cùng một lần xử lý; chỉ một bản ghi giữ mã ngân hàng thật để ngăn thu trùng. Bản ghi phân bổ cọc liên kết trực tiếp với bill chung, không tạo mã giao dịch ngân hàng giả.
 
-Học viên chỉ xuất hiện trong **Chi tiết lớp → Thêm học viên** khi học phí đã được xác nhận đủ, hợp đồng đang hoạt động, khóa học khớp với lớp và học viên chưa được xếp vào lớp khác. Bill chờ duyệt, sai lệch, tiền cọc hoặc học phí còn thiếu không đủ điều kiện này. Hợp đồng miễn học phí vẫn cần kế toán xác nhận theo thao tác riêng.
+Khi kế toán xác nhận đủ học phí, hệ thống kích hoạt hợp đồng và tự xếp học viên vào lớp ghi trên hợp đồng. Học viên xem lớp đã được xếp tại **Nộp tiền & thanh toán**. Bill chờ duyệt, sai lệch, tiền cọc và học phí còn thiếu chưa kích hoạt xếp lớp. Hợp đồng miễn học phí cần kế toán xác nhận riêng. Quản lý học viên xử lý các hợp đồng cũ chưa có lớp và các hồ sơ cần kiểm tra điều kiện xếp lớp.
 
 Migration V27 bổ sung mã thanh toán và bảng `student_payment_submissions`. V28 thêm phân bổ học phí, tiền cọc và liên kết giao dịch cọc cho bill nộp gộp; các bill, nội dung chuyển khoản và giao dịch cũ được giữ lại, không tự ghi nhận thêm tiền.
 

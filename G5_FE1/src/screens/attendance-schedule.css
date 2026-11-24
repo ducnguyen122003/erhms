@@ -1,0 +1,38 @@
+.attendance-schedule {overflow: hidden}
+.attendance-filters {display: grid; grid-template-columns: minmax(200px, 1fr) auto; gap: 20px; padding: 22px 24px 16px; align-items: end}
+.attendance-filters label {margin: 0; font-size: 12px; gap: 6px}
+.attendance-filters input,.attendance-filters select {margin: 0; height: 42px}
+.attendance-week-filter,.attendance-week-nav,.attendance-week-dates {display: flex; gap: 8px; align-items: end}
+.attendance-week-dates > svg {margin-bottom: 12px; color: #26785c}
+.attendance-week-filter input {min-width: 142px}
+.attendance-week-nav button {min-height: 42px; padding: 0 10px; white-space: nowrap}
+.attendance-states {display: flex; flex-wrap: wrap; gap: 8px; padding: 0 24px 16px}
+.attendance-states button {font-size: 12px; min-height: 35px; padding: 6px 10px}
+.attendance-states button span {font-size: 10px; min-width: 18px; padding: 1px 4px; border-radius: 4px; background: #f3f6f4}
+.attendance-states button[aria-pressed=true] {background: #e6f2eb; color: #155f49; border-color: #b8dac8}
+.attendance-period {display: flex; align-items: center; justify-content: space-between; gap: 12px; border-top: 1px solid #e4ece7; padding: 18px 24px}
+.attendance-period h2 {margin: 0; font-size: 18px}
+.attendance-period > span {color: #587465; font-size: 12px; white-space: nowrap}
+.attendance-days {padding: 0 24px 20px}
+.attendance-day + .attendance-day {margin-top: 18px}
+.attendance-day h3 {margin: 0; padding: 9px 11px; font-size: 13px; background: #edf4ef; display: flex; align-items: center; gap: 8px; border-radius: 7px 7px 0 0}
+.attendance-day h3 span {color: #155f49; background: #d8ecdf; font-size: 10px; padding: 2px 6px; border-radius: 4px}
+.attendance-day ul {list-style: none; margin: 0; padding: 0; border: 1px solid #e5ece7; border-top: 0; border-radius: 0 0 7px 7px}
+.attendance-session {display: grid; grid-template-columns: 100px minmax(140px,1fr) auto auto; gap: 14px; align-items: center; padding: 12px 11px; min-height: 60px}
+.attendance-session + .attendance-session {border-top: 1px solid #eef3ef}
+.attendance-session time {font-size: 12px; font-variant-numeric: tabular-nums; color: #415c4f; white-space: nowrap}
+.attendance-session-title {display: grid; gap: 4px; overflow-wrap: anywhere}
+.attendance-session-title span {font-size: 11px; color: #587465}
+.attendance-state {display: inline-flex; align-items: center; gap: 5px; padding: 4px 7px; border-radius: 5px; background: #edf1f4; color: #405b6c; font-size: 11px; white-space: nowrap}
+.attendance-session.is-pending .attendance-state {background: #fff1d9; color: #78511b}
+.attendance-session.is-finalized .attendance-state {background: #e9f5ed; color: #1d6543}
+.attendance-session button {min-height: 33px; padding: 6px 10px; font-size: 11px; white-space: nowrap}
+@media (max-width: 760px) {
+ .attendance-filters {grid-template-columns: 1fr; gap: 12px}
+ .attendance-filters,.attendance-states,.attendance-period,.attendance-days {padding-inline: 16px}
+ .attendance-week-filter {justify-content: space-between; flex-wrap: wrap}
+ .attendance-session {grid-template-columns: minmax(0, 1fr) auto; gap: 7px 12px}
+ .attendance-session-title {grid-column: 1 / -1; grid-row: 2}
+ .attendance-session .attendance-state {justify-self: end; grid-row: 1; grid-column: 2}
+ .attendance-session button {justify-self: start; grid-row: 3; grid-column: 1 / -1}
+}

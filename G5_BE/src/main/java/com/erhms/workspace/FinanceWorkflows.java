@@ -33,6 +33,7 @@ public class FinanceWorkflows {
         if(!"PENDING".equals(transaction.get("status")))throw conflict("Làm rõ sai lệch trước khi xác nhận giao dịch");
         var ct=d.record("contracts",contract.toString(),u);
         if(!List.of("SIGNED","ACTIVE").contains(ct.get("status")))throw conflict("Hợp đồng cần được ký và còn hiệu lực trước khi xác nhận tiền");
+        long studentId=contractStudent(ct);
         String kind=transaction.get("kind").toString();if(!List.of("TUITION","DEPOSIT").contains(kind))throw conflict("Khoản hoàn cọc/bồi thường phải xử lý ở nghiệp vụ quyết toán");
         String reference=transaction.get("bankReference")==null?"":transaction.get("bankReference").toString();if(reference.isBlank())throw invalid("bankReference","Giao dịch chưa có mã ngân hàng để kiểm tra trùng");
         if(!flag(p,"identityVerified")||!flag(p,"amountVerified")||!flag(p,"referenceVerified"))throw invalid("verified","Xác nhận đã đối chiếu hợp đồng, số tiền và mã giao dịch");
@@ -40,11 +41,14 @@ public class FinanceWorkflows {
         if(amount.compareTo(due.subtract(sum(contract,kind)))>0)throw conflict("Số tiền vượt nghĩa vụ còn lại. Cần làm rõ sai lệch trước khi xác nhận.");
         if(d.count("SELECT COUNT(*) FROM financial_transactions WHERE bank_reference=? AND id<>? AND status='CONFIRMED'",reference,key)>0)throw conflict("Mã giao dịch đã được ghi nhận ở bản ghi khác");
         d.jdbc.update("UPDATE financial_transactions SET status='CONFIRMED',confirmed_by=?,confirmed_at=CURRENT_TIMESTAMP,version=version+1 WHERE id=?",u.id,key);
+        String enrollmentNotice="";
         if(kind.equals("TUITION")&&sum(contract,kind).compareTo(due)>=0){
-            d.jdbc.update("UPDATE training_contracts SET status='ACTIVE',version=version+1 WHERE id=?",contract);training.paymentReadyForAssignment(contract);
+            d.jdbc.update("UPDATE training_contracts SET status='ACTIVE',version=version+1 WHERE id=?",contract);
+            enrollmentNotice=training.enrollAfterTuition(contract);
         }
-        training.notify(((Number)ct.get("studentId")).longValue(),"Đã xác nhận thanh toán","Khoản "+(kind.equals("TUITION")?"học phí":"cọc thiết bị")+" của hợp đồng "+ct.get("code")+" đã được kế toán xác nhận.","TuitionDetail_Student",contract.toString(),u);
-        return saved("PaymentDetail",key);
+        String paymentNotice="Khoản "+(kind.equals("TUITION")?"học phí":"cọc thiết bị")+" của hợp đồng "+ct.get("code")+" đã được kế toán xác nhận.";
+        training.notify(studentId,"Đã xác nhận thanh toán",withEnrollmentNotice(paymentNotice,enrollmentNotice),"TuitionDetail_Student",contract.toString(),u);
+        return Map.of("screen","PaymentDetail","id",id,"notice",withEnrollmentNotice("Đã xác nhận nhận tiền.",enrollmentNotice),"enrollmentNotice",enrollmentNotice);
     }
     public Map<String,Object> instruction(String id,Map<String,Object> p,User u){
         role(u,"ACCOUNTANT");UUID ct=uuid(id);d.record("contracts",id,u);claim(ct,u);String content=text(p,"content",4000,true);
@@ -57,7 +61,21 @@ public class FinanceWorkflows {
     public Map<String,Object> activateZeroTuition(String id,Map<String,Object> p,User user){
         role(user,"ACCOUNTANT");UUID key=uuid(id);d.record("contracts",id,user);claim(key,user);d.lock("training_contracts",key,p);var contract=d.record("contracts",id,user);
         if(!"SIGNED".equals(contract.get("status"))||new BigDecimal(contract.get("tuitionDue").toString()).signum()!=0)throw conflict("Chỉ xác nhận miễn học phí cho hợp đồng đã ký có nghĩa vụ học phí bằng 0");
-        text(p,"changeNote",1000,true);d.jdbc.update("UPDATE training_contracts SET status='ACTIVE',version=version+1 WHERE id=?",key);training.paymentReadyForAssignment(key);return saved("TuitionDetail",key);
+        long studentId=contractStudent(contract);
+        text(p,"changeNote",1000,true);
+        d.jdbc.update("UPDATE training_contracts SET status='ACTIVE',version=version+1 WHERE id=?",key);
+        String notice=withEnrollmentNotice("Đã xác nhận hợp đồng miễn học phí.",training.enrollAfterTuition(key));
+        training.notify(studentId,"Đã xác nhận miễn học phí",notice,"TuitionDetail_Student",id,user);
+        return Map.of("screen","TuitionDetail","id",id,"notice",notice);
+    }
+
+    private long contractStudent(Map<String,Object> contract){
+        if(contract.get("studentId") instanceof Number student)return student.longValue();
+        throw conflict("Cần liên kết tài khoản học viên với hợp đồng trước khi xác nhận học phí.");
+    }
+
+    static String withEnrollmentNotice(String notice,String enrollmentNotice){
+        return enrollmentNotice.isEmpty()?notice:notice+" "+enrollmentNotice;
     }
     public Map<String,Object> incident(String id,Map<String,Object> p,User u){
         role(u,"ACCOUNTANT");UUID key=uuid(id);var i=d.record("incidents",id,u);

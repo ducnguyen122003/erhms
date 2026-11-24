@@ -58,10 +58,15 @@ public class TrainingWorkflows {
         if(ClassReservations.occupied(d,key,null)+additional>((Number)cl.get("capacity")).longValue())throw invalid("students","Số học viên được chọn vượt quá chỗ trống đã trừ các hợp đồng giữ chỗ của lớp");
         for(long student:students){
             d.jdbc.update("UPDATE training_contracts SET course_id=COALESCE(course_id,?),class_id=COALESCE(class_id,?),version=version+1 WHERE id=? AND (course_id IS NULL OR class_id IS NULL)",courseId,key,contracts.get(student));
-            d.jdbc.update("INSERT INTO training_enrollments(id,class_id,student_id,status,assignment_status,contract_id) VALUES (?,?,?,'ACTIVE',?,?)",UUID.randomUUID(),key,student,cl.get("lecturerId")==null?"PENDING":"CONFIRMED",contracts.get(student));
+            insertEnrollment(key,student,contracts.get(student),cl.get("lecturerId")!=null);
         }
         d.jdbc.update("UPDATE training_classes SET version=version+1 WHERE id=?",key);
         return saved("ClassDetail",key);
+    }
+
+    private void insertEnrollment(UUID classId,long studentId,UUID contractId,boolean hasLecturer){
+        d.jdbc.update("INSERT INTO training_enrollments(id,class_id,student_id,status,assignment_status,contract_id) VALUES (?,?,?,'ACTIVE',?,?)",
+                UUID.randomUUID(),classId,studentId,hasLecturer?"CONFIRMED":"PENDING",contractId);
     }
 
     public Map<String,Object> consultation(String id,Map<String,Object> p,User u){
@@ -236,13 +241,51 @@ public class TrainingWorkflows {
         }
         d.jdbc.update("UPDATE training_classes SET version=version+1 WHERE id=?",clId);return saved("ClassGradebook",clId);
     }
-    public void paymentReadyForAssignment(UUID contractId){
-        var ct=d.one("SELECT * FROM training_contracts WHERE id=?",contractId);
-        if(d.count("SELECT COUNT(*) FROM training_enrollments WHERE contract_id=?",contractId)>0)return;
-        if(ct.get("managerId")==null||(ct.get("courseId")==null&&EnrollmentCourses.find(ct.get("registeredCourseName"))==null))return;
-        if(d.count("SELECT COUNT(*) FROM training_contracts c WHERE c.id=? AND "+PAID_UNASSIGNED_CONTRACT,contractId)==0)return;
-        if(ct.get("classId")!=null)notify(((Number)ct.get("managerId")).longValue(),"Học viên đã đủ học phí, chờ vào lớp đã đăng ký","Học phí đã được xác nhận đủ cho hợp đồng "+ct.get("code")+". Mở lớp đã chọn trên hợp đồng để hoàn tất xếp học viên.","ClassDetail",ct.get("classId").toString(),null);
-        else notify(((Number)ct.get("managerId")).longValue(),"Học viên đã đủ học phí, chờ xếp lớp","Học phí đã được kế toán xác nhận đủ cho hợp đồng "+ct.get("code")+". Mở danh sách lớp, chọn lớp thuộc khóa học và thêm học viên.","ListClass",null,null);
+    // Finance holds the contract lock. Keep the student -> class order used by manual placement.
+    String enrollAfterTuition(UUID contractId){
+        var contract=d.one("SELECT * FROM training_contracts WHERE id=?",contractId);
+        if(d.count("SELECT COUNT(*) FROM training_enrollments WHERE contract_id=?",contractId)>0)return "";
+
+        String paid="Học phí đã được xác nhận đủ cho hợp đồng "+contract.get("code")+". ";
+        Number manager=(Number)contract.get("managerId");
+        Object selectedClass=contract.get("classId");
+        if(selectedClass==null){
+            if(manager!=null)notify(manager.longValue(),"Học viên đã đủ học phí, chờ xếp lớp",paid+"Hợp đồng chưa liên kết lớp. Chọn lớp thuộc khóa học và thêm học viên.","ListClass",null,null);
+            return "Hợp đồng chưa liên kết lớp. Quản lý học viên cần xếp lớp.";
+        }
+
+        UUID classId=uuid(selectedClass.toString());
+        long studentId=((Number)contract.get("studentId")).longValue();
+        var student=d.one("SELECT role_id,account_enabled,account_locked FROM m_user WHERE user_id=? FOR UPDATE",studentId);
+        var classroom=d.one("SELECT * FROM training_classes WHERE id=? FOR UPDATE",classId);
+        if(canEnrollAfterTuition(contract,student,classroom,classId,studentId)){
+            insertEnrollment(classId,studentId,contractId,classroom.get("lecturerId")!=null);
+            d.jdbc.update("UPDATE training_classes SET version=version+1 WHERE id=?",classId);
+            String enrolled="Học viên đã được xếp vào lớp "+classroom.get("code")+" · "+classroom.get("name")+".";
+            if(manager!=null)notify(manager.longValue(),"Học viên đã được xếp lớp",paid+enrolled,"ClassDetail",classId.toString(),null);
+            return enrolled;
+        }
+
+        String pending="Cần kiểm tra điều kiện xếp lớp cho hợp đồng.";
+        if(manager!=null)notify(manager.longValue(),"Cần kiểm tra xếp lớp",paid+pending,"TrainingContractDetail",contractId.toString(),null);
+        return pending;
+    }
+
+    private boolean canEnrollAfterTuition(Map<String,Object> contract,Map<String,Object> student,Map<String,Object> classroom,UUID classId,long studentId){
+        if(((Number)student.get("roleId")).intValue()!=3||!Boolean.TRUE.equals(student.get("accountEnabled"))||Boolean.TRUE.equals(student.get("accountLocked")))return false;
+        if(!List.of("PLANNED","ACTIVE").contains(classroom.get("status"))||classroom.get("courseId")==null)return false;
+
+        Object contractCourse=contract.get("courseId");
+        if(contractCourse!=null&&!contractCourse.equals(classroom.get("courseId")))return false;
+        if(contractCourse==null){
+            var course=d.one("SELECT name FROM training_courses WHERE id=?",uuid(classroom.get("courseId").toString()));
+            var registered=EnrollmentCourses.find(course.get("name"));
+            if(registered==null||!registered.name().equals(contract.get("registeredCourseName")))return false;
+        }
+
+        // The signed contract already holds a seat in this class.
+        if(ClassReservations.occupied(d,classId,null)>((Number)classroom.get("capacity")).longValue())return false;
+        return d.count("SELECT COUNT(*) FROM training_enrollments WHERE student_id=? AND (class_id=? OR status IN ('ACTIVE','PENDING'))",studentId,classId)==0;
     }
     public Map<String,Object> closureConditions(Map<String,Object> enrollment){
         UUID e=uuid(enrollment.get("id").toString());long student=((Number)enrollment.get("studentId")).longValue();Object contract=enrollment.get("contractId");

@@ -1526,11 +1526,11 @@
     "proposedRoles": [],
     "public": false,
     "scope": "Kế hoạch lớp dùng chung của trung tâm; hồ sơ học viên được quản lý theo phân công riêng.",
-    "actions": "Admin lập kế hoạch lớp dùng chung theo từng năm. Các quản lý học viên xem kế hoạch và xếp học viên đã đủ học phí trong phạm vi hồ sơ được giao.",
+    "actions": "Admin lập kế hoạch lớp theo từng năm. Quản lý học viên theo dõi danh sách đã xếp và xử lý hồ sơ chưa được xếp tự động.",
     "variant": "Màn hình chính",
     "kind": "list",
     "functionCode": "ListClass",
-    "description": "Kế hoạch lớp theo năm, giảng viên và lịch học cố định. Quản lý học viên xếp học viên theo lớp đã chọn trên hợp đồng.",
+    "description": "Xem lớp, giảng viên và lịch học theo năm. Khi kế toán xác nhận đủ học phí, học viên được xếp vào lớp ghi trên hợp đồng.",
     "headers": [
       "LỚP / KHÓA",
       "GIẢNG VIÊN",
@@ -1675,7 +1675,7 @@
     "proposedRoles": [],
     "public": false,
     "scope": "Học viên, khóa / lớp, lịch, xếp lớp và hồ sơ hoàn tất được phân công quản lý.",
-    "actions": "Quản lý học viên thêm người đã đóng đủ học phí vào lớp và kiểm tra kết quả phân công. Kế toán xác nhận thanh toán theo hợp đồng.",
+    "actions": "Quản lý học viên kiểm tra kết quả xếp lớp sau khi kế toán xác nhận đủ học phí theo hợp đồng.",
     "variant": "Tab kết quả xếp lớp trong FE-09",
     "kind": "list",
     "functionCode": "AutoAssignmentReview",
@@ -2003,7 +2003,7 @@
   {
     "code": "StudentResults",
     "fe": "FE-12",
-    "title": "Kết quả học tập của tôi",
+    "title": "Bảng điểm của tôi",
     "roles": [
       "STUDENT"
     ],
@@ -2365,7 +2365,7 @@
     "proposedRoles": [],
     "public": false,
     "scope": "Hợp đồng, giao dịch, học phí, cọc và hồ sơ bồi thường / quyết toán theo phân công.",
-    "actions": "Chỉ Kế toán đối soát và xác nhận thu theo hợp đồng. Khi học phí được xác nhận đủ, học viên xuất hiện trong danh sách chờ để Quản lý học viên thêm vào lớp cùng khóa học.",
+    "actions": "Kế toán đối soát và xác nhận khoản thu. Khi học phí được xác nhận đủ, học viên được xếp vào lớp ghi trên hợp đồng.",
     "variant": "Màn hình chính",
     "kind": "payment",
     "functionCode": "PaymentDetail",
@@ -2522,7 +2522,7 @@
     "variant": "Màn hình chính",
     "kind": "form",
     "functionCode": "AddAsset",
-    "description": "Tạo mã riêng để theo dõi cấp phát và lịch sử sử dụng.",
+    "description": "Thêm nhiều thiết bị cùng thông tin với mã tăng dần và tiền tố giữ nguyên.",
     "notes": [
       "Mỗi thiết bị có mã tài sản và lịch sử riêng.",
       "Chỉ cấp phát khi thiết bị ở trạng thái sẵn sàng."

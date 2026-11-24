@@ -1,4 +1,4 @@
-import {canScreen,screenNavigation,screenRoute} from './screens/access.js';
+import {canScreen,screenNavigation,screenPath,screenRoute} from './screens/access.js';
 
 export const rolesById = Object.freeze({
  1: 'ADMIN', 2: 'LECTURER', 3: 'STUDENT', 4: 'ACCOUNTANT',
@@ -61,5 +61,7 @@ export function firstAllowedPath(user, functions) {
  for (const [code,path] of [['USER_ACCOUNTS','/admin/users'],['ROLE_PERMISSIONS','/admin/permissions'],['SYSTEM_CONFIG','/admin/settings'],['SYSTEM_AUDIT_LOG','/admin/audit-logs'],['PROFILE','/profile'],['RECRUITMENT','/recruitment']]) {
   if (functions.includes(code)) return path;
  }
- return screenNavigation(user,functions)[0]?.path||'/access-denied';
+ const firstScreen=screenNavigation(user,functions)[0];
+ if(firstScreen)return firstScreen.path;
+ return canScreen('ListNotification',user,functions)?screenPath('ListNotification'):'/access-denied';
 }

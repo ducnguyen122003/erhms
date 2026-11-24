@@ -58,10 +58,15 @@ public class StudentPaymentsService {
 
     private Map<String,Object> contractSummary(Map<String,Object> contract){
         Map<String,Object> summary=new LinkedHashMap<>();
-        for(String key:List.of("id","code","studentName","accountStudentName","studentCode","courseName","status","tuitionDue","depositDue","paymentReference"))summary.put(key,contract.get(key));
+        for(String key:List.of("id","code","studentName","accountStudentName","studentCode","courseName","classId","status","tuitionDue","depositDue","paymentReference"))summary.put(key,contract.get(key));
         UUID id=uuid(contract.get("id").toString());
         summary.put("tuitionPaid",paid(id,"TUITION"));summary.put("depositPaid",paid(id,"DEPOSIT"));
         summary.put("tuitionRemaining",remaining(contract,"TUITION"));summary.put("depositRemaining",remaining(contract,"DEPOSIT"));
+        var enrollment=d.rows("SELECT cl.code,cl.name FROM training_enrollments e JOIN training_classes cl ON cl.id=e.class_id WHERE e.contract_id=? AND e.student_id=? AND e.status='ACTIVE' AND e.closed_at IS NULL",id,contract.get("studentId"));
+        if(!enrollment.isEmpty()){
+            summary.put("enrolledClassCode",enrollment.get(0).get("code"));
+            summary.put("enrolledClassName",enrollment.get(0).get("name"));
+        }
         return summary;
     }
 
@@ -205,7 +210,7 @@ public class StudentPaymentsService {
         }
         var ledger=d.one("SELECT version FROM financial_transactions WHERE id=?",transaction);
         Map<String,Object> verification=new LinkedHashMap<>(input);verification.put("version",ledger.get("version"));
-        finance.payment(transaction.toString(),verification,actor,"confirm");
+        var confirmation=finance.payment(transaction.toString(),verification,actor,"confirm");
         // This secondary allocation has no independent bank reference. It can only
         // be posted here, after verifying the one parent transfer under the same
         // contract lock; it is linked to that verified submission in this transaction.
@@ -215,7 +220,7 @@ public class StudentPaymentsService {
         if(depositTransaction!=null)training.notify(((Number)submission.get("submittedBy")).longValue(),"Đã xác nhận tiền cọc","Tiền cọc trong lần chuyển khoản gộp của hợp đồng "+submission.get("contractCode")+" đã được kế toán đối chiếu và xác nhận.","TuitionDetail_Student",contractId.toString(),actor);
         var result=new LinkedHashMap<String,Object>();result.put("id",id);result.put("transactionId",transaction.toString());
         if(depositTransaction!=null)result.put("depositTransactionId",depositTransaction.toString());
-        result.put("notice","Đã đối chiếu sao kê và xác nhận nhận tiền. Học phí chỉ được tính từ khoản đã xác nhận.");return result;
+        result.put("notice",FinanceWorkflows.withEnrollmentNotice("Đã đối chiếu sao kê và xác nhận nhận tiền.",confirmation.get("enrollmentNotice").toString()));return result;
     }
 
     @Transactional

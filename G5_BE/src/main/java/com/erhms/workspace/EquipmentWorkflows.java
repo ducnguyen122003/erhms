@@ -1,7 +1,9 @@
 package com.erhms.workspace;
 
+import com.erhms.user.StudentCode;
 import com.erhms.user.entity.User;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 import java.math.BigDecimal;
 import java.time.*;
 import java.util.*;
@@ -10,11 +12,25 @@ import static com.erhms.workspace.TrainingWorkflows.saved;
 
 @Service
 public class EquipmentWorkflows {
+    private static final int INITIAL_REQUEST_LIMIT = 50;
+    private static final int CANDIDATE_PAGE_SIZE = 25;
+    private static final String INITIAL_CANDIDATES = """
+            FROM training_enrollments e JOIN m_user student ON student.user_id=e.student_id
+            WHERE e.class_id=? AND e.status='ACTIVE' AND e.closed_at IS NULL
+              AND student.role_id=3 AND student.account_enabled=TRUE AND student.account_locked=FALSE
+              AND NOT EXISTS (SELECT 1 FROM equipment_requests r
+                    WHERE r.class_id=e.class_id AND r.student_id=e.student_id AND r.request_type='INITIAL' AND r.status<>'REJECTED')
+              AND NOT EXISTS (SELECT 1 FROM equipment_loans loan
+                    WHERE loan.student_id=e.student_id AND (loan.class_id=e.class_id OR loan.contract_id=e.contract_id))
+            """;
+
     final WorkflowData d;final TrainingWorkflows training;
     public EquipmentWorkflows(WorkflowData d,TrainingWorkflows training){this.d=d;this.training=training;}
     public Map<String,Object> asset(String id,Map<String,Object> p,User u){
-        role(u,"IT_SUPPORT");UUID key=id==null?UUID.randomUUID():uuid(id);
-        if(id!=null){d.record("assets",id,u);d.lock("equipment_assets",key,p);}
+        role(u,"IT_SUPPORT");
+        if(id==null)return createAssets(p);
+        UUID key=uuid(id);
+        d.record("assets",id,u);d.lock("equipment_assets",key,p);
         String code=text(p,"code",40,true),name=text(p,"name",160,true),status=choice(p,"status","AVAILABLE","ASSIGNED","MAINTENANCE","RETIRED");
         boolean assigned=d.count("SELECT COUNT(*) FROM equipment_loans WHERE asset_id=? AND returned_at IS NULL",key)>0;
         if(assigned&&!status.equals("ASSIGNED"))throw invalid("status","Thiết bị đang bàn giao. Thu hồi trước khi thay đổi trạng thái");
@@ -22,17 +38,115 @@ public class EquipmentWorkflows {
         if(d.count("SELECT COUNT(*) FROM equipment_assets WHERE code=? AND id<>?",code,key)>0)throw invalid("code","Mã thiết bị đã tồn tại");
         Object[] fields={code,name,text(p,"serialNumber",120,false),date(p,"purchasedOn",true),money(p,"recordedValue"),
                 text(p,"assetCondition",500,true),text(p,"accessories",1000,false),status,key};
-        if(id==null)d.jdbc.update("INSERT INTO equipment_assets(code,name,serial_number,purchased_on,recorded_value,asset_condition,accessories,status,id) VALUES (?,?,?,?,?,?,?,?,?)",fields);
-        else d.jdbc.update("UPDATE equipment_assets SET code=?,name=?,serial_number=?,purchased_on=?,recorded_value=?,asset_condition=?,accessories=?,status=?,version=version+1 WHERE id=?",fields);
+        d.jdbc.update("UPDATE equipment_assets SET code=?,name=?,serial_number=?,purchased_on=?,recorded_value=?,asset_condition=?,accessories=?,status=?,version=version+1 WHERE id=?",fields);
         return saved("AssetDetail",key);
     }
-    public Map<String,Object> request(Map<String,Object> p,User u){
-        role(u,"LECTURER");UUID classId=uuid(p,"classId");d.record("classes",classId.toString(),u);long student=number(p,"studentId",1,Long.MAX_VALUE);d.requireClassStudent(classId,student);
-        UUID key=UUID.randomUUID();
+    private Map<String,Object> createAssets(Map<String,Object> p){
+        String code=text(p,"code",40,true),name=text(p,"name",160,true);
+        int quantity=p.containsKey("quantity")?(int)number(p,"quantity",1,500):1;
+        // Older clients may still create a single asset with a non-sequential code.
+        List<String> codes=p.containsKey("quantity")?AssetCodes.sequence(code,quantity):List.of(code);
+        LocalDate purchasedOn=date(p,"purchasedOn",true);
+        BigDecimal recordedValue=money(p,"recordedValue");
+        String serial=text(p,"serialNumber",120,false),condition=text(p,"assetCondition",500,false),accessories=text(p,"accessories",1000,false);
+        var duplicates=d.rows("SELECT code FROM equipment_assets WHERE code IN ("+String.join(",",Collections.nCopies(codes.size(),"?"))+") ORDER BY code",codes.toArray());
+        if(!duplicates.isEmpty())throw invalid("code","Mã thiết bị "+duplicates.get(0).get("code")+" đã tồn tại. Vui lòng chọn mã bắt đầu khác.");
+        UUID first=null;
+        for(String next:codes){
+            UUID key=UUID.randomUUID();if(first==null)first=key;
+            d.jdbc.update("INSERT INTO equipment_assets(code,name,serial_number,purchased_on,recorded_value,asset_condition,accessories,status,id) VALUES (?,?,?,?,?,?,?,'AVAILABLE',?)",
+                    next,name,serial,purchasedOn,recordedValue,condition.isEmpty()?null:condition,accessories,key);
+        }
+        return Map.of("screen",quantity==1?"AssetDetail":"ListAsset","id",first.toString(),"createdCount",quantity,
+                "notice","Đã thêm "+quantity+" thiết bị ("+codes.get(0)+(quantity>1?" – "+codes.get(codes.size()-1):"")+").");
+    }
+    @Transactional(readOnly=true)
+    public Map<String,Object> initialCandidates(String classId, String q, int page, User actor) {
+        role(actor, "LECTURER");
+        if (q.length()>200 || page<0 || page>100000) throw invalid("filter", "Bộ lọc không hợp lệ");
+        var classes = d.rows("SELECT id,code,name FROM training_classes WHERE lecturer_id=? AND status IN ('PLANNED','ACTIVE') ORDER BY starts_on DESC NULLS LAST,code,id", actor.id);
+        List<Map<String,Object>> students = List.of();
+        long total = 0;
+        if (!classId.isBlank()) {
+            UUID key = uuid(classId);
+            requireInitialClass(key, actor, false);
+            String code = StudentCode.sql("student.user_id");
+            String query = INITIAL_CANDIDATES + " AND LOWER(student.full_name||' '||"+code+") LIKE ? ESCAPE '!'";
+            String search = "%" + q.strip().toLowerCase(Locale.ROOT).replace("!","!!").replace("%","!%").replace("_","!_") + "%";
+            total = d.count("SELECT COUNT(*) " + query, key, search);
+            students = d.rows("SELECT student.user_id AS id,"+code+" AS student_code,student.full_name AS name,e.created_at AS enrolled_at "
+                    + query + " ORDER BY student.full_name,student.user_id LIMIT ? OFFSET ?", key, search, CANDIDATE_PAGE_SIZE, page*CANDIDATE_PAGE_SIZE);
+        }
+        return Map.of("classes", classes, "items", students, "total", total, "page", page,
+                "totalPages", (total+CANDIDATE_PAGE_SIZE-1)/CANDIDATE_PAGE_SIZE, "size", CANDIDATE_PAGE_SIZE);
+    }
+
+    @Transactional
+    public Map<String,Object> initialRequests(Map<String,Object> input, User actor) {
+        role(actor, "LECTURER");
+        UUID classId = uuid(input, "classId");
+        var info = requestInfo(input);
+        if (!(input.get("studentIds") instanceof List<?> ids) || ids.isEmpty() || ids.size()>INITIAL_REQUEST_LIMIT)
+            throw invalid("studentIds", "Chọn từ 1 đến " + INITIAL_REQUEST_LIMIT + " học viên");
+        Set<Long> students = new LinkedHashSet<>();
+        for (Object id : ids) {
+            if (id==null || !students.add(number(Collections.singletonMap("studentIds", id), "studentIds", 1, Long.MAX_VALUE)))
+                throw invalid("studentIds", "Danh sách học viên có mã không hợp lệ hoặc bị trùng");
+        }
+        requireInitialClass(classId, actor, true);
+        requireInitialCandidates(classId, students);
+        for (long student : students) insertRequest(classId, student, "INITIAL", info, actor);
+        return Map.of("classId", classId.toString(), "createdCount", students.size(), "notice",
+                "Đã gửi yêu cầu cấp thiết bị ban đầu cho " + students.size() + " học viên.");
+    }
+
+    @Transactional
+    public Map<String,Object> request(Map<String,Object> input, User actor) {
+        role(actor, "LECTURER");
+        UUID classId = uuid(input, "classId");
+        long student = number(input, "studentId", 1, Long.MAX_VALUE);
+        String type = choice(input, "requestType", "INITIAL", "REPLACEMENT", "SUPPLEMENT");
+        if (type.equals("INITIAL")) {
+            requireInitialClass(classId, actor, true);
+            requireInitialCandidates(classId, Set.of(student));
+        } else {
+            d.record("classes", classId.toString(), actor);
+            d.requireClassStudent(classId, student);
+        }
+        return saved("EquipmentRequestDetail_Lecturer", insertRequest(classId, student, type, requestInfo(input), actor));
+    }
+
+    private void requireInitialClass(UUID classId, User actor, boolean lock) {
+        var classroom = d.one("SELECT status FROM training_classes WHERE id=? AND lecturer_id=?" + (lock ? " FOR UPDATE" : ""), classId, actor.id);
+        if (!List.of("PLANNED", "ACTIVE").contains(classroom.get("status")))
+            throw conflict("Chỉ lập yêu cầu cấp ban đầu cho lớp đang chuẩn bị hoặc đang học");
+    }
+
+    private void requireInitialCandidates(UUID classId, Set<Long> students) {
+        List<Object> arguments = new ArrayList<>();
+        arguments.add(classId);
+        arguments.addAll(students);
+        String placeholders = String.join(",", Collections.nCopies(students.size(), "?"));
+        Set<Long> eligible = new HashSet<>(d.jdbc.queryForList("SELECT e.student_id " + INITIAL_CANDIDATES
+                + " AND e.student_id IN (" + placeholders + ")", Long.class, arguments.toArray()));
+        for (long student : students) {
+            if (!eligible.contains(student))
+                throw conflict("Học viên " + StudentCode.fromId(student) + " đã có yêu cầu, từng nhận thiết bị hoặc không còn đủ điều kiện. Hãy tải lại danh sách.");
+        }
+    }
+
+    private record RequestInfo(String title, long quantity, LocalDate neededOn, String description) {}
+
+    private RequestInfo requestInfo(Map<String,Object> input) {
+        return new RequestInfo(text(input,"title",160,true), number(input,"quantity",1,100),
+                date(input,"neededOn",true), text(input,"description",2000,true));
+    }
+
+    private UUID insertRequest(UUID classId, long student, String type, RequestInfo info, User actor) {
+        UUID key = UUID.randomUUID();
         d.jdbc.update("INSERT INTO equipment_requests(id,requested_by,class_id,title,quantity,status,student_id,request_type,needed_on,description) VALUES (?,?,?,?,?,'NEW',?,?,?,?)",
-                key,u.id,classId,text(p,"title",160,true),number(p,"quantity",1,100),student,
-                choice(p,"requestType","INITIAL","REPLACEMENT","SUPPLEMENT"),date(p,"neededOn",true),text(p,"description",2000,true));
-        return saved("EquipmentRequestDetail_Lecturer",key);
+                key,actor.id,classId,info.title(),info.quantity(),student,type,info.neededOn(),info.description());
+        return key;
     }
     public Map<String,Object> requestState(String id,Map<String,Object> p,User u,String action){
         role(u,"IT_SUPPORT");UUID key=uuid(id);var r=d.record("requests",id,u);d.lock("equipment_requests",key,p);String before=r.get("status").toString();
@@ -49,6 +163,8 @@ public class EquipmentWorkflows {
         if(contracts.isEmpty())throw conflict("Chưa có hợp đồng đang học gắn với lớp và học viên");var contract=contracts.get(0);UUID contractId=uuid(contract.get("id").toString());
         contract=d.one("SELECT * FROM training_contracts WHERE id=? FOR UPDATE",contractId);
         if(!"ACTIVE".equals(contract.get("status")))throw conflict("Hợp đồng không còn ở trạng thái đang đào tạo");
+        // Coordinate with initial requests so the candidate check cannot race a handover.
+        d.one("SELECT id FROM training_classes WHERE id=? FOR UPDATE",classId);
         d.requireClassStudent(classId,student);
         BigDecimal paid=d.jdbc.queryForObject("SELECT COALESCE(SUM(amount),0) FROM financial_transactions WHERE contract_id=? AND kind='DEPOSIT' AND status='CONFIRMED'",BigDecimal.class,contractId);
         if(paid.compareTo(new BigDecimal(contract.get("depositDue").toString()))<0)throw conflict("Chưa được kế toán xác nhận đủ điều kiện cọc theo hợp đồng");

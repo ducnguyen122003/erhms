@@ -48,6 +48,29 @@ class FixedCourseSchedulesIntegrationTest {
         mvc.perform(get("/api/public/training-courses/"+legacy)).andExpect(status().isNotFound());
     }
 
+    @Test void theAssignedLecturerCanGradeAnActiveStudentInAFixedCourse()throws Exception{
+        String classId = create(plan(FIRST, 2027, 8, "Lớp nhập điểm"));
+        User student = actor("STUDENT"), otherTeacher = actor("LECTURER");
+        UUID enrollmentId = UUID.randomUUID();
+        jdbc.update("INSERT INTO training_enrollments(id,class_id,student_id,status) VALUES (?,?,?,'ACTIVE')",
+                enrollmentId, UUID.fromString(classId), student.id);
+
+        String gradebook = "ClassGradebook/" + classId;
+        var page = body(read(teacher, gradebook).andExpect(status().isOk())
+                .andExpect(jsonPath("$.related.students[0].studentId").value(student.id.intValue()))
+                .andExpect(jsonPath("$.related.assessments.length()").value(1))
+                .andExpect(jsonPath("$.related.assessments[0].title").value("Điểm tổng kết"))
+                .andExpect(jsonPath("$.related.assessments[0].weight").value(100))
+                .andReturn());
+        var grades = values("version", page.path("record").path("version").asInt(),
+                "records", List.of(values("enrollmentId", enrollmentId, "title", "Điểm tổng kết", "score", 8.5)));
+        write(otherTeacher, gradebook + "/actions/publish", grades).andExpect(status().isNotFound());
+        write(teacher, gradebook + "/actions/publish", grades).andExpect(status().isOk());
+        read(student, "StudentResults").andExpect(status().isOk())
+                .andExpect(jsonPath("$.items[0].title").value("Điểm tổng kết"))
+                .andExpect(jsonPath("$.items[0].score").value(8.5));
+    }
+
     @Test void legacyCourseAndProfessionCrudRemainBlockedEvenWhenOldGrantsAreInjected()throws Exception{
         UUID legacy=legacyCourse();
         for(String code:List.of("ListCourse","AddCourse","EditCourse","CourseDetail","ListProfession","AddProfession","EditProfession")){

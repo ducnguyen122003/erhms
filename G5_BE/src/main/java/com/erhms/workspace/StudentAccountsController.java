@@ -20,7 +20,10 @@ import org.springframework.web.multipart.MultipartFile;
 public class StudentAccountsController {
     private final StudentAccountsService service;
     private final StudentAccountExcelService excel;
-    public StudentAccountsController(StudentAccountsService service,StudentAccountExcelService excel) {this.service=service;this.excel=excel;}
+    private final StudentAccountBatchService batch;
+    public StudentAccountsController(StudentAccountsService service,StudentAccountExcelService excel,StudentAccountBatchService batch) {
+        this.service=service;this.excel=excel;this.batch=batch;
+    }
 
     @GetMapping("/import-template")
     public ResponseEntity<byte[]> template() {
@@ -43,8 +46,17 @@ public class StudentAccountsController {
 
     @GetMapping
     public Map<String,Object> list(@RequestParam(defaultValue="") String q,@RequestParam(defaultValue="0") int page,
-                                   @RequestParam(defaultValue="10") int size) {
-        return service.list(q,page,size);
+                                   @RequestParam(defaultValue="10") int size,@RequestParam(defaultValue="") String stage) {
+        return service.list(q,page,size,stage);
+    }
+
+    @PostMapping("/batch")
+    public StudentAccountBatchService.Result createBatch(@RequestBody Map<String,Object> input,HttpServletRequest request) {
+        request.setAttribute("workflow.action","STUDENT_ACCOUNTS_BATCH_CREATE");
+        request.setAttribute("workflow.label","Cấp tài khoản cho các hồ sơ học viên đã chọn");
+        var result=batch.create(input);
+        request.setAttribute("admin.changeNote",result.notice());
+        return result;
     }
 
     @PostMapping("/{admissionId}")

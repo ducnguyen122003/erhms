@@ -140,7 +140,11 @@ public class WorkflowData {
     public static long numericId(String id){try{long n=Long.parseLong(id);if(n<=0)throw new NumberFormatException();return n;}catch(Exception e){throw invalid("id","Mã tài khoản không hợp lệ");}}
     public List<Map<String,Object>> page(String resource,User u,String q,String status,int page){
         String sql=filtered(resource,u,q,status);List<Object> args=filters(q,status);args.add(25);args.add(page*25);
-        String order=resource.equals("admissions")?"created_date DESC, id":"id";
+        String order=switch(resource){
+            case "admissions"->"created_date DESC, id";
+            case "notifications"->"scheduled_at DESC, id";
+            default->"id";
+        };
         return rows(sql+" ORDER BY "+order+" LIMIT ? OFFSET ?",args.toArray());
     }
     public long total(String resource,User u,String q,String status){return count("SELECT COUNT(*) FROM ("+filtered(resource,u,q,status)+") results",filters(q,status).toArray());}

@@ -123,17 +123,36 @@ class ContractClassIntegrationTest {
         jdbc.update("UPDATE training_contracts SET status='CANCELLED' WHERE id=?",UUID.fromString(first));String replacement=create(second);assertNotEquals(first,replacement);
     }
 
-    @Test void onlyConfirmedFullTuitionUnlocksPlacementIntoTheContractSelectedClass()throws Exception{
+    @Test void confirmedFullTuitionPlacesTheStudentInTheContractClassAndUsesTheReservedSeat()throws Exception{
+        jdbc.update("UPDATE training_classes SET capacity=1 WHERE id=?",cl);
         String id=create(input());UUID contract=UUID.fromString(id);
         jdbc.update("UPDATE training_contracts SET status='SIGNED',signature_approved_at=CURRENT_TIMESTAMP,handed_over_at=CURRENT_TIMESTAMP,accountant_id=? WHERE id=?",accountant.id,contract);
         UUID other=plan(course,"2027-01-11",20);
-        assertFalse(eligible(cl));String firstPayment=importPayment(id,400);assertFalse(eligible(cl));confirmPayment(firstPayment);assertFalse(eligible(cl));assertFalse(eligible(other));
-        String balancePayment=importPayment(id,600);assertFalse(eligible(cl));confirmPayment(balancePayment);assertTrue(eligible(cl));assertFalse(eligible(other));assertEquals(0,jdbc.queryForObject("SELECT COUNT(*) FROM training_enrollments WHERE contract_id=?",Integer.class,contract));
-        write(manager,"ClassDetail",other+"/actions/add-students",values("version",0,"students",List.of(Map.of("id",student.id)))).andExpect(status().isBadRequest());
-        write(manager,"ClassDetail",cl+"/actions/add-students",values("version",0,"students",List.of(Map.of("id",student.id)))).andExpect(status().isOk());
-        assertEquals(1,jdbc.queryForObject("SELECT COUNT(*) FROM training_enrollments WHERE contract_id=? AND class_id=?",Integer.class,contract,cl));
-        var after=read("ClassDetail",cl.toString()).path("record");assertEquals(1,after.path("studentCount").asInt());assertEquals(1,after.path("reservedCount").asInt());assertEquals(19,after.path("remainingSlots").asInt());
+        String firstPayment=importPayment(id,400);confirmPayment(firstPayment);
+        assertEquals(0,jdbc.queryForObject("SELECT COUNT(*) FROM training_enrollments WHERE student_id=?",Integer.class,student.id));
+        String balancePayment=importPayment(id,600);
+        assertEquals(0,jdbc.queryForObject("SELECT COUNT(*) FROM training_enrollments WHERE student_id=?",Integer.class,student.id));
+        confirmPayment(balancePayment);
+
+        assertFalse(eligible(cl));assertFalse(eligible(other));
+        assertEquals(1,jdbc.queryForObject("SELECT COUNT(*) FROM training_enrollments WHERE student_id=?",Integer.class,student.id));
+        assertEquals(1,jdbc.queryForObject("SELECT COUNT(*) FROM training_enrollments WHERE contract_id=? AND class_id=? AND student_id=? AND status='ACTIVE' AND assignment_status='CONFIRMED'",Integer.class,contract,cl,student.id));
+        var after=read("ClassDetail",cl.toString()).path("record");assertEquals(1,after.path("studentCount").asInt());assertEquals(1,after.path("reservedCount").asInt());assertEquals(0,after.path("remainingSlots").asInt());
         assertEquals(1,jdbc.queryForObject("SELECT COUNT(*) FROM user_notifications WHERE recipient_id=? AND target_screen='ClassDetail' AND target_id=?",Integer.class,manager.id,cl.toString()));
+    }
+
+    @Test void aStudentAlreadyInAnotherClassCanPayWithoutBeingMovedOrEnrolledTwice()throws Exception{
+        String id=create(input());UUID contract=UUID.fromString(id);
+        jdbc.update("UPDATE training_contracts SET status='SIGNED',signature_approved_at=CURRENT_TIMESTAMP,handed_over_at=CURRENT_TIMESTAMP,accountant_id=? WHERE id=?",accountant.id,contract);
+        UUID other=plan(course,"2027-01-11",20);
+        jdbc.update("INSERT INTO training_enrollments(id,class_id,student_id,status) VALUES (?,?,?,'ACTIVE')",UUID.randomUUID(),other,student.id);
+
+        String transaction=importPayment(id,1000);confirmPayment(transaction);
+
+        assertEquals("ACTIVE",read("TrainingContractDetail",id).path("record").path("status").asText());
+        assertEquals("CONFIRMED",jdbc.queryForObject("SELECT status FROM financial_transactions WHERE id=?",String.class,UUID.fromString(transaction)));
+        assertEquals(List.of(other),jdbc.queryForList("SELECT class_id FROM training_enrollments WHERE student_id=?",UUID.class,student.id));
+        assertEquals(1,jdbc.queryForObject("SELECT COUNT(*) FROM user_notifications WHERE recipient_id=? AND target_screen='TrainingContractDetail' AND target_id=?",Integer.class,manager.id,id));
     }
 
     @Test void pastPlansRejectNewSelectionsWhileAnExistingBoundDraftRemainsEditable()throws Exception{

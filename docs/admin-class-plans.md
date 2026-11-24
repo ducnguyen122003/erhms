@@ -14,6 +14,6 @@ QLHV chọn lớp khi lập hợp đồng. Lớp phải thuộc đúng khóa, c�
 
 Mỗi hợp đồng chưa hủy, kể cả bản nháp, giữ một chỗ trong lớp. Học viên đã vào lớp không bị tính chỗ hai lần nếu hợp đồng đã giữ chỗ; học viên cũ chưa có hợp đồng liên kết lớp vẫn được tính vào sĩ số. Đổi lớp trong hợp đồng bản nháp kiểm tra lại chỗ trống. Hợp đồng đã gửi ký không được đổi lớp qua chức năng sửa bản nháp.
 
-Giữ chỗ trên hợp đồng chưa tạo danh sách học viên đang học. Sau khi kế toán xác nhận đủ học phí, QLHV chỉ được xếp học viên vào lớp đã ghi trên hợp đồng. Bill chờ đối chiếu hoặc tiền cọc không thay thế điều kiện học phí. Hợp đồng cũ chưa liên kết lớp tiếp tục được xử lý theo khóa học; khi xếp lớp, liên kết lớp được ghi nhận.
+Khi kế toán xác nhận đủ học phí, hệ thống dùng chỗ đã giữ để tự xếp học viên vào lớp trên hợp đồng. Giảng viên được phân công thấy học viên trong danh sách điểm danh và sổ điểm. Bản cập nhật V33 cũng tự xếp cho học viên đã được xác nhận đủ học phí từ trước nếu hợp đồng có lớp hợp lệ và học viên có thể vào lớp. Bill chờ đối chiếu, học phí còn thiếu và tiền cọc không kích hoạt xếp lớp. QLHV xử lý hợp đồng cũ chưa liên kết lớp hoặc hồ sơ có điều kiện xếp lớp cần kiểm tra.
 
 Migration V29 thêm kế hoạch năm và liên kết lớp trên hợp đồng, cấp quyền lập lớp/lịch cho admin và thu hồi quyền sửa kế hoạch của QLHV. V30 bổ sung bốn khóa cố định và quyền **Cấu hình lịch học theo khóa**, đồng thời ngừng các màn hình sửa danh mục cũ. Lịch, hợp đồng và PDF đã ký cũ được giữ nguyên.

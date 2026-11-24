@@ -141,7 +141,7 @@ class ClassManagementIntegrationTest {
         write(admin,"TimeTable_EditSession",null,session(target)).andExpect(status().isConflict());
     }
 
-    @Test void tuitionConfirmationQueuesTheStudentUntilManagerSelectsAClass()throws Exception {
+    @Test void aPaidLegacyContractWithoutAClassStillAllowsManualPlacement()throws Exception {
         String target=createClass();User learner=managedStudent(manager);UUID contract=UUID.randomUUID();User accountant=account("ACCOUNTANT");
         jdbc.update("INSERT INTO training_contracts(id,code,student_id,course_id,manager_id,accountant_id,starts_on,status,tuition_due,handed_over_at) VALUES (?,?,?,?,?,?,'2027-01-04','SIGNED',0,CURRENT_TIMESTAMP)",contract,contract.toString(),learner.id,course,manager.id,accountant.id);
         assertFalse(eligible(target).contains(learner.id));

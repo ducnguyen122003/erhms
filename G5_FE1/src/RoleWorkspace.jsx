@@ -1,5 +1,5 @@
 import {useEffect,useRef,useState} from 'react';
-import {Activity,Bell,BookOpen,BriefcaseBusiness,Building2,CalendarDays,CircleHelp,FileText,LayoutDashboard,LogOut,Menu,RefreshCw,Settings2,ShieldCheck,UserRound,Users,Wallet,Wrench,X} from 'lucide-react';
+import {Activity,BookOpen,BriefcaseBusiness,Building2,CalendarDays,CircleHelp,FileText,LayoutDashboard,LogOut,Menu,RefreshCw,Settings2,ShieldCheck,UserRound,Users,Wallet,Wrench,X} from 'lucide-react';
 import {api,logout} from './api';
 import {dashboardPath,dashboardRoles,firstAllowedPath,resolveRole,roleError,workspaceRoute} from './roles';
 import UserProfile from './UserProfile';
@@ -21,10 +21,11 @@ import HRDashboard from './dashboards/HRDashboard';
 import './workspace.css';
 import ScreenRouter from './screens/ScreenRouter';
 import {DashboardNavigationContext} from './dashboards/DashboardUI';
-import {dashboardLink,screenNavigation,screenRoute} from './screens/access';
+import {canScreen,dashboardLink,screenNavigation,screenRoute} from './screens/access';
 import {admissionDashboardCodes,admissionMenuActive} from './screens/admissionDashboard';
 import WorkspaceBreadcrumbs from './WorkspaceBreadcrumbNav.jsx';
 import {breadcrumbHome,breadcrumbLocation,restoreBreadcrumbTrail,updateBreadcrumbTrail} from './workspaceBreadcrumbs.js';
+import NotificationBell from './NotificationBell';
 
 const dashboards={ADMIN:AdminDashboard,LECTURER:LecturerDashboard,STUDENT:StudentDashboard,ACCOUNTANT:AccountantDashboard,IT_SUPPORT:ITSupportDashboard,MANAGER:ManagerDashboard,HR:HRDashboard};
 const roleIcons={ADMIN:ShieldCheck,LECTURER:BookOpen,STUDENT:CalendarDays,ACCOUNTANT:Wallet,IT_SUPPORT:Wrench,MANAGER:Users,HR:BriefcaseBusiness};
@@ -45,9 +46,9 @@ export default function RoleWorkspace({user,onUserUpdate,onLogout}){
  const path=location.split(/[?#]/,1)[0],breadcrumbOwner=[user.id,user.roleId,user.role].join(':');
  const [breadcrumbs,setBreadcrumbs]=useState([]),breadcrumbRef=useRef([]);
  const [data,setData]=useState(null),[busy,setBusy]=useState(true),[error,setError]=useState(''),[reload,setReload]=useState(0);
- const [menuOpen,setMenuOpen]=useState(false),[tasksOpen,setTasksOpen]=useState(false),[signingOut,setSigningOut]=useState(false),[logoutError,setLogoutError]=useState(''),[pendingPanel,setPendingPanel]=useState(null);
+ const [menuOpen,setMenuOpen]=useState(false),[signingOut,setSigningOut]=useState(false),[logoutError,setLogoutError]=useState(''),[pendingPanel,setPendingPanel]=useState(null);
  const [navigationNotice,setNavigationNotice]=useState('');
- const mainRef=useRef(null),notificationRef=useRef(null),section=workspaceRoute(path,user,functions),has=code=>functions?.includes(code),canDashboard=Boolean(has('DASHBOARD'));
+ const mainRef=useRef(null),section=workspaceRoute(path,user,functions),has=code=>functions?.includes(code),canDashboard=Boolean(has('DASHBOARD'));
  const adminSection=administration.find(item=>item[4].includes(section));
  const businessRoute=screenRoute(path),businessNavigation=screenNavigation(user,functions||[]);
  const menuActive=item=>admissionDashboardCodes.includes(item.code)?admissionMenuActive(businessRoute?.screen.code,item.code,window.location.search):businessRoute?.screen.fe===item.fe&&(item.fe==='FE-09'?businessRoute.screen.code.startsWith('AutoAssignment')===item.code.startsWith('AutoAssignment'):item.fe==='FE-15'?businessRoute.screen.code.startsWith('Deposit')===item.code.startsWith('Deposit'):true);
@@ -57,7 +58,7 @@ export default function RoleWorkspace({user,onUserUpdate,onLogout}){
   if(!href)return;
   const trail=updateBreadcrumbTrail(breadcrumbRef.current,href,user,functions||[],{replace,trailIndex});
   window.history[replace?'replaceState':'pushState'](withBreadcrumbState(replace?window.history.state:null,breadcrumbOwner,trail),'',href);
-  breadcrumbRef.current=trail;setBreadcrumbs(trail);setLocation(href);setNavigationNotice(notice);setMenuOpen(false);setTasksOpen(false);
+  breadcrumbRef.current=trail;setBreadcrumbs(trail);setLocation(href);setNavigationNotice(notice);setMenuOpen(false);
  }
  useEffect(()=>{
   if(functions===null)return;
@@ -70,7 +71,7 @@ export default function RoleWorkspace({user,onUserUpdate,onLogout}){
   const listener=()=>{
    const href=workspaceLocation(),saved=window.history.state?.erhmsBreadcrumbs;
    const trail=functions===null?[]:restoreBreadcrumbTrail(saved?.owner===breadcrumbOwner?saved.trail:[],href,user,functions);
-   breadcrumbRef.current=trail;setBreadcrumbs(trail);setLocation(href);setNavigationNotice('');setMenuOpen(false);setTasksOpen(false);
+   breadcrumbRef.current=trail;setBreadcrumbs(trail);setLocation(href);setNavigationNotice('');setMenuOpen(false);
   };
   window.addEventListener('popstate',listener);window.addEventListener('hashchange',listener);
   return()=>{window.removeEventListener('popstate',listener);window.removeEventListener('hashchange',listener);};
@@ -87,11 +88,9 @@ export default function RoleWorkspace({user,onUserUpdate,onLogout}){
  },[role,reload,section,canDashboard]);
  useEffect(()=>{const refresh=()=>{if(document.visibilityState==='visible'){setAccessReload(value=>value+1);setReload(value=>value+1);}};window.addEventListener('focus',refresh);document.addEventListener('visibilitychange',refresh);return()=>{window.removeEventListener('focus',refresh);document.removeEventListener('visibilitychange',refresh);};},[]);
  useEffect(()=>{mainRef.current?.focus({preventScroll:true});},[section,path]);
- useEffect(()=>{if(!tasksOpen)return;const close=event=>{if(event.key==='Escape'||(event.type==='pointerdown'&&!notificationRef.current?.contains(event.target)))setTasksOpen(false);};document.addEventListener('keydown',close);document.addEventListener('pointerdown',close);return()=>{document.removeEventListener('keydown',close);document.removeEventListener('pointerdown',close);};},[tasksOpen]);
  useEffect(()=>{if(section!=='dashboard'||!pendingPanel||busy||!data)return;const panel=document.getElementById('dash-panel-'+pendingPanel);panel?.scrollIntoView({behavior:window.matchMedia('(prefers-reduced-motion: reduce)').matches?'instant':'smooth',block:'center'});panel?.focus({preventScroll:true});setPendingPanel(null);},[section,pendingPanel,busy,data]);
  const changed=()=>setReload(value=>value+1);
  async function signout(){if(signingOut)return;setSigningOut(true);setLogoutError('');try{await logout();onLogout();}catch(cause){if(cause.status===401)onLogout();else setLogoutError(cause.message);}finally{setSigningOut(false);}}
- const panels=data?.panels||[],tasks=data?.tasks||[],taskCount=tasks.reduce((sum,item)=>sum+(Number(item.count)||0),0);
  const pageProps={user,onLogout,onNavigate:navigate,onUserUpdate,onChanged:changed,initialNotice:navigationNotice,functions:functions||[]};
  let content;
  if(!functions||accessError)content=<section className="erhms-state" role={accessError?'alert':'status'}>{accessError?<><p>{accessError}</p><button onClick={()=>setAccessReload(value=>value+1)}>Thử lại</button></>:<><RefreshCw size={25} className="erhms-spinning"/><p>Đang tải quyền truy cập…</p></>}</section>;
@@ -116,7 +115,9 @@ export default function RoleWorkspace({user,onUserUpdate,onLogout}){
    {businessNavigation.map(item=><button key={item.code} className={menuActive(item)?'active':''} onClick={()=>navigate(item.path)}><FileText size={17}/><span>{item.label}</span></button>)}
   </nav><p className="erhms-nav-label erhms-personal-label">CÁ NHÂN</p><nav>{has('PROFILE')&&<button className={section==='profile'?'active':''} onClick={()=>navigate('/profile')}><UserRound size={17}/>Thông tin tài khoản</button>}</nav>
    <div className="erhms-sidebar-note-wrap"><div className="erhms-sidebar-note"><b><i/>Một hành trình học nghề</b><p>Kết nối tuyển sinh, đào tạo<br/>và quản lý thiết bị.</p></div></div></div><div className="erhms-sidebar-bottom"><div className="erhms-account"><button className="erhms-account-user" disabled={!has('PROFILE')} onClick={()=>navigate('/profile')}><span className="erhms-avatar">{initials(user.fullName)}</span><span><b>{user.fullName}</b><small>{config?.label||'Vai trò không hợp lệ'}</small></span></button><button className="icon-btn" onClick={signout} disabled={signingOut} aria-label="Đăng xuất"><LogOut size={17}/></button></div></div>
-  </aside><div className="erhms-main-wrap"><header className="erhms-topbar"><button className="erhms-mobile-toggle icon-btn" onClick={()=>setMenuOpen(value=>!value)} aria-expanded={menuOpen} aria-label="Mở menu"><Menu size={21}/></button><WorkspaceBreadcrumbs trail={breadcrumbs} home={functions?breadcrumbHome(user,functions):null} onNavigate={navigate}/><span className="erhms-screen-code">{businessRoute?.screen.fe||adminSection?.[5]|| (section==='profile'?'FE-06':'FE-01')}</span><div className="erhms-topbar-actions"><time className="erhms-date">{new Intl.DateTimeFormat('vi-VN',{weekday:'long',day:'numeric',month:'long',year:'numeric',timeZone:'Asia/Ho_Chi_Minh'}).format(new Date())}</time><div className="erhms-notification" ref={notificationRef}><button className="icon-btn" aria-label={'Việc cần xử lý: '+taskCount} aria-expanded={tasksOpen} onClick={()=>setTasksOpen(value=>!value)}><Bell size={18}/>{taskCount>0&&<i/>}</button>{tasksOpen&&<div className="erhms-task-popover"><b>Việc cần chú ý</b>{tasks.length?tasks.map(task=><div key={task.key} className="erhms-task-preview"><span>{task.title}</span><strong>{task.count.toLocaleString('vi-VN')}</strong></div>):<p>Chưa có công việc cần xử lý.</p>}<small>Cập nhật cùng dữ liệu dashboard.</small></div>}</div><button className="erhms-avatar" onClick={()=>has('PROFILE')&&navigate('/profile')} aria-label="Mở thông tin tài khoản">{initials(user.fullName)}</button></div></header>
+  </aside><div className="erhms-main-wrap"><header className="erhms-topbar"><button className="erhms-mobile-toggle icon-btn" onClick={()=>setMenuOpen(value=>!value)} aria-expanded={menuOpen} aria-label="Mở menu"><Menu size={21}/></button><WorkspaceBreadcrumbs trail={breadcrumbs} home={functions?breadcrumbHome(user,functions):null} onNavigate={navigate}/><span className="erhms-screen-code">{businessRoute?.screen.fe||adminSection?.[5]|| (section==='profile'?'FE-06':'FE-01')}</span><div className="erhms-topbar-actions"><time className="erhms-date">{new Intl.DateTimeFormat('vi-VN',{weekday:'long',day:'numeric',month:'long',year:'numeric',timeZone:'Asia/Ho_Chi_Minh'}).format(new Date())}</time>
+   <NotificationBell canList={canScreen('ListNotification',user,functions||[])} canView={canScreen('ViewNotification',user,functions||[])} route={location} revision={reload} onNavigate={navigate} onLogout={onLogout}/>
+   <button className="erhms-avatar" onClick={()=>has('PROFILE')&&navigate('/profile')} aria-label="Mở thông tin tài khoản">{initials(user.fullName)}</button></div></header>
    <main id="workspace-main" className="erhms-main" ref={mainRef} tabIndex={-1}>{logoutError&&<div role="alert" className="error">{logoutError}</div>}{content}</main><footer className="erhms-footer"><span><ShieldCheck size={13}/>BK-VTCMS · Kết nối tuyển sinh, đào tạo và quản lý thiết bị.</span><span>{data?.updatedAt?'Cập nhật: '+new Date(data.updatedAt).toLocaleString('vi-VN',{timeZone:'Asia/Ho_Chi_Minh'}):''}</span></footer>
   </div></div>;
 }

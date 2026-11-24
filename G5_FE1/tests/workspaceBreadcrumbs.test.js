@@ -37,6 +37,14 @@ test('manager retains the actual account-to-contract workflow rather than an unr
  assert.deepEqual(paths(initialBreadcrumbTrail(review,manager,functions)),['/dashboard/manager','/screens/ListTrainingContract',detail,review]);
 });
 
+test('a contract opened from the filtered account queue retains that queue as its parent on reload',()=>{
+ const functions=grants('MANAGER'),search='Học viên & email';
+ const list='/screens/ListStudentAccount?'+new URLSearchParams({stage:'NEEDS_CONTRACT',q:search});
+ const create='/screens/AddTrainingContract?'+new URLSearchParams({consultationId:record,returnStage:'NEEDS_CONTRACT',returnQuery:search});
+ assert.deepEqual(paths(initialBreadcrumbTrail(create,manager,functions)),['/dashboard/manager',list,create]);
+ assert.deepEqual(paths(initialBreadcrumbTrail(create,manager,functions.filter(code=>code!=='ListStudentAccount'))),['/dashboard/manager','/screens/ListTrainingContract',create]);
+});
+
 test('query-only admission tab changes replace one step and detail links retain the correct enrollment tab',()=>{
  const functions=grants('HR'),waiting='/screens/ListAdmissionEnrollment?tab=waiting',forwarded='/screens/ListAdmissionEnrollment?tab=forwarded',detail='/screens/ListAdmissionApplicationDetail/'+record+'?from=ListAdmissionEnrollment&tab=forwarded';
  let trail=initialBreadcrumbTrail(waiting,hr,functions);
@@ -48,10 +56,14 @@ test('query-only admission tab changes replace one step and detail links retain 
  assert.deepEqual(paths(updateBreadcrumbTrail(trail,forwarded,hr,functions)),['/dashboard/hr',forwarded]);
 });
 
-test('top-level sidebar navigation starts a new branch instead of growing an unrelated visit log',()=>{
+test('workspace shortcuts start a new branch and notifications retain the archive as their parent',()=>{
  const functions=grants('HR'),detail='/screens/ListAdmissionApplicationDetail/'+record;
  const previous=initialBreadcrumbTrail(detail,hr,functions);
  assert.deepEqual(paths(updateBreadcrumbTrail(previous,'/screens/ListNotification',hr,functions)),['/dashboard/hr','/screens/ListNotification']);
+ const notification='/screens/ViewNotification/'+other,archive='/screens/ListNotification?q=lich';
+ assert.deepEqual(paths(updateBreadcrumbTrail(previous,notification,hr,functions)),['/dashboard/hr','/screens/ListNotification',notification]);
+ const fromArchive=initialBreadcrumbTrail(archive,hr,functions);
+ assert.deepEqual(paths(updateBreadcrumbTrail(fromArchive,notification,hr,functions)),['/dashboard/hr',archive,notification]);
  assert.deepEqual(paths(updateBreadcrumbTrail(previous,'/profile',hr,functions)),['/dashboard/hr','/profile']);
 });
 

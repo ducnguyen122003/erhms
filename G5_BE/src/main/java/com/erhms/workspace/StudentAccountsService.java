@@ -33,11 +33,18 @@ public class StudentAccountsService {
     private static final String SCREEN = "ListStudentAccount";
     private static final SecureRandom RANDOM = new SecureRandom();
     private static final char[] PASSWORD_CHARS = "ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz23456789!@#$%".toCharArray();
+    private static final String CONTRACT_READY = "(f.status IN ('PROFILE_PENDING','PROFILE_CREATED') OR (r.intake_source='EXCEL' AND f.status='CONTACTED'))";
     private static final String QUEUE = """
             FROM consultation_registrations r
             JOIN consultation_followups f ON f.consultation_id=r.id
-            WHERE ((r.intake_source='EXCEL' OR f.forwarded_at IS NOT NULL) AND f.status IN ('PROFILE_PENDING','CONTRACTED','PROFILE_CREATED') OR (r.intake_source='EXCEL' AND f.status='CONTACTED'))
+            WHERE (r.intake_source='EXCEL' OR f.forwarded_at IS NOT NULL) AND (f.status='CONTRACTED' OR %s)
             AND LOWER(r.full_name||' '||COALESCE(r.email,'')||' '||r.phone||' '||r.program_name||' '||COALESCE(r.enrollment_course,'')) LIKE ? ESCAPE '!'
+            """.formatted(CONTRACT_READY);
+    private static final String CONTRACT_QUEUE = QUEUE + " AND " + CONTRACT_READY + """
+             AND NOT EXISTS (SELECT 1 FROM training_contracts c WHERE c.consultation_id=r.id AND c.status<>'CANCELLED')
+            """;
+    private static final String PENDING_ACCOUNTS = QUEUE + """
+             AND f.status<>'PROFILE_CREATED' AND f.profile_student_id IS NULL AND f.profile_created_at IS NULL
             """;
     private final WorkflowData data;
     private final CurrentUser current;
@@ -66,14 +73,23 @@ public class StudentAccountsService {
         permissions.require(actor,SCREEN);
     }
 
+    void requireCreateAccess() {
+        requireAccess(current.get());
+    }
+
     @Transactional(readOnly=true)
-    public Map<String,Object> list(String query,int page,int size) {
+    public Map<String,Object> list(String query,int page,int size,String stage) {
         User actor=current.get();requireAccess(actor);
         String term=Objects.toString(query,"").strip().toLowerCase(Locale.ROOT);
         if(page<0||page>100000||size<1||size>100||term.length()>200)throw invalid("filter","Trang hoặc từ khóa tìm kiếm không hợp lệ");
+        boolean needsContractView="NEEDS_CONTRACT".equals(stage);
+        if(!stage.isEmpty()&&!needsContractView)throw invalid("stage","Bộ lọc hồ sơ không hợp lệ");
+        boolean canAddContract=permissions.codes(actor).contains("AddTrainingContract");
         String search="%"+term.replace("!","!!").replace("%","!%").replace("_","!_")+"%";
-        long total=data.count("SELECT COUNT(*) "+QUEUE,search);
-        var rows=data.rows("SELECT r.id,r.full_name,r.email,r.phone,r.program_name,r.enrollment_course,r.created_date,r.contact_time,r.intake_source AS source,f.status AS profile_status,"+AdmissionProfiles.DOCUMENT_STATUS_SQL+" AS document_status,f.version,f.profile_submitted_at,f.profile_created_at,(SELECT CONCAT('file:',w.id,':',w.filename) FROM workflow_files w WHERE w.id=f.scan_file_id) AS profile_evidence "+QUEUE
+        String queue=needsContractView?CONTRACT_QUEUE:PENDING_ACCOUNTS;
+        long total=data.count("SELECT COUNT(*) "+queue,search);
+        long needsContractCount=needsContractView?total:data.count("SELECT COUNT(*) "+CONTRACT_QUEUE,search);
+        var rows=data.rows("SELECT r.id,r.full_name,r.email,r.phone,r.program_name,r.enrollment_course,r.created_date,r.contact_time,r.intake_source AS source,f.status AS profile_status,"+AdmissionProfiles.DOCUMENT_STATUS_SQL+" AS document_status,f.version,f.profile_submitted_at,f.profile_created_at,(SELECT CONCAT('file:',w.id,':',w.filename) FROM workflow_files w WHERE w.id=f.scan_file_id) AS profile_evidence, CASE WHEN "+CONTRACT_READY+" THEN TRUE ELSE FALSE END AS can_contract "+queue
                 +" ORDER BY r.created_date DESC,r.id LIMIT ? OFFSET ?",search,size,page*size);
         for(var row:rows) {
             row.put("profileDocuments",profiles.documents(uuid(row.get("id").toString())));
@@ -91,7 +107,7 @@ public class StudentAccountsService {
             row.put("contractSigningStatus",ownedContracts.isEmpty()?null:ownedContracts.get(0).get("status"));
             row.put("contractId",ownedContracts.isEmpty()?null:ownedContracts.get(0).get("id"));
             row.put("contractCode",ownedContracts.isEmpty()?null:ownedContracts.get(0).get("code"));
-            row.put("canContract",List.of("PROFILE_PENDING","PROFILE_CREATED").contains(row.get("profileStatus"))||("EXCEL".equals(row.get("source"))&&"CONTACTED".equals(row.get("profileStatus"))));
+            row.put("canContract",canAddContract&&Boolean.TRUE.equals(row.get("canContract"))&&contracts.isEmpty());
             boolean pending=!"PROFILE_CREATED".equals(row.get("profileStatus"));
             boolean reuse=pending&&status.equals("STUDENT")&&canUseExistingProfile(((Number)account.get("id")).longValue(),actor);
             String reason=reuse?"":blockedReason(status);
@@ -105,12 +121,12 @@ public class StudentAccountsService {
             row.put("canCreate",pending&&contractIssue.isEmpty()&&(status.equals("NONE")||reuse)&&reason.isEmpty());
             row.put("blockedReason",reason);
         }
-        return Map.of("items",rows,"total",total,"totalPages",(total+size-1)/size,"page",page,"size",size);
+        return Map.of("items",rows,"total",total,"totalPages",(total+size-1)/size,"page",page,"size",size,"needsContractCount",needsContractCount);
     }
 
     @Transactional
     public Map<String,Object> create(String admissionId,Map<String,Object> input) {
-        requireAccess(current.get());
+        requireCreateAccess();
         if(!input.keySet().equals(Set.of("expectedEmail","version")))throw invalid("request","Chỉ gửi email và phiên bản hồ sơ đã chọn");
         String expectedEmail=normalizedEmail(text(input,"expectedEmail",190,true));
         long version=number(input,"version",0,Long.MAX_VALUE);
@@ -122,11 +138,13 @@ public class StudentAccountsService {
         // HR consultation changes and contract creation also lock the registration first.
         data.one("SELECT id FROM consultation_registrations WHERE id=? FOR UPDATE",admission);
         var registration=data.one("""
-                SELECT r.id,r.full_name,r.email,r.phone,r.intake_source,f.forwarded_at,COALESCE(f.status,'NEW') AS status,COALESCE(f.version,0) AS version
+                SELECT r.id,r.full_name,r.email,r.phone,r.intake_source,f.forwarded_at,f.profile_student_id,f.profile_created_at,COALESCE(f.status,'NEW') AS status,COALESCE(f.version,0) AS version
                 FROM consultation_registrations r LEFT JOIN consultation_followups f ON f.consultation_id=r.id WHERE r.id=?
                 """,admission);
         requireAccess(actor);
         if("ADMISSION".equals(registration.get("intakeSource"))&&registration.get("forwardedAt")==null)throw conflict("Chờ tuyển sinh chuyển hồ sơ sang quản lý học vụ trước khi cấp tài khoản.");
+        if("PROFILE_CREATED".equals(registration.get("status"))||registration.get("profileStudentId")!=null||registration.get("profileCreatedAt")!=null)
+            throw conflict("Hồ sơ đã hoàn tất cấp tài khoản. Hãy tải lại danh sách.");
         if(!"CONTRACTED".equals(registration.get("status")))throw conflict("Cần lập hợp đồng trước khi tạo tài khoản học viên. Hãy tải lại danh sách.");
         String email=normalizedEmail(registration.get("email"));
         if(((Number)registration.get("version")).longValue()!=version||!email.equals(expectedEmail))
@@ -148,7 +166,7 @@ public class StudentAccountsService {
                 data.jdbc.update("INSERT INTO student_profiles(user_id,manager_id) VALUES (?,?)",accountId,actor.id);
             else data.jdbc.update("UPDATE student_profiles SET manager_id=?,version=version+1 WHERE user_id=?",actor.id,accountId);
             completeProfile(admission,accountId,email,actor);
-            return Map.of("accountId",accountId,"studentCode",StudentCode.fromId(accountId),"email",email,"notice","Đã gắn hợp đồng với tài khoản học viên hiện có theo email đã cung cấp. Trạng thái: Đã tạo hồ sơ.");
+            return Map.of("accountId",accountId,"studentCode",StudentCode.fromId(accountId),"email",email,"created",false,"notice","Đã gắn hợp đồng với tài khoản học viên hiện có theo email đã cung cấp. Trạng thái: Đã tạo hồ sơ.");
         }
         Role studentRole=roles.findById(DashboardRole.STUDENT.id())
                 .filter(r->DashboardRole.resolve(r.id,r.code).orElse(null)==DashboardRole.STUDENT)
@@ -178,7 +196,7 @@ public class StudentAccountsService {
             throw new WorkflowException(HttpStatus.BAD_GATEWAY,"MAIL_DELIVERY_FAILED",
                     "Chưa gửi được email tài khoản. Tài khoản chưa được lưu; vui lòng thử lại sau.",Map.of());
         }
-        return Map.of("accountId",account.id,"studentCode",account.getStudentCode(),"email",email,"notice","Đã tạo tài khoản, gắn hợp đồng theo email học viên và gửi thông tin đăng nhập. Trạng thái: Đã tạo hồ sơ.");
+        return Map.of("accountId",account.id,"studentCode",account.getStudentCode(),"email",email,"created",true,"notice","Đã tạo tài khoản, gắn hợp đồng theo email học viên và gửi thông tin đăng nhập. Trạng thái: Đã tạo hồ sơ.");
     }
 
     private boolean canUseExistingProfile(long student,User actor) {

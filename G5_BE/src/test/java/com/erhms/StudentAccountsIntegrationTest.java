@@ -9,10 +9,12 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.Executors;
@@ -77,6 +79,13 @@ class StudentAccountsIntegrationTest {
     private ResultActions create(User actor,String id,Map<String,Object> input)throws Exception {
         return mvc.perform(post(API+"/"+id).with(user(actor.email).roles(actor.getRoleCode())).with(csrf()).contentType("application/json").content(json.writeValueAsString(input)));
     }
+    private ResultActions batch(User actor,List<Map<String,Object>> students)throws Exception {
+        return mvc.perform(post(API+"/batch").with(user(actor.email).roles(actor.getRoleCode())).with(csrf())
+                .contentType("application/json").content(json.writeValueAsString(Map.of("students",students))));
+    }
+    private Map<String,Object> batchRow(String id,String email) {
+        return Map.of("id",id,"expectedEmail",email,"version",0);
+    }
     private String readyAdmission(String email) {
         String id=admission("CONTRACTED",email);UUID contract=UUID.randomUUID();
         jdbc.update("INSERT INTO training_contracts(id,code,consultation_id,student_email,applicant_name,status,created_by,manager_id,accountant_id,signature_approved_at) VALUES (?,?,?,?,?,'SIGNED',?,?,?,CURRENT_TIMESTAMP)",
@@ -96,6 +105,56 @@ class StudentAccountsIntegrationTest {
     private JsonNode body(MvcResult result)throws Exception {return json.readTree(result.getResponse().getContentAsString(StandardCharsets.UTF_8));}
     private JsonNode list()throws Exception {return body(mvc.perform(get(API).param("q",unique).with(user(manager.email).roles("MANAGER"))).andExpect(status().isOk()).andReturn());}
     private JsonNode row(String id)throws Exception {for(JsonNode row:list().path("items"))if(row.path("id").asText().equals(id))return row;throw new AssertionError("Missing admission "+id);}
+
+    @Test void contractQueueFiltersBeforePagingAndDropsAProfileWhenItsContractIsCreated()throws Exception {
+        String forwardedEmail=unique+"-forwarded@student.test";
+        String forwarded=admission("PROFILE_PENDING",forwardedEmail);
+        String excel=admission("CONTACTED",unique+"-excel@student.test");
+        jdbc.update("UPDATE consultation_registrations SET intake_source='EXCEL' WHERE id=?",UUID.fromString(excel));
+        String cancelled=readyAdmission(unique+"-cancelled@student.test");
+        jdbc.update("UPDATE training_contracts SET status='CANCELLED' WHERE consultation_id=?",UUID.fromString(cancelled));
+        jdbc.update("UPDATE consultation_followups SET status='PROFILE_CREATED' WHERE consultation_id=?",UUID.fromString(cancelled));
+
+        String unforwarded=admission("PROFILE_PENDING",unique+"-unforwarded@student.test");
+        jdbc.update("UPDATE consultation_followups SET forwarded_at=NULL,forwarded_by=NULL WHERE consultation_id=?",UUID.fromString(unforwarded));
+        admission("CONTACTED",unique+"-admissions-contacted@student.test");
+        String draft=readyAdmission(unique+"-draft@student.test");
+        jdbc.update("UPDATE training_contracts SET status='DRAFT',signature_approved_at=NULL WHERE consultation_id=?",UUID.fromString(draft));
+        jdbc.update("UPDATE consultation_followups SET status='PROFILE_PENDING' WHERE consultation_id=?",UUID.fromString(draft));
+        String ownedByOther=readyAdmission(unique+"-owned-by-other@student.test");
+        User otherManager=account("MANAGER",unique+"-other@actor.test");
+        jdbc.update("UPDATE training_contracts SET manager_id=? WHERE consultation_id=?",otherManager.id,UUID.fromString(ownedByOther));
+        jdbc.update("UPDATE consultation_followups SET status='PROFILE_CREATED' WHERE consultation_id=?",UUID.fromString(ownedByOther));
+
+        assertEquals(3,list().path("needsContractCount").asInt());
+        assertFalse(row(draft).path("canContract").asBoolean());
+        assertTrue(list().path("items").findValuesAsText("id").stream().noneMatch(ownedByOther::equals));
+        var eligibleIds=new HashSet<String>();
+        for(int page=0;page<3;page++) {
+            JsonNode result=body(mvc.perform(get(API).param("q",unique).param("stage","NEEDS_CONTRACT")
+                    .param("size","1").param("page",Integer.toString(page)).with(user(manager.email).roles("MANAGER")))
+                    .andExpect(status().isOk()).andExpect(jsonPath("$.total").value(3)).andExpect(jsonPath("$.totalPages").value(3))
+                    .andExpect(jsonPath("$.needsContractCount").value(3)).andExpect(jsonPath("$.items[0].canContract").value(true))
+                    .andExpect(jsonPath("$.items[0].canCreate").value(false)).andReturn());
+            eligibleIds.add(result.path("items").get(0).path("id").asText());
+        }
+        assertEquals(Set.of(forwarded,excel,cancelled),eligibleIds);
+        mvc.perform(get(API).param("q",forwardedEmail).param("stage","NEEDS_CONTRACT").with(user(manager.email).roles("MANAGER")))
+                .andExpect(status().isOk()).andExpect(jsonPath("$.total").value(1)).andExpect(jsonPath("$.items[0].id").value(forwarded));
+        createContract(forwarded);
+        mvc.perform(get(API).param("q",forwardedEmail).param("stage","NEEDS_CONTRACT").with(user(manager.email).roles("MANAGER")))
+                .andExpect(status().isOk()).andExpect(jsonPath("$.total").value(0));
+        assertEquals(2,list().path("needsContractCount").asInt());
+        mvc.perform(get(API).param("stage","unknown").with(user(manager.email).roles("MANAGER"))).andExpect(status().isBadRequest());
+        jdbc.update("DELETE FROM role_function WHERE role_id=6 AND function_code='AddTrainingContract'");
+        try {
+            mvc.perform(get(API).param("q",unique).param("stage","NEEDS_CONTRACT").with(user(manager.email).roles("MANAGER")))
+                    .andExpect(status().isOk()).andExpect(jsonPath("$.needsContractCount").value(2))
+                    .andExpect(jsonPath("$.items[0].canContract").value(false));
+        } finally {
+            jdbc.update("INSERT INTO role_function(role_id,function_code) VALUES (6,'AddTrainingContract')");
+        }
+    }
 
     private Map<String,Object> documentInput(long version,String fileId) {return Map.of("version",version,"documents",List.of(Map.of("type","IDENTITY_CARD","files",List.of(fileId))));}
     private ResultActions submitProfile(User actor,String id,Map<String,Object> input)throws Exception {
@@ -166,18 +225,13 @@ class StudentAccountsIntegrationTest {
         for(var candidate:wrongCandidates)assertNotEquals(student,candidate.path("id").asLong());
         workspaceAction(manager,"ClassDetail",wrongClass.get("classId"),"add-students",Map.of("version",0,"students",List.of(Map.of("id",student))))
                 .andExpect(status().isBadRequest()).andExpect(jsonPath("$.fields.students").exists());
-        assertEquals(0,jdbc.queryForObject("SELECT COUNT(*) FROM training_enrollments WHERE contract_id=?",Integer.class,contractId));
-
-        var matchingClass=Map.of("courseId",paid.path("courseId").asText(),"classId",paid.path("classId").asText());
-        var candidates=workspaceView(manager,"ClassDetail",matchingClass.get("classId")).path("related").path("unassignedStudents");
-        boolean listed=false;for(var candidate:candidates)if(candidate.path("id").asLong()==student)listed=true;assertTrue(listed);
-        workspaceAction(manager,"ClassDetail",matchingClass.get("classId"),"add-students",Map.of("version",0,"students",List.of(Map.of("id",student))))
-                .andExpect(status().isOk());
-        var assigned=workspaceView(manager,"TrainingContractDetail",contract).path("record");
-        assertEquals(matchingClass.get("courseId"),assigned.path("courseId").asText());
-        assertEquals(program,assigned.path("registeredCourseName").asText());assertEquals(4,assigned.path("registeredDurationMonths").asInt());
-        assertEquals(14200000,assigned.path("tuitionDue").asLong());
-        assertEquals(1,jdbc.queryForObject("SELECT COUNT(*) FROM training_enrollments WHERE contract_id=? AND class_id=? AND student_id=?",Integer.class,contractId,UUID.fromString(matchingClass.get("classId")),student));
+        String matchingClass=paid.path("classId").asText();
+        var candidates=workspaceView(manager,"ClassDetail",matchingClass).path("related").path("unassignedStudents");
+        for(var candidate:candidates)assertNotEquals(student,candidate.path("id").asLong());
+        assertEquals(draft.path("classId"),paid.path("classId"));
+        assertEquals(program,paid.path("registeredCourseName").asText());assertEquals(4,paid.path("registeredDurationMonths").asInt());
+        assertEquals(14200000,paid.path("tuitionDue").asLong());
+        assertEquals(1,jdbc.queryForObject("SELECT COUNT(*) FROM training_enrollments WHERE contract_id=? AND class_id=? AND student_id=? AND status='ACTIVE'",Integer.class,contractId,UUID.fromString(matchingClass),student));
     }
 
     @Test void scannedApplicationIsSentToManagerAndChangesStatusOnlyAfterProfileCreation()throws Exception {
@@ -216,7 +270,9 @@ class StudentAccountsIntegrationTest {
                 .content(json.writeValueAsString(Map.of("version",0,"consultationId",id)))).andExpect(status().isConflict());
         mvc.perform(get("/api/workspace/screens/TuitionDetail_Student/"+contract).with(user(email).roles("STUDENT")))
                 .andExpect(status().isOk()).andExpect(jsonPath("$.record.studentEmail").value(email));
-        JsonNode completed=row(id);assertEquals("PROFILE_CREATED",completed.path("profileStatus").asText());assertFalse(completed.path("canCreate").asBoolean());assertFalse(completed.path("profileCreatedAt").isNull());
+        assertEquals(0,list().path("total").asInt());
+        assertEquals("PROFILE_CREATED",jdbc.queryForObject("SELECT status FROM consultation_followups WHERE consultation_id=?",String.class,UUID.fromString(id)));
+        assertNotNull(jdbc.queryForObject("SELECT profile_created_at FROM consultation_followups WHERE consultation_id=?",Object.class,UUID.fromString(id)));
         mvc.perform(get("/api/workspace/screens/ListAdmissionEnrollment").param("q",unique).param("tab","forwarded").with(user(hr.email).roles("HR")))
                 .andExpect(status().isOk()).andExpect(jsonPath("$.total").value(1)).andExpect(jsonPath("$.items[0].profileEvidence").value(file.path("reference").asText()));
         assertEquals(4,jdbc.queryForObject("SELECT COUNT(*) FROM consultation_notes WHERE consultation_id=?",Integer.class,UUID.fromString(id)));
@@ -252,7 +308,9 @@ class StudentAccountsIntegrationTest {
     @Test void existingStudentCanReceiveAProfileWithoutChangingCredentialsOrTakingAnotherManagersProfile()throws Exception {
         String email=unique+"@student.test",id=readyAdmission(email);User existing=account("STUDENT",email);
         assertTrue(row(id).path("canCreate").asBoolean());create(id,email).andExpect(status().isOk());
-        assertEquals("existing-hash",users.findById(existing.id).orElseThrow().passwordHash);assertEquals("PROFILE_CREATED",row(id).path("profileStatus").asText());
+        assertEquals("existing-hash",users.findById(existing.id).orElseThrow().passwordHash);
+        assertEquals(0,list().path("total").asInt());
+        assertEquals(existing.id,jdbc.queryForObject("SELECT profile_student_id FROM consultation_followups WHERE consultation_id=?",Long.class,UUID.fromString(id)));
         verifyNoInteractions(mailer);
         String another=readyAdmission(email);User otherManager=account("MANAGER",UUID.randomUUID()+"@actor.test");
         create(otherManager,another,Map.of("expectedEmail",email,"version",0)).andExpect(status().isConflict());
@@ -327,20 +385,97 @@ class StudentAccountsIntegrationTest {
 
     @Test void onlyManagersWithTheScreenGrantCanListAndCreateEvenWithSpoofedOrAccidentalGrants()throws Exception {
         String email=unique+"@student.test",id=readyAdmission(email);
+        var selected=List.of(batchRow(id,email));
         mvc.perform(get(API)).andExpect(status().isUnauthorized());
+        mvc.perform(post(API+"/batch").with(csrf()).contentType("application/json")
+                .content(json.writeValueAsString(Map.of("students",selected)))).andExpect(status().isUnauthorized());
         for(User actor:actors.values())if(actor!=manager) {
             jdbc.update("INSERT INTO role_function(role_id,function_code) VALUES (?,'ListStudentAccount')",actor.getRoleId());
             try {
                 mvc.perform(get(API).with(user(actor.email).roles("MANAGER"))).andExpect(status().isForbidden());
                 create(actor,id,Map.of("expectedEmail",email,"version",0)).andExpect(status().isForbidden());
+                batch(actor,selected).andExpect(status().isForbidden());
             } finally {jdbc.update("DELETE FROM role_function WHERE role_id=? AND function_code='ListStudentAccount'",actor.getRoleId());}
         }
         jdbc.update("DELETE FROM role_function WHERE role_id=6 AND function_code='ListStudentAccount'");
         try {
             mvc.perform(get(API).with(user(manager.email).roles("MANAGER"))).andExpect(status().isForbidden());
             create(id,email).andExpect(status().isForbidden());
+            batch(manager,selected).andExpect(status().isForbidden());
         } finally {jdbc.update("INSERT INTO role_function(role_id,function_code) VALUES (6,'ListStudentAccount')");}
         mvc.perform(post(API+"/"+id).with(user(manager.email).roles("MANAGER")).contentType("application/json").content(json.writeValueAsString(Map.of("expectedEmail",email,"version",0)))).andExpect(status().isForbidden());
+        mvc.perform(post(API+"/batch").with(user(manager.email).roles("MANAGER")).contentType("application/json")
+                .content(json.writeValueAsString(Map.of("students",selected)))).andExpect(status().isForbidden());
+        verifyNoInteractions(mailer);
+    }
+
+    @Test void batchCreatesAndLinksReadyStudentsWhileRollingBackOnlyFailedRows()throws Exception {
+        String firstEmail=unique+"-first@student.test",secondEmail=unique+"-second@student.test";
+        String linkEmail=unique+"-linked@student.test",staleEmail=unique+"-stale@student.test";
+        String smtpEmail=unique+"-smtp@student.test",otherEmail=unique+"-other@student.test";
+        String first=readyAdmission(firstEmail),second=readyAdmission(secondEmail),link=readyAdmission(linkEmail);
+        String stale=readyAdmission(staleEmail),smtp=readyAdmission(smtpEmail),other=readyAdmission(otherEmail);
+        User existing=account("STUDENT",linkEmail);
+        User otherManager=account("MANAGER",unique+"-other@actor.test");
+        jdbc.update("UPDATE consultation_followups SET version=1 WHERE consultation_id=?",UUID.fromString(stale));
+        jdbc.update("UPDATE training_contracts SET manager_id=? WHERE consultation_id=?",otherManager.id,UUID.fromString(other));
+        doThrow(new IllegalStateException("SECRET SMTP MESSAGE")).when(mailer)
+                .sendCredentials(eq(smtpEmail),anyString(),anyString());
+
+        var selected=List.of(batchRow(first,firstEmail),batchRow(stale,staleEmail),batchRow(link,linkEmail),
+                batchRow(smtp,smtpEmail),batchRow(other,otherEmail),batchRow(second,secondEmail));
+        JsonNode result=body(batch(manager,selected).andExpect(status().isOk())
+                .andExpect(jsonPath("$.createdCount").value(2)).andExpect(jsonPath("$.linkedCount").value(1))
+                .andExpect(jsonPath("$.failedCount").value(3)).andExpect(jsonPath("$.results.length()").value(6)).andReturn());
+        var expected=List.of("CREATED","FAILED","LINKED","FAILED","FAILED","CREATED");
+        for(int index=0;index<selected.size();index++){
+            JsonNode outcome=result.path("results").get(index);
+            assertEquals(selected.get(index).get("id"),outcome.path("id").asText());
+            assertEquals(expected.get(index),outcome.path("status").asText());
+            assertFalse(outcome.path("message").asText().isBlank());
+        }
+        assertFalse(result.toString().contains("SECRET SMTP MESSAGE"));
+        JsonNode remaining=list();
+        assertEquals(3,remaining.path("total").asInt());
+        assertEquals(Set.of(stale,smtp,other),new HashSet<>(remaining.path("items").findValuesAsText("id")));
+        for(String id:List.of(first,second,link)){
+            assertEquals("PROFILE_CREATED",jdbc.queryForObject("SELECT status FROM consultation_followups WHERE consultation_id=?",String.class,UUID.fromString(id)));
+            assertNotNull(jdbc.queryForObject("SELECT handed_over_at FROM training_contracts WHERE consultation_id=?",Object.class,UUID.fromString(id)));
+        }
+        assertEquals(existing.id,jdbc.queryForObject("SELECT student_id FROM training_contracts WHERE consultation_id=?",Long.class,UUID.fromString(link)));
+        assertEquals("existing-hash",users.findById(existing.id).orElseThrow().passwordHash);
+        for(String id:List.of(stale,smtp,other)){
+            assertEquals("CONTRACTED",row(id).path("profileStatus").asText());
+            assertNull(jdbc.queryForObject("SELECT student_id FROM training_contracts WHERE consultation_id=?",Long.class,UUID.fromString(id)));
+        }
+        assertFalse(users.existsByEmailIgnoreCase(staleEmail));
+        assertFalse(users.existsByEmailIgnoreCase(smtpEmail));
+        assertFalse(users.existsByEmailIgnoreCase(otherEmail));
+        var credentials=ArgumentCaptor.forClass(String.class);
+        verify(mailer).sendCredentials(eq(firstEmail),anyString(),credentials.capture());
+        assertFalse(result.toString().contains(credentials.getValue()));
+        verify(mailer).sendCredentials(eq(secondEmail),anyString(),anyString());
+        verify(mailer).sendCredentials(eq(smtpEmail),anyString(),anyString());
+        verify(mailer,times(3)).sendCredentials(anyString(),anyString(),anyString());
+
+        batch(manager,List.of(batchRow(first,firstEmail))).andExpect(status().isOk())
+                .andExpect(jsonPath("$.createdCount").value(0)).andExpect(jsonPath("$.failedCount").value(1));
+        verify(mailer,times(3)).sendCredentials(anyString(),anyString(),anyString());
+    }
+
+    @Test void anInvalidBatchIsRejectedBeforeCreatingAnyAccounts()throws Exception {
+        String email=unique+"@student.test",id=readyAdmission(email);
+        Map<String,Object> valid=batchRow(id,email);
+        batch(manager,List.of(valid,batchRow(id.toUpperCase(Locale.ROOT),email))).andExpect(status().isBadRequest());
+        batch(manager,List.of(valid,batchRow("not-an-id",email))).andExpect(status().isBadRequest());
+        var forged=new LinkedHashMap<>(batchRow(UUID.randomUUID().toString(),email));forged.put("roleId",1);
+        batch(manager,List.of(valid,forged)).andExpect(status().isBadRequest());
+        batch(manager,List.of()).andExpect(status().isBadRequest());
+        var oversized=new ArrayList<Map<String,Object>>();oversized.add(valid);
+        for(int index=0;index<20;index++)oversized.add(batchRow(UUID.randomUUID().toString(),email));
+        batch(manager,oversized).andExpect(status().isBadRequest());
+        assertFalse(users.existsByEmailIgnoreCase(email));
+        assertEquals("CONTRACTED",row(id).path("profileStatus").asText());
         verifyNoInteractions(mailer);
     }
 
@@ -357,14 +492,28 @@ class StudentAccountsIntegrationTest {
         }
     }
 
-    @Test void queueContainsOnlySubmittedProfilesAndSupportsSearchAndStablePagination()throws Exception {
+    @Test void accountQueueFiltersCompletedProfilesBeforeSearchingAndPaging()throws Exception {
         String first=readyAdmission(unique+"-first@student.test"),second=readyAdmission(unique+"-second@student.test");
         for(String state:List.of("NEW","NEEDS_COUNSELING","DOCUMENT_APPOINTMENT","NOT_PROCEEDING"))admission(state,unique+"-"+state+"@student.test");
+        String issuedEmail=unique+"-issued@student.test";
+        User existing=account("STUDENT",issuedEmail);
+        String issued=readyAdmission(issuedEmail);
+        jdbc.update("UPDATE consultation_followups SET profile_student_id=? WHERE consultation_id=?",existing.id,UUID.fromString(issued));
+        String archivedEmail=unique+"-archived@student.test";
+        String archived=readyAdmission(archivedEmail);
+        jdbc.update("UPDATE consultation_followups SET profile_created_at=CURRENT_TIMESTAMP WHERE consultation_id=?",UUID.fromString(archived));
+        admission("PROFILE_CREATED",unique+"-completed@student.test");
         assertEquals(2,list().path("total").asInt());
         JsonNode page0=body(mvc.perform(get(API).param("q",unique).param("size","1").with(user(manager.email).roles("MANAGER"))).andExpect(status().isOk()).andReturn());
         JsonNode page1=body(mvc.perform(get(API).param("q",unique).param("size","1").param("page","1").with(user(manager.email).roles("MANAGER"))).andExpect(status().isOk()).andReturn());
         assertEquals(2,page0.path("totalPages").asInt());assertNotEquals(page0.path("items").get(0).path("id"),page1.path("items").get(0).path("id"));
         mvc.perform(get(API).param("q",unique+"-FIRST").with(user(manager.email).roles("MANAGER"))).andExpect(status().isOk()).andExpect(jsonPath("$.total").value(1)).andExpect(jsonPath("$.items[0].id").value(first));
+        for(String completedEmail:List.of(issuedEmail,archivedEmail,unique+"-completed@student.test"))
+            mvc.perform(get(API).param("q",completedEmail).with(user(manager.email).roles("MANAGER")))
+                    .andExpect(status().isOk()).andExpect(jsonPath("$.total").value(0));
+        create(issued,issuedEmail).andExpect(status().isConflict());
+        create(archived,archivedEmail).andExpect(status().isConflict());
+        verifyNoInteractions(mailer);
         mvc.perform(get(API).param("q",unique+"%").with(user(manager.email).roles("MANAGER"))).andExpect(status().isOk()).andExpect(jsonPath("$.total").value(0));
         assertTrue(row(second).path("canCreate").asBoolean());
         for(String invalid:List.of("0","101"))mvc.perform(get(API).param("size",invalid).with(user(manager.email).roles("MANAGER"))).andExpect(status().isBadRequest());
@@ -394,7 +543,6 @@ class StudentAccountsIntegrationTest {
         MvcResult result=create(id,email).andExpect(status().isOk()).andExpect(jsonPath("$.email").value(email)).andExpect(jsonPath("$.password").doesNotExist()).andExpect(jsonPath("$.passwordHash").doesNotExist()).andReturn();
         long accountId=body(result).path("accountId").asLong();User created=users.findWithRoleById(accountId).orElseThrow();
         assertEquals(created.getStudentCode(),body(result).path("studentCode").asText());
-        assertEquals(created.getStudentCode(),row(id).path("studentCode").asText());
         var secret=ArgumentCaptor.forClass(String.class);verify(mailer).requireConfigured();verify(mailer).sendCredentials(eq(email),eq(unique+" Học viên"),secret.capture());
         String password=secret.getValue();assertTrue(password.length()>=16);assertTrue(passwords.matches(password,created.passwordHash));assertNotEquals(password,created.passwordHash);
         assertEquals(3L,created.getRoleId());assertEquals("STUDENT",created.getRoleCode());assertEquals("0912345678",created.phone);assertTrue(created.accountEnabled);assertFalse(created.accountLocked);
@@ -408,7 +556,7 @@ class StudentAccountsIntegrationTest {
         mvc.perform(get("/api/workspace/screens/ListStudent").param("q",created.getStudentCode()).with(user(manager.email).roles("MANAGER")))
                 .andExpect(status().isOk()).andExpect(jsonPath("$.total").value(1))
                 .andExpect(jsonPath("$.items[0].studentCode").value(created.getStudentCode()));
-        assertEquals("STUDENT",row(id).path("accountStatus").asText());create(id,email).andExpect(status().isConflict());verify(mailer,times(1)).sendCredentials(anyString(),anyString(),anyString());
+        assertEquals(0,list().path("total").asInt());create(id,email).andExpect(status().isConflict());verify(mailer,times(1)).sendCredentials(anyString(),anyString(),anyString());
         JsonNode contractOptions=body(mvc.perform(get("/api/workspace/screens/AddTrainingContract").with(user(manager.email).roles("MANAGER"))).andExpect(status().isOk()).andReturn());
         assertFalse(contractOptions.path("options").has("students"));
         assertEquals(accountId,jdbc.queryForObject("SELECT student_id FROM training_contracts WHERE consultation_id=?",Long.class,UUID.fromString(id)));

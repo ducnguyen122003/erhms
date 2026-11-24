@@ -1,5 +1,5 @@
 import {dashboardPath,firstAllowedPath,resolveRole,workspaceRoute} from './roles.js';
-import {screenNavigation,screenPath,screenRoute,screens} from './screens/access.js';
+import {contractQueueReturnPath,screenNavigation,screenPath,screenRoute,screens} from './screens/access.js';
 
 const origin='https://workspace.invalid';
 const forbiddenSections=new Set(['unsupported','redirect','forbidden','missing']);
@@ -40,6 +40,10 @@ function ancestor(href,user,functions){
  if(path==='/admin/users/new'||/^\/admin\/users\/[1-9][0-9]*\/view$/.test(path))return '/admin/users';
  if(!route)return null;
  const {screen,id}=route,code=screen.code;
+ if(code==='AddTrainingContract'){
+  const queue=contractQueueReturnPath(url.searchParams);
+  if(queue&&permitted(queue,user,functions))return queue;
+ }
  if(user.role==='ADMIN'&&['AddClass','ClassDetail'].includes(code))return screenPath('CourseSchedules');
  if(code==='ListAdmissionApplicationDetail'){
   const from=url.searchParams.get('from');
@@ -118,10 +122,13 @@ export function updateBreadcrumbTrail(trail,target,user,functions=[],{replace=fa
  if(!permitted(location,user,functions))return initialBreadcrumbTrail(location,user,functions);
  const previous=(Array.isArray(trail)&&trail.length?restoreBreadcrumbTrail(trail,trail.at(-1)?.href,user,functions):[]).filter(entry=>permitted(entry.href,user,functions));
  if(Number.isInteger(trailIndex)&&trailIndex>=0&&trailIndex<previous.length&&pathname(previous[trailIndex].href)===pathname(location))return withHome([...previous.slice(0,trailIndex),item(location,user,functions)],user,functions);
+ const last=previous.at(-1),from=last&&screenRoute(pathname(last.href)),to=screenRoute(pathname(location));
+ if(to?.screen.code==='ViewNotification'&&!['ListNotification','ViewNotification'].includes(from?.screen.code)){
+  return initialBreadcrumbTrail(location,user,functions);
+ }
  const existing=previous.findIndex(entry=>pathname(entry.href)===pathname(location));
  if(existing>=0)return withHome([...previous.slice(0,existing),item(location,user,functions)],user,functions);
  if(topLevel(location,user,functions)||previous.length<=1)return initialBreadcrumbTrail(location,user,functions);
- const last=previous.at(-1),from=screenRoute(pathname(last.href)),to=screenRoute(pathname(location));
  const sibling=from&&to&&from.id&&to.id&&from.screen.code===to.screen.code;
  return withHome([...(replace||sibling?previous.slice(0,-1):previous),item(location,user,functions)],user,functions);
 }

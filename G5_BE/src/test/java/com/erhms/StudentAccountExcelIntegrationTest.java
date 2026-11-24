@@ -150,7 +150,8 @@ class StudentAccountExcelIntegrationTest {
         assertEquals(accountId,jdbc.queryForObject("SELECT student_id FROM training_contracts WHERE id=?",Long.class,contractId));
         assertEquals(manager.id,jdbc.queryForObject("SELECT manager_id FROM student_profiles WHERE user_id=?",Long.class,accountId));
         verify(mailer).sendCredentials(eq(email(1)),eq(unique+" Học viên 1"),anyString());
-        assertEquals("PROFILE_CREATED",row(email(1)).path("profileStatus").asText());
+        assertTrue(list().path("items").findValuesAsText("email").stream().noneMatch(email(1)::equals));
+        assertEquals("PROFILE_CREATED",jdbc.queryForObject("SELECT status FROM consultation_followups WHERE consultation_id=?",String.class,UUID.fromString(id)));
     }
 
     @Test void ordinaryPublicRegistrationStillBelongsToRecruitmentAfterSourceMigration() throws Exception {

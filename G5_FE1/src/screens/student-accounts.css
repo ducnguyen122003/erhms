@@ -10,12 +10,26 @@
 .student-account-search>svg{position:absolute;left:13px;top:50%;transform:translateY(-50%);pointer-events:none;color:#81938d}
 .admin-page .student-account-search>input{width:100%;height:42px;margin:0;padding-left:38px}
 .student-account-toolbar>button{height:42px;flex:none}
-.student-account-table{min-width:940px}
+.student-account-batch-toolbar{display:flex;align-items:center;gap:12px;flex-wrap:wrap;padding:0 24px 16px}
+.student-account-batch-toolbar>span{color:#587465;font-size:12px}
+.student-account-batch-toolbar>button:last-child{margin-left:auto}
+.student-account-table{min-width:980px}
 .student-account-table td{overflow-wrap:anywhere}
-.student-account-table td:first-child{width:21%}
-.student-account-table td:nth-child(2){width:24%}
-.student-account-table td:nth-child(3){width:19%}
-.student-account-table td:nth-child(4){width:21%}
+.student-account-table:not(.is-contract-queue) td:nth-child(2){width:20%}
+.student-account-table:not(.is-contract-queue) td:nth-child(3){width:23%}
+.student-account-table:not(.is-contract-queue) td:nth-child(4){width:18%}
+.student-account-table:not(.is-contract-queue) td:nth-child(5){width:20%}
+.student-account-table.is-contract-queue{min-width:720px}
+.student-account-stages{display:flex;flex-wrap:wrap;gap:8px;padding:0 24px 16px}
+.student-account-stages button{padding:8px 12px;border-color:#d9e5de;background:#fff;color:#436753;font-size:12px}
+.student-account-stages button:hover{background:#f1f7f3}
+.student-account-stages button[aria-pressed=true]{border-color:#b8d7c8;background:#e9f3ee;color:#155f49}
+.student-account-stage-count{padding:2px 6px;border-radius:6px;background:#f0f5f2;color:#155f49;font-size:11px}
+.student-account-table .student-account-select{width:48px;text-align:center}
+.student-account-select input[type=checkbox]{width:16px;height:16px;margin:0;vertical-align:middle;accent-color:#155f49;cursor:pointer}
+.student-account-select input[type=checkbox]:disabled{cursor:default}
+.student-account-select input[type=checkbox]:focus-visible{outline:2px solid #318d6b;outline-offset:3px}
+.student-account-table .student-account-selected td{background:#f1f7f3}
 .student-account-table .admin-badge{white-space:normal;line-height:1.5}
 .student-account-table .student-account-reason{max-width:240px;line-height:1.65;margin-top:8px}
 .student-account-missing{color:#a16b27}
@@ -29,5 +43,15 @@
 .student-account-confirm dd{display:flex;align-items:center;gap:8px;margin:0;overflow-wrap:anywhere;font-size:13px;color:#294e3d}
 .student-account-confirm dd>svg{flex:none}
 .student-account-confirm .admin-dialog-actions{margin-top:24px}
+.student-account-batch-review{max-height:260px;overflow:auto;list-style:none;margin:14px 0;padding:0 14px;border:1px solid #e3ece6;border-radius:9px}
+.student-account-batch-review li{display:grid;gap:4px;padding:10px 0;overflow-wrap:anywhere}
+.student-account-batch-review li+li{border-top:1px solid #e3ece6}
+.student-account-batch-review span,.student-account-batch-failures span{color:#587465;font-size:12px}
+.student-account-batch-failures{padding:16px 24px;margin-bottom:16px}
+.student-account-batch-failures h2{font-size:15px;margin-bottom:10px}
+.student-account-batch-failures ul{list-style:none;margin:0;padding:0}
+.student-account-batch-failures li+li{margin-top:10px}
+.student-account-batch-failures p{margin:2px 0 0;color:#a1422d;font-size:12px}
 @media(max-width:900px){.student-accounts-list .admin-card-heading{flex-wrap:wrap}.student-account-import-actions{justify-content:flex-start;flex-shrink:1}}
 @media(max-width:600px){.student-account-guide{padding:18px;align-items:flex-start;gap:12px}.student-account-guide-icon{width:36px;height:36px;border-radius:9px}.student-account-guide strong{font-size:13px}.student-account-toolbar{padding-inline:20px;flex-wrap:wrap}.student-account-search{flex-basis:100%}.student-accounts-list .admin-card-heading{align-items:flex-start;gap:12px}.student-account-confirm dd{align-items:flex-start}.student-account-confirm .admin-dialog-actions{flex-wrap:wrap}}
+@media(max-width:600px){.student-account-batch-toolbar,.student-account-stages{padding-inline:20px}.student-account-batch-toolbar>button:last-child{width:100%;margin-left:0}}
