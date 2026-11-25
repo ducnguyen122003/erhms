@@ -9,7 +9,7 @@ const dateFormat = new Intl.DateTimeFormat('vi-VN', {
   dateStyle: 'short', timeStyle: 'short', timeZone: 'Asia/Ho_Chi_Minh',
 });
 
-export default function NotificationBell({canList, canView, route, revision, onNavigate, onLogout}) {
+export default function NotificationBell({canList, canView, canRetake, route, revision, onNavigate, onLogout}) {
   const [open, setOpen] = useState(false);
   const [unreadCount, setUnreadCount] = useState(null);
   const [preview, setPreview] = useState({items: null, error: false});
@@ -81,6 +81,15 @@ export default function NotificationBell({canList, canView, route, revision, onN
     onNavigate(screenPath(code, id));
   }
 
+  function openRetake(item) {
+    const path=screenPath('StudentRetake',item.targetId);
+    navigate('StudentRetake',item.targetId);
+    if (item.readAt || window.location.pathname !== path) return;
+    api(`${listEndpoint}/${item.id}/actions/read`, {method: 'POST', body: '{}'})
+      .then(() => setRefresh(value => value + 1))
+      .catch(error => { if (error.status === 401) onLogout(); });
+  }
+
   if (!canList) return null;
 
   return <div className="workspace-notification" ref={container}>
@@ -101,6 +110,7 @@ export default function NotificationBell({canList, canView, route, revision, onN
           {preview.items.map(item => {
             const unread = !item.readAt;
             const time = item.scheduledAt || item.createdAt;
+            const retake = canRetake && item.targetScreen === 'StudentRetake' && item.targetId;
             const details = <>
               <strong>{item.title}</strong>
               {item.content && <span>{item.content}</span>}
@@ -108,7 +118,7 @@ export default function NotificationBell({canList, canView, route, revision, onN
               {unread && <span className="sr-only">Chưa đọc</span>}
             </>;
             return <li key={item.id} className={unread ? 'is-unread' : undefined}>
-              {canView ? <button type="button" className="workspace-notification-item" onClick={() => navigate('ViewNotification', item.id)}>{details}</button>
+              {retake || canView ? <button type="button" className="workspace-notification-item" onClick={() => retake ? openRetake(item) : navigate('ViewNotification', item.id)}>{details}</button>
                 : <div className="workspace-notification-item">{details}</div>}
             </li>;
           })}

@@ -25,6 +25,11 @@ export function SignedContractScan({record,onLogout,disabled=false}){
 }
 
 export default function ContractSigningDetails({record,onLogout,disabled=false,showOriginal=false}){
+ if(record.signatureMethod==='RETAKE_ACCEPTANCE')return <section className="contract-signing-summary" aria-label="Xác nhận hợp đồng học lại">
+  <h3>Xác nhận hợp đồng học lại</h3>
+  <p>Học viên đã đồng ý với điều khoản học lại trực tuyến.</p>
+  {record.signatureApprovedAt&&<dl className="screen-facts"><div><dt>Thời điểm xác nhận</dt><dd>{display(record.signatureApprovedAt,'signatureApprovedAt')}</dd></div></dl>}
+ </section>;
  const help=signingHelp(record);
  return <section className="contract-signing-summary" aria-label="Tiến trình ký hợp đồng"><h3>Ký hợp đồng và xác nhận</h3>{help&&<p>{help}</p>}
   {record.signatureReviewNote&&<p className={record.status==='SENT_FOR_SIGNATURE'?'contract-signing-returned':''}><strong>{record.status==='SENT_FOR_SIGNATURE'?'Yêu cầu bổ sung:':'Ý kiến QLHV:'}</strong> {record.signatureReviewNote}</p>}

@@ -17,6 +17,13 @@ test('all seven roles get their own permitted dashboard and notification ancesto
   assert.deepEqual(paths(initialBreadcrumbTrail(target,user,functions)),[dashboardPath(user),'/screens/ListNotification',target],role);
  }
 });
+test('lecturer gradebooks return to the grade entry class list',()=>{
+ const teacher=actor('LECTURER'),functions=grants('LECTURER'),list='/screens/ClassGradebook',detail=list+'/'+record;
+ const trail=initialBreadcrumbTrail(detail,teacher,functions);
+ assert.deepEqual(paths(trail),['/dashboard/lecturer',list,detail]);
+ assert.deepEqual(trail.map(item=>item.label),['Dashboard','Nhập điểm','Bảng điểm lớp']);
+ assert.deepEqual(paths(updateBreadcrumbTrail(trail,list,teacher,functions)),['/dashboard/lecturer',list]);
+});
 
 test('admin account list, detail and edit have precise clickable parents and retain list queries',()=>{
  const functions=grants('ADMIN'),list='/admin/users?status=ACTIVE#results',detail='/admin/users/51/view',edit='/admin/users/51/edit';
@@ -123,6 +130,15 @@ test('direct links never invent another entity ID for student contracts or equip
  const support=actor('IT_SUPPORT'),receipt=initialBreadcrumbTrail('/screens/AssetHandover_Receipt/'+record,support,grants('IT_SUPPORT'));
  assert.deepEqual(paths(receipt),['/dashboard/it-support','/screens/ListEquipmentRequest_IT','/screens/AssetHandover_Receipt/'+record]);
  assert.equal(receipt.some(item=>item.href==='/screens/AssetHandover/'+record),false);
+});
+
+test('a learner opening a retake notice can return to their offers and continue to the new contract',()=>{
+ const student=actor('STUDENT'),functions=grants('STUDENT');
+ const offers='/screens/StudentRetake',detail=offers+'/'+record,tuition='/screens/TuitionDetail_Student/'+other;
+ const fromResults=initialBreadcrumbTrail('/screens/StudentResults',student,functions);
+ const offerTrail=updateBreadcrumbTrail(fromResults,detail,student,functions);
+ assert.deepEqual(paths(offerTrail),['/dashboard/student',offers,detail]);
+ assert.deepEqual(paths(updateBreadcrumbTrail(offerTrail,tuition,student,functions)),['/dashboard/student',offers,detail,tuition]);
 });
 
 test('class timetable editing returns to its actual class when a valid context is present',()=>{

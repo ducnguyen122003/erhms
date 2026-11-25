@@ -3,9 +3,11 @@ package com.erhms;
 import com.erhms.role.repository.RoleRepository;
 import com.erhms.user.entity.User;
 import com.erhms.user.repository.UserRepository;
+import com.erhms.workspace.FixedCourseCatalog;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import java.nio.charset.StandardCharsets;
+import java.time.OffsetDateTime;
 import java.util.*;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -54,21 +56,51 @@ class FixedCourseSchedulesIntegrationTest {
         UUID enrollmentId = UUID.randomUUID();
         jdbc.update("INSERT INTO training_enrollments(id,class_id,student_id,status) VALUES (?,?,?,'ACTIVE')",
                 enrollmentId, UUID.fromString(classId), student.id);
+        OffsetDateTime originalPublication = OffsetDateTime.parse("2027-01-05T10:00:00+07:00");
+        UUID historicalGrade = UUID.randomUUID(), historicalDraft = UUID.randomUUID();
+        jdbc.update("INSERT INTO training_grades(id,enrollment_id,title,score,published_at) VALUES (?,?,'Điểm tổng kết',7.5,?)",
+                historicalGrade,enrollmentId,originalPublication);
+        jdbc.update("INSERT INTO training_grades(id,enrollment_id,title,score) VALUES (?,?,'Đầu điểm nháp cũ',8)",historicalDraft,enrollmentId);
+
+        String first="Điểm kiểm tra lần 1", second="Điểm kiểm tra lần 2", finalExam="Điểm kiểm tra cuối kỳ";
+        for(UUID course : FixedCourseCatalog.IDS){
+            assertEquals(3,jdbc.queryForObject("SELECT COUNT(*) FROM course_assessments WHERE course_id=?",Integer.class,course));
+            assertEquals(100,jdbc.queryForObject("SELECT SUM(weight) FROM course_assessments WHERE course_id=?",Integer.class,course));
+        }
 
         String gradebook = "ClassGradebook/" + classId;
         var page = body(read(teacher, gradebook).andExpect(status().isOk())
                 .andExpect(jsonPath("$.related.students[0].studentId").value(student.id.intValue()))
-                .andExpect(jsonPath("$.related.assessments.length()").value(1))
-                .andExpect(jsonPath("$.related.assessments[0].title").value("Điểm tổng kết"))
-                .andExpect(jsonPath("$.related.assessments[0].weight").value(100))
+                .andExpect(jsonPath("$.related.assessments.length()").value(3))
+                .andExpect(jsonPath("$.related.assessments[0].title").value(first))
+                .andExpect(jsonPath("$.related.assessments[0].weight").value(30))
+                .andExpect(jsonPath("$.related.assessments[1].title").value(second))
+                .andExpect(jsonPath("$.related.assessments[1].weight").value(30))
+                .andExpect(jsonPath("$.related.assessments[2].title").value(finalExam))
+                .andExpect(jsonPath("$.related.assessments[2].weight").value(40))
                 .andReturn());
-        var grades = values("version", page.path("record").path("version").asInt(),
-                "records", List.of(values("enrollmentId", enrollmentId, "title", "Điểm tổng kết", "score", 8.5)));
+        int version = page.path("record").path("version").asInt();
+        var records = List.of(values("enrollmentId", enrollmentId, "title", first, "score", 8.5),
+                values("enrollmentId", enrollmentId, "title", second, "score", 9),
+                values("enrollmentId", enrollmentId, "title", finalExam, "score", 10));
+        var grades = values("version", version, "records", records);
         write(otherTeacher, gradebook + "/actions/publish", grades).andExpect(status().isNotFound());
+        write(teacher, gradebook + "/actions/save", values("version",version,"records",
+                List.of(values("enrollmentId",enrollmentId,"title",finalExam,"score",10.25)))).andExpect(status().isBadRequest());
+        write(teacher, gradebook + "/actions/publish", values("version",version,"records",records.subList(0,2)))
+                .andExpect(status().isConflict());
         write(teacher, gradebook + "/actions/publish", grades).andExpect(status().isOk());
-        read(student, "StudentResults").andExpect(status().isOk())
-                .andExpect(jsonPath("$.items[0].title").value("Điểm tổng kết"))
-                .andExpect(jsonPath("$.items[0].score").value(8.5));
+        var results = body(read(student,"StudentResults").andExpect(status().isOk()).andReturn());
+        assertEquals(4,results.path("total").asInt());
+        Map<String,Double> scores = new HashMap<>();
+        for(JsonNode item : results.path("items")) scores.put(item.path("title").asText(),item.path("score").asDouble());
+        assertEquals(Map.of(first,8.5,second,9d,finalExam,10d,"Điểm tổng kết",7.5),scores);
+        assertEquals(originalPublication.toInstant(),jdbc.queryForObject("SELECT published_at FROM training_grades WHERE id=?",OffsetDateTime.class,historicalGrade).toInstant());
+        assertNull(jdbc.queryForObject("SELECT published_at FROM training_grades WHERE id=?",OffsetDateTime.class,historicalDraft));
+
+        grades.put("version",version+1);
+        write(teacher,gradebook+"/actions/save",grades).andExpect(status().isOk());
+        read(student,"StudentResults").andExpect(status().isOk()).andExpect(jsonPath("$.total").value(4));
     }
 
     @Test void legacyCourseAndProfessionCrudRemainBlockedEvenWhenOldGrantsAreInjected()throws Exception{

@@ -3,6 +3,7 @@ package com.erhms.workspace;
 import com.erhms.user.entity.User;
 import org.springframework.stereotype.Service;
 import java.math.BigDecimal;
+import java.math.RoundingMode;
 import java.time.OffsetDateTime;
 import java.util.*;
 import static com.erhms.workspace.WorkflowData.*;
@@ -77,6 +78,90 @@ public class FinanceWorkflows {
     static String withEnrollmentNotice(String notice,String enrollmentNotice){
         return enrollmentNotice.isEmpty()?notice:notice+" "+enrollmentNotice;
     }
+
+    public Map<String,Object> requestRefund(String screen,String id,Map<String,Object> input,User actor){
+        role(actor,"IT_SUPPORT");
+        var loan=d.record("loans",id,actor);
+        if(loan.get("contractId")==null)throw conflict("Biên bản chưa liên kết hợp đồng để lập phiếu hoàn cọc");
+        UUID contractId=uuid(loan.get("contractId").toString());
+        var contract=d.one("SELECT id,code,status,student_id,accountant_id,version FROM training_contracts WHERE id=? FOR UPDATE",contractId);
+        if(number(input,"contractVersion",0,Long.MAX_VALUE)!=((Number)contract.get("version")).longValue())
+            throw conflict("Phiếu hoặc hợp đồng vừa thay đổi. Tải lại trước khi lập phiếu.");
+        var context=refundContext(contract);
+        if(!Boolean.TRUE.equals(context.get("canRequest")))throw conflict(context.get("reason").toString());
+        if(d.record("loans",id,actor).get("returnedAt")==null)throw conflict("Xác nhận đã nhận lại thiết bị trước khi lập phiếu");
+
+        int percent=(int)number(input,"refundPercent",0,100);
+        String reason=text(input,"reason",1000,true),recipient=text(input,"recipientName",160,true);
+        String bank=text(input,"bankName",120,true),account=text(input,"accountNumber",34,true);
+        if(!account.matches("[0-9]{4,34}"))throw invalid("accountNumber","Nhập số tài khoản ngân hàng gồm 4 đến 34 chữ số");
+        BigDecimal deposit=(BigDecimal)context.get("depositAmount");
+        BigDecimal refund=percent==100?deposit:deposit.multiply(BigDecimal.valueOf(percent,2)).setScale(0,RoundingMode.HALF_UP).min(deposit);
+        if(approvedDepositOffsets(contractId).compareTo(deposit.subtract(refund))>0)
+            throw invalid("refundPercent","Tỷ lệ hoàn phải chừa đủ khoản bồi thường đã được duyệt khấu trừ cọc");
+        int updated=d.jdbc.update("""
+                UPDATE deposit_refund_requests SET refund_percent=?,reason=?,recipient_name=?,bank_name=?,account_number=?,
+                    deposit_amount=?,refund_amount=?,requested_by=?,updated_at=CURRENT_TIMESTAMP WHERE contract_id=?
+                """,percent,reason,recipient,bank,account,deposit,refund,actor.id,contractId);
+        if(updated==0)d.jdbc.update("""
+                INSERT INTO deposit_refund_requests(id,contract_id,refund_percent,reason,recipient_name,bank_name,account_number,
+                    deposit_amount,refund_amount,requested_by) VALUES (?,?,?,?,?,?,?,?,?,?)
+                """,UUID.randomUUID(),contractId,percent,reason,recipient,bank,account,deposit,refund,actor.id);
+        d.jdbc.update("UPDATE training_contracts SET version=version+1 WHERE id=?",contractId);
+
+        List<Long> recipients=contract.get("accountantId") instanceof Number assigned?List.of(assigned.longValue())
+                :d.jdbc.queryForList("""
+                        SELECT u.user_id FROM m_user u JOIN role_function f ON f.role_id=u.role_id AND f.function_code='DepositRefund'
+                        WHERE u.role_id=4 AND u.account_enabled=TRUE AND u.account_locked=FALSE
+                        """,Long.class);
+        for(long accountant:recipients)training.notify(accountant,"Phiếu đề nghị hoàn tiền cọc",
+                "IT đã "+(updated==0?"gửi":"cập nhật")+" phiếu hoàn cọc "+percent+"% cho hợp đồng "+contract.get("code")+".",
+                "DepositRefund",contractId.toString(),actor);
+        return Map.of("screen",screen,"id",id,"notice","Đã gửi phiếu đề nghị hoàn cọc cho kế toán.");
+    }
+
+    void attachRefundReview(Map<String,Object> related,Map<String,Object> contract){
+        UUID id=uuid(contract.get("id").toString());
+        related.put("refundContext",refundContext(contract));
+        related.put("refundReview",d.rows("""
+                SELECT id,refund_percent,reason,recipient_name,bank_name,account_number,deposit_amount,refund_amount,created_at,updated_at
+                FROM deposit_refund_requests WHERE contract_id=?
+                """,id));
+    }
+
+    private Map<String,Object> refundContext(Map<String,Object> contract){
+        UUID id=uuid(contract.get("id").toString());
+        BigDecimal deposit=sum(id,"DEPOSIT");
+        boolean settled=d.count("SELECT COUNT(*) FROM deposit_settlements WHERE contract_id=?",id)>0||sum(id,"REFUND").signum()>0;
+        boolean hasLoans=d.count("SELECT COUNT(*) FROM equipment_loans WHERE contract_id=?",id)>0;
+        var reviews=d.rows("SELECT deposit_amount,refund_amount FROM deposit_refund_requests WHERE contract_id=?",id);
+        String reason="";
+        if(settled)reason="Hợp đồng đã quyết toán cọc";
+        else if(deposit.signum()<=0)reason="Chưa có tiền cọc được kế toán xác nhận";
+        else if(d.count("SELECT COUNT(*) FROM equipment_loans WHERE returned_at IS NULL AND (contract_id=? OR (contract_id IS NULL AND student_id=?))",id,contract.get("studentId"))>0)
+            reason="Chờ IT xác nhận thu hồi tất cả thiết bị";
+        else if(hasLoans&&(!"ACTIVE".equals(contract.get("status"))||d.count("""
+                SELECT COUNT(*) FROM training_enrollments WHERE contract_id=? AND closed_at IS NULL
+                  AND (academic_completed_at IS NOT NULL OR academic_failed_at IS NOT NULL OR status='WITHDRAWN')
+                """,id)==0))reason="Hồ sơ chưa được xác nhận kết quả khóa học hoặc ghi nhận nghỉ giữa chừng";
+
+        boolean canRequest=hasLoans&&reason.isEmpty();
+        if(hasLoans&&reason.isEmpty()){
+            if(reviews.isEmpty())reason="Chờ IT lập phiếu đề nghị hoàn cọc";
+            else if(deposit.compareTo(new BigDecimal(reviews.get(0).get("depositAmount").toString()))!=0)
+                reason="Tiền cọc đã thay đổi. Cần IT cập nhật lại phiếu hoàn cọc.";
+            else if(approvedDepositOffsets(id).compareTo(deposit.subtract(new BigDecimal(reviews.get(0).get("refundAmount").toString())))>0)
+                reason="Khoản giữ lại thấp hơn bồi thường đã được duyệt. Cần IT cập nhật lại phiếu hoàn cọc.";
+        }
+        return Map.of("canRequest",canRequest,"canSettle",reason.isEmpty(),"reason",reason,"depositAmount",deposit,
+                "contractVersion",contract.get("version"),"needsItReview",hasLoans,"settled",settled);
+    }
+    private BigDecimal approvedDepositOffsets(UUID contractId){
+        return d.jdbc.queryForObject("""
+                SELECT COALESCE(SUM(i.approved_amount),0) FROM equipment_incidents i
+                JOIN equipment_loans l ON l.id=i.loan_id WHERE l.contract_id=? AND i.settled_at IS NULL
+                """,BigDecimal.class,contractId);
+    }
     public Map<String,Object> incident(String id,Map<String,Object> p,User u){
         role(u,"ACCOUNTANT");UUID key=uuid(id);var i=d.record("incidents",id,u);
         if(i.get("contractId")==null)throw conflict("Sự cố chưa liên kết biên bản và hợp đồng để quyết toán");
@@ -95,25 +180,46 @@ public class FinanceWorkflows {
             d.jdbc.update("INSERT INTO financial_transactions(id,contract_id,incident_id,kind,amount,status,bank_reference,evidence,confirmed_by,confirmed_at) VALUES (?,?,?,'COMPENSATION',?,'CONFIRMED',?,?,?,CURRENT_TIMESTAMP)",UUID.randomUUID(),ct,key,amount,ref,evidence,u.id);
             d.jdbc.update("UPDATE equipment_incidents SET settled_at=CURRENT_TIMESTAMP,status='RESOLVED' WHERE id=?",key);
         }else if(!"DEPOSIT".equals(text(p,"settlementMethod",40,true)))throw invalid("settlementMethod","Chọn thu chuyển khoản hoặc khấu trừ cọc");
+        d.jdbc.update("UPDATE training_contracts SET version=version+1 WHERE id=?",ct);
         return saved("AssetIncidentDetail_Accountant",key);
     }
     public Map<String,Object> settlement(String id,Map<String,Object> p,User u){
-        role(u,"ACCOUNTANT");UUID ct=uuid(id);var contract=d.record("contracts",id,u);claim(ct,u);d.lock("training_contracts",ct,p);
-        if(d.count("SELECT COUNT(*) FROM deposit_settlements WHERE contract_id=?",ct)>0)throw conflict("Hợp đồng đã quyết toán cọc; không hoàn lần thứ hai");
-        if(d.count("SELECT COUNT(*) FROM equipment_loans WHERE returned_at IS NULL AND (contract_id=? OR (contract_id IS NULL AND student_id=?))",ct,contract.get("studentId"))>0)throw conflict("Chờ IT xác nhận thu hồi tất cả thiết bị");
-        if(d.count("SELECT COUNT(*) FROM equipment_incidents i JOIN equipment_loans l ON l.id=i.loan_id WHERE l.contract_id=? AND (i.approved_amount IS NULL OR i.approval_reference IS NULL)",ct)>0)throw conflict("Còn sự cố chưa có khoản xử lý và căn cứ phê duyệt");
-        BigDecimal deposits=sum(ct,"DEPOSIT");
-        if(deposits.signum()<=0)throw conflict("Hợp đồng chưa có cọc được xác nhận thu");
-        if(sum(ct,"REFUND").signum()>0)throw conflict("Đã có giao dịch hoàn trước đây. Cần rà soát hồ sơ trước khi quyết toán");
+        role(u,"ACCOUNTANT");UUID ct=uuid(id);claim(ct,u);d.lock("training_contracts",ct,p);
+        var contract=d.record("contracts",id,u);
+        var context=refundContext(contract);
+        if(!Boolean.TRUE.equals(context.get("canSettle")))throw conflict(context.get("reason").toString());
+        BigDecimal deposits=(BigDecimal)context.get("depositAmount");
+        var reviews=d.rows("SELECT * FROM deposit_refund_requests WHERE contract_id=?",ct);
+        Map<String,Object> review=reviews.isEmpty()?null:reviews.get(0);
         var incidents=d.rows("SELECT i.* FROM equipment_incidents i JOIN equipment_loans l ON l.id=i.loan_id WHERE l.contract_id=? AND i.settled_at IS NULL FOR UPDATE",ct);
-        BigDecimal deduct=BigDecimal.ZERO;for(var incident:incidents)deduct=deduct.add(new BigDecimal(incident.get("approvedAmount").toString()));
-        if(deduct.compareTo(deposits)>0)throw conflict("Bồi thường vượt cọc. Thu phần nghĩa vụ còn lại trước khi quyết toán cọc");
-        BigDecimal refund=deposits.subtract(deduct);String ref=text(p,"bankReference",120,true),evidence=text(p,"evidence",1000,true);
+        BigDecimal previouslyApproved=BigDecimal.ZERO;
+        for(var incident:incidents)if(incident.get("approvedAmount")!=null)previouslyApproved=previouslyApproved.add(new BigDecimal(incident.get("approvedAmount").toString()));
+        BigDecimal refund=review==null?deposits.subtract(previouslyApproved):new BigDecimal(review.get("refundAmount").toString());
+        BigDecimal deduct=deposits.subtract(refund);
+        if(refund.signum()<0||previouslyApproved.compareTo(deduct)>0)
+            throw conflict("Khoản giữ lại thấp hơn bồi thường đã được duyệt. Cần đối chiếu với IT trước khi quyết toán.");
+        String ref=text(p,"bankReference",120,true),evidence=text(p,"evidence",1000,true);
         if(d.count("SELECT COUNT(*) FROM financial_transactions WHERE bank_reference=?",ref)>0||d.count("SELECT COUNT(*) FROM deposit_settlements WHERE bank_reference=?",ref)>0)throw invalid("bankReference","Mã giao dịch đã được sử dụng");
         if(!flag(p,"recipientVerified"))throw invalid("recipientVerified","Xác minh người nhận và tài khoản trước khi ghi nhận");
-        d.jdbc.update("INSERT INTO deposit_settlements(id,contract_id,deposit_amount,deduction_amount,refund_amount,recipient,payment_method,account_details,bank_reference,evidence,created_by) VALUES (?,?,?,?,?,?,?,?,?,?,?)",UUID.randomUUID(),ct,deposits,deduct,refund,text(p,"recipient",160,true),choice(p,"paymentMethod","TRANSFER","CASH"),text(p,"accountDetails",500,true),ref,evidence,u.id);
+        String recipient=review==null?text(p,"recipient",160,true):review.get("recipientName").toString();
+        String method=review==null?choice(p,"paymentMethod","TRANSFER","CASH"):"TRANSFER";
+        String account=review==null?text(p,"accountDetails",500,true):review.get("bankName")+" · "+review.get("accountNumber");
+        d.jdbc.update("INSERT INTO deposit_settlements(id,contract_id,deposit_amount,deduction_amount,refund_amount,recipient,payment_method,account_details,bank_reference,evidence,created_by) VALUES (?,?,?,?,?,?,?,?,?,?,?)",UUID.randomUUID(),ct,deposits,deduct,refund,recipient,method,account,ref,evidence,u.id);
         if(refund.signum()>0)d.jdbc.update("INSERT INTO financial_transactions(id,contract_id,kind,amount,status,bank_reference,evidence,confirmed_by,confirmed_at) VALUES (?,?,'REFUND',?,'CONFIRMED',?,?,?,CURRENT_TIMESTAMP)",UUID.randomUUID(),ct,refund,ref,evidence,u.id);
-        for(var i:incidents){BigDecimal amount=new BigDecimal(i.get("approvedAmount").toString());if(amount.signum()>0)d.jdbc.update("INSERT INTO financial_transactions(id,contract_id,incident_id,kind,amount,status,bank_reference,evidence,confirmed_by,confirmed_at) VALUES (?,?,?,'COMPENSATION',?,'CONFIRMED',?,?,?,CURRENT_TIMESTAMP)",UUID.randomUUID(),ct,uuid(i.get("id").toString()),amount,"OFFSET-"+i.get("id"),i.get("approvalReference"),u.id);d.jdbc.update("UPDATE equipment_incidents SET status='RESOLVED',settled_at=CURRENT_TIMESTAMP,version=version+1 WHERE id=?",uuid(i.get("id").toString()));}
+        for(var incident:incidents){
+            UUID incidentId=uuid(incident.get("id").toString());
+            BigDecimal approved=incident.get("approvedAmount")==null?BigDecimal.ZERO:new BigDecimal(incident.get("approvedAmount").toString());
+            if(approved.signum()>0)d.jdbc.update("INSERT INTO financial_transactions(id,contract_id,incident_id,kind,amount,status,bank_reference,evidence,confirmed_by,confirmed_at) VALUES (?,?,?,'COMPENSATION',?,'CONFIRMED',?,?,?,CURRENT_TIMESTAMP)",UUID.randomUUID(),ct,incidentId,approved,"OFFSET-"+incidentId,incident.get("approvalReference"),u.id);
+            d.jdbc.update("UPDATE equipment_incidents SET status='RESOLVED',settled_at=CURRENT_TIMESTAMP,version=version+1 WHERE id=?",incidentId);
+        }
+        BigDecimal remainder=deduct.subtract(previouslyApproved);
+        if(review!=null&&remainder.signum()>0)d.jdbc.update("""
+                INSERT INTO financial_transactions(id,contract_id,kind,amount,status,bank_reference,memo,evidence,confirmed_by,confirmed_at)
+                VALUES (?,?,'COMPENSATION',?,'CONFIRMED',?,?,?,?,CURRENT_TIMESTAMP)
+                """,UUID.randomUUID(),ct,remainder,"RETAIN-"+review.get("id"),review.get("reason"),evidence,u.id);
+        if(contract.get("studentId") instanceof Number student)training.notify(student.longValue(),"Đã quyết toán tiền cọc",
+                "Kế toán đã ghi nhận quyết toán tiền cọc cho hợp đồng "+contract.get("code")+". Số tiền hoàn: "+refund.stripTrailingZeros().toPlainString()+" đ.",
+                "TuitionDetail_Student",id,u);
         d.jdbc.update("UPDATE training_contracts SET version=version+1 WHERE id=?",ct);return saved("DepositRefund",ct);
     }
 }

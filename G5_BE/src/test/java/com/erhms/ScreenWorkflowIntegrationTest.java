@@ -68,7 +68,7 @@ class ScreenWorkflowIntegrationTest {
     var request=read(actors.get(role),code,null);
     if(permitted.contains(role))request.andExpect(status().isOk());else request.andExpect(status().isForbidden());
    }checked++;
-  }assertEquals(84,checked);
+  }assertEquals(85,checked);
   assertEquals(0,jdbc.queryForObject("SELECT COUNT(*) FROM role_function WHERE function_code='SendNotification' AND role_id IN(1,2,7)",Integer.class));
  }
  @Test void publicCourseCatalogueOnlyExposesPublishedContentAndNoInternalAssignment()throws Exception{
@@ -126,8 +126,29 @@ class ScreenWorkflowIntegrationTest {
   assertEquals(2,view(admin,"TimeTable_Conflict",null).path("total").asInt());
  }
  @Test void automaticallyEnrolledStudentAppearsForAttendanceGradingAndClosure()throws Exception{
-  String ct=createContract(createCourse());jdbc.update("UPDATE training_contracts SET deposit_due=0 WHERE id=?",UUID.fromString(ct));importAndConfirm(ct,"TUITION",1000);String cl=view(manager,"ListClass",null).path("items").get(0).path("id").asText();String enrollment=view(manager,"AutoAssignmentReview",null).path("items").get(0).path("id").asText();
-  String session=jdbc.queryForObject("SELECT CAST(id AS VARCHAR) FROM training_sessions WHERE class_id=? ORDER BY starts_at FETCH FIRST 1 ROW ONLY",String.class,UUID.fromString(cl));
+  String course=createCourse();
+  List<String> tests=List.of("Điểm kiểm tra lần 1","Điểm kiểm tra lần 2","Điểm kiểm tra cuối kỳ");
+  jdbc.update("DELETE FROM course_assessments WHERE course_id=?",UUID.fromString(course));
+  for(int index=0;index<tests.size();index++){
+   jdbc.update("INSERT INTO course_assessments(id,course_id,title,weight) VALUES (?,?,?,?)",UUID.randomUUID(),UUID.fromString(course),tests.get(index),index==2?40:30);
+  }
+  String ct=createContract(course);
+  jdbc.update("UPDATE training_contracts SET deposit_due=0 WHERE id=?",UUID.fromString(ct));
+  importAndConfirm(ct,"TUITION",1000);
+  String cl=view(manager,"ListClass",null).path("items").get(0).path("id").asText();
+  String enrollment=view(manager,"AutoAssignmentReview",null).path("items").get(0).path("id").asText();
+  UUID classId=UUID.fromString(cl);
+  String session=jdbc.queryForObject("SELECT CAST(id AS VARCHAR) FROM training_sessions WHERE class_id=?",String.class,classId);
+  OffsetDateTime firstStart=OffsetDateTime.now().minusDays(10);
+  jdbc.update("UPDATE training_classes SET total_sessions=5 WHERE id=?",classId);
+  jdbc.update("UPDATE training_sessions SET starts_at=?,ends_at=? WHERE id=?",firstStart,firstStart.plusHours(2),UUID.fromString(session));
+  var additionalSessions=new ArrayList<UUID>();
+  for(int index=1;index<=4;index++){
+   UUID additional=UUID.randomUUID();
+   OffsetDateTime start=firstStart.plusDays(index==4?30:index);
+   jdbc.update("INSERT INTO training_sessions(id,class_id,title,starts_at,ends_at,room) VALUES (?,?,?,?,?,?)",additional,classId,"Buổi học "+(index+1),start,start.plusHours(2),"P-01");
+   additionalSessions.add(additional);
+  }
   var attendance=view(lecturer,"ClassAttendance",session).path("related").path("attendance");
   assertEquals(1,attendance.size());assertEquals(student.id,attendance.get(0).path("studentId").asLong());
   var roster=view(lecturer,"ClassGradebook",cl).path("related").path("students");
@@ -138,12 +159,92 @@ class ScreenWorkflowIntegrationTest {
   act(manager,"ClassAttendance",session,"save",values("version",0,"records",List.of(),"finalize",true)).andExpect(status().isForbidden());
   action(lecturer,"ClassAttendance",session,"save",values("version",0,"records",List.of(values("studentId",student.id,"status","PRESENT","note","")),"finalize",true));
   saveAttendanceAfterFinalization(session);
-  var grades=values("version",version(lecturer,"ClassGradebook",cl),"records",List.of(values("enrollmentId",enrollment,"title","Thực hành","score",8.5)));
-  act(manager,"ClassGradebook",cl,"save",grades).andExpect(status().isForbidden());action(lecturer,"ClassGradebook",cl,"save",grades);assertEquals(0,view(student,"StudentResults",null).path("total").asInt());
-  grades.put("version",version(lecturer,"ClassGradebook",cl));action(lecturer,"ClassGradebook",cl,"publish",grades);assertEquals(1,view(student,"StudentResults",null).path("total").asInt());assertEquals(0,view(otherStudent,"StudentResults",null).path("total").asInt());
-  action(manager,"TrainingClosureDetail",enrollment,"academic",values("version",0,"changeNote","Đã rà soát hồ sơ và kết quả được công bố"));assertTrue(view(manager,"TrainingClosureDetail_Ready",enrollment).path("related").path("conditions").path("ready").asBoolean());
+  List<String> attendanceStatuses=List.of("PRESENT","LATE","EXCUSED","PRESENT");
+  for(int index=0;index<additionalSessions.size();index++){
+   action(lecturer,"ClassAttendance",additionalSessions.get(index).toString(),"save",
+     values("version",0,"records",List.of(values("studentId",student.id,"status",attendanceStatuses.get(index),"note","")),"finalize",true));
+  }
+  var records=List.of(values("enrollmentId",enrollment,"title",tests.get(0),"score",8),
+    values("enrollmentId",enrollment,"title",tests.get(1),"score",8),values("enrollmentId",enrollment,"title",tests.get(2),"score",4));
+  var grades=values("version",version(lecturer,"ClassGradebook",cl),"records",records);
+  act(manager,"ClassGradebook",cl,"save",grades).andExpect(status().isForbidden());
+  action(lecturer,"ClassGradebook",cl,"save",grades);
+  assertEquals(0,view(student,"StudentResults",null).path("total").asInt());
+  grades.put("version",version(lecturer,"ClassGradebook",cl));
+  action(lecturer,"ClassGradebook",cl,"publish",grades);
+  assertEquals(3,view(student,"StudentResults",null).path("total").asInt());
+  assertEquals(0,view(otherStudent,"StudentResults",null).path("total").asInt());
+
+  var confirmation=values("version",0,"changeNote","Đã rà soát hồ sơ và kết quả được công bố");
+  var conditions=closureConditions(enrollment);
+  var details=conditions.path("academicDetails");
+  assertEquals(3,details.path("attendedSessions").asInt());
+  assertEquals(5,details.path("totalSessions").asInt());
+  assertFalse(details.path("attendanceComplete").asBoolean());
+  assertFalse(details.path("attendancePass").asBoolean());
+  assertFalse(details.path("finalPass").asBoolean());
+  assertTrue(details.path("totalPass").asBoolean());
+  assertFalse(conditions.path("academicFailureEligible").asBoolean());
+  act(manager,"TrainingClosureDetail",enrollment,"academic-fail",confirmation).andExpect(status().isConflict());
+  act(manager,"TrainingClosureDetail",enrollment,"academic",confirmation).andExpect(status().isConflict());
+
+  OffsetDateTime lastStart=firstStart.plusDays(4);
+  jdbc.update("UPDATE training_sessions SET starts_at=?,ends_at=? WHERE id=?",lastStart,lastStart.plusHours(2),additionalSessions.get(3));
+  conditions=closureConditions(enrollment);
+  assertFalse(conditions.path("academicEligible").asBoolean());
+  assertTrue(conditions.path("academicFailureEligible").asBoolean());
+  details=conditions.path("academicDetails");
+  assertTrue(details.path("attendanceComplete").asBoolean());
+  assertTrue(details.path("attendancePass").asBoolean());
+  assertEquals(80.0,details.path("attendancePercent").asDouble());
+  act(manager,"TrainingClosureDetail",enrollment,"academic",confirmation).andExpect(status().isConflict());
+
+  records.forEach(record->record.put("score",5));
+  grades.put("version",version(lecturer,"ClassGradebook",cl));
+  action(lecturer,"ClassGradebook",cl,"publish",grades);
+  details=closureConditions(enrollment).path("academicDetails");
+  assertTrue(details.path("finalPass").asBoolean());
+  assertFalse(details.path("totalPass").asBoolean());
+  assertEquals(5.0,details.path("totalScore").asDouble());
+  act(manager,"TrainingClosureDetail",enrollment,"academic",confirmation).andExpect(status().isConflict());
+
+  records.get(2).put("score",5.01);
+  grades.put("version",version(lecturer,"ClassGradebook",cl));
+  action(lecturer,"ClassGradebook",cl,"save",grades);
+  conditions=closureConditions(enrollment);
+  assertTrue(conditions.path("academicDetails").path("finalScore").isNull());
+  assertFalse(conditions.path("academicEligible").asBoolean());
+  assertFalse(conditions.path("academicFailureEligible").asBoolean());
+  grades.put("version",version(lecturer,"ClassGradebook",cl));
+  action(lecturer,"ClassGradebook",cl,"publish",grades);
+  conditions=closureConditions(enrollment);
+  assertEquals(5.004,conditions.path("academicDetails").path("totalScore").asDouble());
+  assertTrue(conditions.path("academicEligible").asBoolean());
+  assertFalse(conditions.path("academicFailureEligible").asBoolean());
+  act(manager,"TrainingClosureDetail",enrollment,"academic-fail",confirmation).andExpect(status().isConflict());
+  assertFalse(conditions.path("ready").asBoolean());
+  assertFalse(view(it,"TrainingClosureDetail",enrollment).path("related").path("conditions").has("academicDetails"));
+
+  UUID asset=UUID.randomUUID(),loan=UUID.randomUUID();
+  jdbc.update("INSERT INTO equipment_assets(id,code,name,status) VALUES (?,?,?,'ASSIGNED')",asset,"TS-"+asset,"Thiết bị thực hành");
+  jdbc.update("INSERT INTO equipment_loans(id,asset_id,student_id,class_id,contract_id) VALUES (?,?,?,?,?)",loan,asset,student.id,classId,UUID.fromString(ct));
+  action(manager,"TrainingClosureDetail",enrollment,"academic",confirmation);
+  var confirmed=view(manager,"TrainingClosureDetail",enrollment);
+  assertTrue(confirmed.path("related").path("conditions").path("academic").asBoolean());
+  assertFalse(confirmed.path("related").path("conditions").path("ready").asBoolean());
+  assertFalse(confirmed.path("record").path("academicCompletedAt").asText().isBlank());
+  assertEquals("ACTIVE",confirmed.path("record").path("status").asText());
+  assertEquals("RETURN_DUE",view(it,"ListAssetDetail",loan.toString()).path("record").path("returnStatus").asText());
+  assertTrue(view(student,"ListNotification",null).path("items").toString().contains("Đã hoàn thành khóa học"));
+  grades.put("version",version(lecturer,"ClassGradebook",cl));
+  act(lecturer,"ClassGradebook",cl,"save",grades).andExpect(status().isBadRequest());
+  act(manager,"TrainingClosureDetail_Ready",enrollment,"close",values("version",1)).andExpect(status().isConflict());
+  action(it,"ListAssetDetail",loan.toString(),"confirm",values("version",1,"identityChecked",true,"receivedChecked",true,
+    "returnedAt",OffsetDateTime.now().toString(),"returnCondition","Hoạt động tốt","returnEvidence","Biên bản thu hồi","hasIncident",false));
+  assertTrue(closureConditions(enrollment).path("ready").asBoolean());
   act(it,"TrainingClosureDetail_Ready",enrollment,"close",values("version",1)).andExpect(status().isForbidden());action(manager,"TrainingClosureDetail_Ready",enrollment,"close",values("version",1));assertEquals("COMPLETED",view(manager,"TrainingClosureDetail",enrollment).path("record").path("closureOutcome").asText());
  }
+ JsonNode closureConditions(String enrollment)throws Exception{return view(manager,"TrainingClosureDetail",enrollment).path("related").path("conditions");}
  void saveAttendanceAfterFinalization(String session)throws Exception{act(lecturer,"ClassAttendance",session,"save",values("version",1,"records",List.of(values("studentId",student.id,"status","ABSENT","note","")),"finalize",true)).andExpect(status().isConflict());}
  @Test void handoverRecoveryAndRefundAreAtomicScopedAndCannotBeRepeated()throws Exception{
   String ct=createContract(createCourse());importAndConfirm(ct,"TUITION",1000);importAndConfirm(ct,"DEPOSIT",200);String cl=view(manager,"ListClass",null).path("items").get(0).path("id").asText();
@@ -153,8 +254,33 @@ class ScreenWorkflowIntegrationTest {
   String loan=save(it,"AssetHandover",req,values("version",2,"assets",List.of(values("id",asset)),"equipmentChecked",true,"studentChecked",true,"signedBy",student.fullName,"receiptEvidence","Biên bản ký","receivedAt","2026-11-07T01:00:00Z","returnDueAt","2027-02-15T01:00:00Z")).path("id").asText();
   read(student,"StudentAssetReceipt",loan).andExpect(status().isOk());read(otherStudent,"StudentAssetReceipt",loan).andExpect(status().isNotFound());
   write(accountant,"DepositRefund",ct,values("version",2)).andExpect(status().isConflict());
+  var proposal=values("contractVersion",version(accountant,"DepositRefund",ct),"refundPercent",100,"reason","Thiết bị đầy đủ và hoạt động tốt","recipientName",student.fullName,"bankName","Vietcombank","accountNumber","0001234567");
+  act(it,"ListAssetDetail",loan,"request-refund",proposal).andExpect(status().isConflict());
   action(it,"ListAssetDetail",loan,"confirm",values("version",0,"identityChecked",true,"receivedChecked",true,"returnedAt","2026-11-07T04:00:00Z","returnCondition","Đầy đủ và hoạt động tốt","returnEvidence","Biên bản thu hồi","hasIncident",false));
-  var refund=values("version",version(accountant,"DepositRefund",ct),"recipient",student.fullName,"paymentMethod","TRANSFER","accountDetails","Tài khoản đã kiểm tra","bankReference",UUID.randomUUID().toString(),"evidence","Chứng từ hoàn","recipientVerified",true);save(accountant,"DepositRefund",ct,refund);refund.put("version",version(accountant,"DepositRefund",ct));write(accountant,"DepositRefund",ct,refund).andExpect(status().isConflict());
+  act(it,"ListAssetDetail",loan,"request-refund",proposal).andExpect(status().isConflict());
+  jdbc.update("UPDATE training_enrollments SET records_complete=TRUE,academic_completed_at=CURRENT_TIMESTAMP WHERE contract_id=?",UUID.fromString(ct));
+  long oldVersion=version(accountant,"DepositRefund",ct);
+  write(accountant,"DepositRefund",ct,values("version",oldVersion)).andExpect(status().isConflict());
+  proposal.put("contractVersion",oldVersion);
+  act(accountant,"ListAssetDetail",loan,"request-refund",proposal).andExpect(status().isForbidden());
+  action(it,"ListAssetDetail",loan,"request-refund",proposal);
+  assertEquals("PENDING",view(accountant,"DepositRefund",ct).path("record").path("refundStage").asText());
+  assertFalse(view(student,"StudentAssetReceipt",loan).path("related").has("refundReview"));
+  read(create("ACCOUNTANT"),"DepositRefund",ct).andExpect(status().isNotFound());
+  assertTrue(view(accountant,"ListNotification",null).path("items").toString().contains("Phiếu đề nghị hoàn tiền cọc"));
+  var refund=values("version",oldVersion,"recipient","Tên bị sửa","accountDetails","999999","bankReference",UUID.randomUUID().toString(),"evidence","Chứng từ hoàn","recipientVerified",true);
+  write(accountant,"DepositRefund",ct,refund).andExpect(status().isConflict());
+  refund.put("version",version(accountant,"DepositRefund",ct));
+  var review=view(accountant,"DepositRefund",ct).path("related").path("refundReview").get(0);
+  assertEquals("0001234567",review.path("accountNumber").asText());
+  assertEquals(200,review.path("refundAmount").asInt());
+  save(accountant,"DepositRefund",ct,refund);
+  assertEquals(student.fullName,jdbc.queryForObject("SELECT recipient FROM deposit_settlements WHERE contract_id=?",String.class,UUID.fromString(ct)));
+  assertEquals("Vietcombank · 0001234567",jdbc.queryForObject("SELECT account_details FROM deposit_settlements WHERE contract_id=?",String.class,UUID.fromString(ct)));
+  assertEquals("SETTLED",view(accountant,"DepositRefund",ct).path("record").path("refundStage").asText());
+  refund.put("version",version(accountant,"DepositRefund",ct));write(accountant,"DepositRefund",ct,refund).andExpect(status().isConflict());
+  proposal.put("contractVersion",version(accountant,"DepositRefund",ct));
+  act(it,"ListAssetDetail",loan,"request-refund",proposal).andExpect(status().isConflict());
   assertEquals(1,jdbc.queryForObject("SELECT COUNT(*) FROM deposit_settlements WHERE contract_id=?",Integer.class,UUID.fromString(ct)));assertEquals("AVAILABLE",view(it,"AssetDetail",asset).path("record").path("status").asText());
  }
  @Test void notificationsAreScopedAndProposedSendRightsRemainDenied()throws Exception{
@@ -201,18 +327,107 @@ class ScreenWorkflowIntegrationTest {
   String loan=save(it,"AssetHandover",request,values("version",2,"assets",List.of(values("id",asset)),"equipmentChecked",true,"studentChecked",true,"signedBy",student.fullName,"receiptEvidence","Biên bản ký","receivedAt","2026-11-07T01:00:00Z","returnDueAt","2027-02-15T01:00:00Z")).path("id").asText();return Map.of("contract",ct,"class",cl,"enrollment",en,"asset",asset,"loan",loan);
  }
  @Test void approvedDamageOffsetsDepositOnceAndTechnicalAndFinancialDutiesStaySeparate()throws Exception{
-  var f=loanFixture();String loan=f.get("loan"),ct=f.get("contract");String incident=action(it,"ListAssetDetail",loan,"confirm",values("version",0,"identityChecked",true,"receivedChecked",true,"returnedAt","2026-11-07T04:00:00Z","returnCondition","Thiếu phụ kiện","returnEvidence","Biên bản thu hồi","hasIncident",true)).path("id").asText();
+  var f=loanFixture();String loan=f.get("loan"),ct=f.get("contract");
+  jdbc.update("UPDATE training_enrollments SET academic_completed_at=CURRENT_TIMESTAMP WHERE id=?",UUID.fromString(f.get("enrollment")));
+  String incident=action(it,"ListAssetDetail",loan,"confirm",values("version",0,"identityChecked",true,"receivedChecked",true,"returnedAt","2026-11-07T04:00:00Z","returnCondition","Thiếu phụ kiện","returnEvidence","Biên bản thu hồi","hasIncident",true)).path("id").asText();
   var technical=values("version",0,"description","Thiếu phụ kiện","technicalNote","Thiếu dây kết nối theo biên bản","compensationDue",50,"evidence","Minh chứng kỹ thuật");
   act(accountant,"AssetIncidentDetail",incident,"save",technical).andExpect(status().isForbidden());action(it,"AssetIncidentDetail",incident,"save",technical);
   write(accountant,"DepositRefund",ct,values("version",version(accountant,"DepositRefund",ct))).andExpect(status().isConflict());
   action(accountant,"AssetIncidentDetail_Accountant",incident,"settle",values("version",1,"approvedAmount",50,"approvalReference","Phê duyệt theo biên bản đã xác nhận","settlementMethod","DEPOSIT"));
   technical.put("version",2);act(it,"AssetIncidentDetail",incident,"save",technical).andExpect(status().isConflict());
-  save(accountant,"DepositRefund",ct,values("version",version(accountant,"DepositRefund",ct),"recipient",student.fullName,"paymentMethod","TRANSFER","accountDetails","Đã xác minh","bankReference",UUID.randomUUID().toString(),"evidence","Chứng từ hoàn cọc","recipientVerified",true));
+  var context=view(it,"ListAssetDetail",loan).path("related").path("refundContext");
+  var review=values("contractVersion",context.path("contractVersion").asLong(),"refundPercent",100,
+    "reason","Thiếu phụ kiện đã duyệt khấu trừ 50 đồng","recipientName",student.fullName,"bankName","Ngân hàng kiểm thử","accountNumber","0012345678");
+  act(it,"ListAssetDetail",loan,"request-refund",review).andExpect(status().isBadRequest());
+  review.put("refundPercent",75);
+  action(it,"ListAssetDetail",loan,"request-refund",review);
+  var proposal=view(accountant,"DepositRefund",ct).path("related").path("refundReview").get(0);
+  assertEquals(75,proposal.path("refundPercent").asInt());
+  assertEquals("0012345678",proposal.path("accountNumber").asText());
+  save(accountant,"DepositRefund",ct,values("version",version(accountant,"DepositRefund",ct),"recipient","Không thay người nhận trên phiếu","accountDetails","Không thay tài khoản trên phiếu","bankReference",UUID.randomUUID().toString(),"evidence","Chứng từ hoàn cọc","recipientVerified",true));
   assertEquals(150,jdbc.queryForObject("SELECT refund_amount FROM deposit_settlements WHERE contract_id=?",Integer.class,UUID.fromString(ct)));assertEquals(50,jdbc.queryForObject("SELECT deduction_amount FROM deposit_settlements WHERE contract_id=?",Integer.class,UUID.fromString(ct)));assertEquals("RESOLVED",view(accountant,"AssetIncidentDetail_Accountant",incident).path("record").path("status").asText());
+  assertEquals(student.fullName,jdbc.queryForObject("SELECT recipient FROM deposit_settlements WHERE contract_id=?",String.class,UUID.fromString(ct)));
+ }
+ @Test void zeroPercentProposalClosesTheDepositWithoutARefundTransaction()throws Exception{
+  var f=loanFixture();String ct=f.get("contract"),loan=f.get("loan"),enrollment=f.get("enrollment");
+  save(manager,"RecordWithdrawal",enrollment,values("version",0,"withdrawnOn","2026-11-07","withdrawalReason","Theo hồ sơ xác nhận","withdrawalEvidence","Biên bản nghỉ học"));
+  action(it,"Recovery_Withdrawal",loan,"confirm",values("version",1,"identityChecked",true,"receivedChecked",true,"returnedAt","2026-11-07T04:00:00Z","returnCondition","Thiết bị hỏng nặng","returnEvidence","Biên bản thu hồi","hasIncident",false));
+  var context=view(it,"Recovery_Withdrawal",loan).path("related").path("refundContext");
+  action(it,"Recovery_Withdrawal",loan,"request-refund",values("contractVersion",context.path("contractVersion").asLong(),"refundPercent",0,
+    "reason","Thiết bị hỏng nặng theo biên bản thu hồi","recipientName",student.fullName,"bankName","Ngân hàng kiểm thử","accountNumber","0012345678"));
+  save(accountant,"DepositRefund",ct,values("version",version(accountant,"DepositRefund",ct),"bankReference",UUID.randomUUID().toString(),
+    "evidence","Biên bản đối chiếu không phát sinh chuyển khoản","recipientVerified",true));
+  UUID contractId=UUID.fromString(ct);
+  assertEquals(0,jdbc.queryForObject("SELECT refund_amount FROM deposit_settlements WHERE contract_id=?",Integer.class,contractId));
+  assertEquals(200,jdbc.queryForObject("SELECT deduction_amount FROM deposit_settlements WHERE contract_id=?",Integer.class,contractId));
+  assertEquals(0,jdbc.queryForObject("SELECT COUNT(*) FROM financial_transactions WHERE contract_id=? AND kind='REFUND'",Integer.class,contractId));
+  assertTrue(view(manager,"TrainingClosureDetail_Withdrawal",enrollment).path("related").path("conditions").path("ready").asBoolean());
  }
  @Test void withdrawalIsNotCourseCompletionAndCannotCloseWithOutstandingEquipment()throws Exception{
   var f=loanFixture();String enrollment=f.get("enrollment");save(manager,"RecordWithdrawal",enrollment,values("version",0,"withdrawnOn","2026-11-07","withdrawalReason","Theo hồ sơ xác nhận","withdrawalEvidence","Biên bản nghỉ học"));
   var detail=view(manager,"TrainingClosureDetail_Withdrawal",enrollment);assertEquals("WITHDRAWN",detail.path("record").path("status").asText());assertFalse(detail.path("related").path("conditions").path("ready").asBoolean());assertEquals("RETURN_DUE",view(it,"Recovery_Withdrawal",f.get("loan")).path("record").path("returnStatus").asText());act(manager,"TrainingClosureDetail_Withdrawal",enrollment,"close",values("version",1)).andExpect(status().isConflict());
+ }
+ @Test void aFailedLearnerCanRegisterOnceAtSeventyPercentAfterReturningEquipment()throws Exception{
+  var fixture=loanFixture();
+  String oldContract=fixture.get("contract"),oldClass=fixture.get("class"),enrollment=fixture.get("enrollment"),loan=fixture.get("loan");
+  UUID oldContractId=UUID.fromString(oldContract),oldClassId=UUID.fromString(oldClass),enrollmentId=UUID.fromString(enrollment);
+  var academicReview=values("version",version(manager,"TrainingClosureDetail",enrollment),"changeNote","Đã rà soát kết quả công bố");
+  act(manager,"TrainingClosureDetail",enrollment,"academic-fail",academicReview).andExpect(status().isConflict());
+
+  OffsetDateTime previousDay=OffsetDateTime.now().minusDays(1);
+  UUID session=jdbc.queryForObject("SELECT id FROM training_sessions WHERE class_id=?",UUID.class,oldClassId);
+  jdbc.update("UPDATE training_sessions SET starts_at=?,ends_at=?,attendance_finalized=TRUE WHERE id=?",previousDay,previousDay.plusHours(2),session);
+  jdbc.update("INSERT INTO training_attendance(id,session_id,student_id,status) VALUES (?,?,?,'PRESENT')",UUID.randomUUID(),session,student.id);
+  List<String> subjects=List.of("Điểm kiểm tra lần 1","Điểm kiểm tra lần 2","Điểm kiểm tra cuối kỳ");
+  for(int index=0;index<subjects.size();index++)
+   jdbc.update("INSERT INTO training_grades(id,enrollment_id,title,score,published_at) VALUES (?,?,?,?,?)",UUID.randomUUID(),enrollmentId,subjects.get(index),index==2?4:8,previousDay);
+
+  assertFalse(closureConditions(enrollment).path("academicEligible").asBoolean());
+  action(manager,"TrainingClosureDetail",enrollment,"academic-fail",academicReview);
+  assertEquals("RETURN_DUE",view(it,"ListAssetDetail",loan).path("record").path("returnStatus").asText());
+  assertEquals(0,view(student,"StudentRetake",null).path("items").size());
+  assertFalse(view(student,"ListNotification",null).path("items").toString().contains("StudentRetake"));
+
+  UUID course=jdbc.queryForObject("SELECT course_id FROM training_contracts WHERE id=?",UUID.class,oldContractId);
+  LocalDate retakeStart=LocalDate.now(ZoneId.of("Asia/Ho_Chi_Minh")).plusDays(30);
+  String targetClass=ClassPlanTestFixtures.withClass(jdbc,manager.id,values("courseId",course,"consultationId","fixture","startsOn",retakeStart)).get("classId").toString();
+  action(it,"ListAssetDetail",loan,"confirm",values("version",version(it,"ListAssetDetail",loan),"identityChecked",true,"receivedChecked",true,
+    "returnedAt","2026-11-07T04:00:00Z","returnCondition","Đầy đủ phụ kiện","returnEvidence","Biên bản đã thu hồi","hasIncident",false));
+  var available=view(student,"StudentRetake",null).path("items");
+  assertEquals(1,available.size());
+  String offer=available.get(0).path("id").asText();
+  assertTrue(view(student,"ListNotification",null).path("items").toString().contains(offer));
+  read(otherStudent,"StudentRetake",offer).andExpect(status().isNotFound());
+  read(manager,"StudentRetake",offer).andExpect(status().isForbidden());
+  var detail=view(student,"StudentRetake",offer);
+  assertTrue(detail.path("canWrite").asBoolean());
+  assertEquals(targetClass,detail.path("related").path("classes").get(0).path("id").asText());
+  assertEquals(700,detail.path("record").path("retakeTuition").asInt());
+  act(student,"StudentRetake",offer,"register",values("accepted",false,"classId",targetClass)).andExpect(status().isBadRequest());
+  act(otherStudent,"StudentRetake",offer,"register",values("accepted",true,"classId",targetClass)).andExpect(status().isNotFound());
+  act(student,"StudentRetake",offer,"register",values("accepted",true,"classId",oldClass)).andExpect(status().isBadRequest());
+
+  var registration=values("accepted",true,"classId",targetClass);
+  var registered=action(student,"StudentRetake",offer,"register",registration);
+  String retake=registered.path("id").asText();
+  assertEquals("TuitionDetail_Student",registered.path("screen").asText());
+  assertNotEquals(oldContract,retake);
+  assertEquals(retake,action(student,"StudentRetake",offer,"register",registration).path("id").asText());
+  assertEquals(2,jdbc.queryForObject("SELECT COUNT(*) FROM training_contracts WHERE student_id=?",Integer.class,student.id));
+  var contract=view(student,"TuitionDetail_Student",retake).path("record");
+  assertEquals(targetClass,contract.path("classId").asText());
+  assertEquals(retakeStart.toString(),contract.path("startsOn").asText());
+  assertEquals(700,contract.path("tuitionDue").asInt());
+  assertEquals(200,contract.path("depositDue").asInt());
+  assertEquals("Điều khoản theo hồ sơ xác nhận",contract.path("terms").asText());
+  assertEquals("RETAKE_ACCEPTANCE",contract.path("signatureMethod").asText());
+  assertNotEquals(view(student,"TuitionDetail_Student",oldContract).path("record").path("paymentReference"),contract.path("paymentReference"));
+  mvc.perform(get("/api/workspace/student-payments/contracts/"+retake).with(user(student.email).roles("STUDENT")))
+    .andExpect(status().isOk()).andExpect(jsonPath("$.canSubmit").value(true)).andExpect(jsonPath("$.contract.tuitionRemaining").value(700));
+  assertEquals(0,jdbc.queryForObject("SELECT COUNT(*) FROM training_enrollments WHERE contract_id=?",Integer.class,UUID.fromString(retake)));
+  assertEquals(0,jdbc.queryForObject("SELECT COUNT(*) FROM deposit_settlements WHERE contract_id=?",Integer.class,oldContractId));
+  importAndConfirm(retake,"TUITION",700);
+  assertEquals(1,jdbc.queryForObject("SELECT COUNT(*) FROM training_enrollments WHERE contract_id=? AND class_id=? AND status='ACTIVE'",Integer.class,UUID.fromString(retake),UUID.fromString(targetClass)));
  }
  @Test void dashboardsApplyTheSameOwnershipAsBusinessScreens()throws Exception{
   String ct=createContract(createCourse());importAndConfirm(ct,"TUITION",1000);User otherAccountant=create("ACCOUNTANT");

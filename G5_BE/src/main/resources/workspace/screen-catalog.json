@@ -2082,6 +2082,20 @@
     "sections": []
   },
   {
+    "code": "StudentRetake",
+    "fe": "FE-12",
+    "title": "Đăng ký học lại",
+    "roles": ["STUDENT"],
+    "proposedRoles": [],
+    "public": false,
+    "scope": "Phiếu mời học lại của học viên đang đăng nhập.",
+    "actions": "Chọn lớp và đăng ký học lại với 70% học phí gốc.",
+    "kind": "student_retake",
+    "functionCode": "StudentRetake",
+    "description": "Đăng ký lớp học lại sau khi hoàn tất trả thiết bị.",
+    "sections": []
+  },
+  {
     "code": "ListEquipmentRequest",
     "fe": "FE-13",
     "title": "Yêu cầu cấp thiết bị",

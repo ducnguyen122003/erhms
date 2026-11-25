@@ -1,11 +1,11 @@
 import {dashboardPath,firstAllowedPath,resolveRole,workspaceRoute} from './roles.js';
-import {contractQueueReturnPath,screenNavigation,screenPath,screenRoute,screens} from './screens/access.js';
+import {contractQueueReturnPath,screenNavigation,screenPath,screenRoute,screens,screenTitle} from './screens/access.js';
 
 const origin='https://workspace.invalid';
 const forbiddenSections=new Set(['unsupported','redirect','forbidden','missing']);
 const sectionLabels={dashboard:'Dashboard',users:'Tài khoản', 'user-create':'Thêm tài khoản', 'user-detail':'Chi tiết tài khoản', 'user-edit':'Chỉnh sửa tài khoản',permissions:'Vai trò & phân quyền',settings:'Cấu hình hệ thống',audit:'Nhật ký hệ thống',profile:'Thông tin tài khoản',recruitment:'Tuyển dụng'};
-const sameRecordParents={AdmissionConsultation:'ListAdmissionApplicationDetail',EditStudentProfile:'StudentProfileDetail',EditTrainingContract:'TrainingContractDetail',ContractSignature:'TrainingContractDetail',EditCourse:'CourseDetail',EditClass:'ClassDetail',Attendance_Correction:'ClassAttendance',AssetHandover:'EquipmentRequestDetail_IT',EditAsset:'AssetDetail',AssetMaintenance:'AssetDetail',PaymentInstruction:'TuitionDetail',RecordWithdrawal:'TrainingClosureDetail_Withdrawal',ClassGradebook:'ClassDetail_Lecturer'};
-const listKinds=new Set(['list','notifications','timetable','report','results','student_attendance','student_accounts','master_list']);
+const sameRecordParents={AdmissionConsultation:'ListAdmissionApplicationDetail',EditStudentProfile:'StudentProfileDetail',EditTrainingContract:'TrainingContractDetail',ContractSignature:'TrainingContractDetail',EditCourse:'CourseDetail',EditClass:'ClassDetail',Attendance_Correction:'ClassAttendance',AssetHandover:'EquipmentRequestDetail_IT',EditAsset:'AssetDetail',AssetMaintenance:'AssetDetail',PaymentInstruction:'TuitionDetail',RecordWithdrawal:'TrainingClosureDetail_Withdrawal'};
+const listKinds=new Set(['list','notifications','timetable','report','results','student_attendance','student_accounts','master_list','gradebook']);
 
 /** History may only supply same-origin workspace locations, never arbitrary URLs. */
 export function breadcrumbLocation(href){
@@ -22,7 +22,13 @@ function permitted(href,user,functions){
 function item(href,user,functions){
  const path=pathname(href),section=workspaceRoute(path,user,functions),route=screenRoute(path);
  let label=sectionLabels[section];
- if(section==='screen')label=route.screen.code==='AdmissionContractSigning'&&route.id?'Chi tiết hợp đồng cần ký':route.screen.title;
+ if(section==='screen'){
+  const {screen,id}=route;
+  if(screen.code==='AdmissionContractSigning'&&id)label='Chi tiết hợp đồng cần ký';
+  else if(screen.code==='ClassGradebook'&&id)label='Bảng điểm lớp';
+  else if(screen.code==='StudentRetake'&&!id)label='Lời mời học lại';
+  else label=screenTitle(screen.code,user);
+ }
  if(!permitted(href,user,functions)&&!forbiddenSections.has(section))label='Không có quyền truy cập';
  if(!label)label=section==='unsupported'?'Vai trò không hợp lệ':section==='forbidden'?'Không có quyền truy cập':section==='missing'?'Không tìm thấy trang':'Không gian làm việc';
  return {href,label};
@@ -40,6 +46,7 @@ function ancestor(href,user,functions){
  if(path==='/admin/users/new'||/^\/admin\/users\/[1-9][0-9]*\/view$/.test(path))return '/admin/users';
  if(!route)return null;
  const {screen,id}=route,code=screen.code;
+ if(code==='StudentRetake'&&id)return screenPath(code);
  if(code==='AddTrainingContract'){
   const queue=contractQueueReturnPath(url.searchParams);
   if(queue&&permitted(queue,user,functions))return queue;
@@ -123,6 +130,7 @@ export function updateBreadcrumbTrail(trail,target,user,functions=[],{replace=fa
  const previous=(Array.isArray(trail)&&trail.length?restoreBreadcrumbTrail(trail,trail.at(-1)?.href,user,functions):[]).filter(entry=>permitted(entry.href,user,functions));
  if(Number.isInteger(trailIndex)&&trailIndex>=0&&trailIndex<previous.length&&pathname(previous[trailIndex].href)===pathname(location))return withHome([...previous.slice(0,trailIndex),item(location,user,functions)],user,functions);
  const last=previous.at(-1),from=last&&screenRoute(pathname(last.href)),to=screenRoute(pathname(location));
+ if(to?.screen.code==='StudentRetake'&&from?.screen.code!=='StudentRetake')return initialBreadcrumbTrail(location,user,functions);
  if(to?.screen.code==='ViewNotification'&&!['ListNotification','ViewNotification'].includes(from?.screen.code)){
   return initialBreadcrumbTrail(location,user,functions);
  }

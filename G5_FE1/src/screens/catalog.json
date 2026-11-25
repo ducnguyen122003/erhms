@@ -2018,6 +2018,20 @@
     "sections": []
   },
   {
+    "code": "StudentRetake",
+    "fe": "FE-12",
+    "title": "Đăng ký học lại",
+    "roles": ["STUDENT"],
+    "proposedRoles": [],
+    "public": false,
+    "scope": "Lời mời học lại dành cho tài khoản học viên đang đăng nhập.",
+    "actions": "Chọn lớp, đồng ý điều khoản hợp đồng học lại và chuyển đến phần nộp tiền.",
+    "kind": "detail",
+    "functionCode": "StudentRetake",
+    "description": "Chọn lớp khác cùng khóa với học phí bằng 70% mức gốc.",
+    "sections": []
+  },
+  {
     "code": "ListEquipmentRequest",
     "fe": "FE-13",
     "title": "Yêu cầu cấp thiết bị",
@@ -2472,7 +2486,7 @@
     "variant": "Thao tác hoàn cọc / khấu trừ được duyệt trong FE-15",
     "kind": "refund",
     "functionCode": "DepositRefund",
-    "description": "Kiểm tra kết quả thu hồi và khoản bồi thường được phê duyệt.",
+    "description": "Đối chiếu phiếu hoàn cọc của IT và ghi nhận quyết toán.",
     "back": "DepositList",
     "sections": []
   },
@@ -2849,7 +2863,7 @@
     "variant": "Màn hình chính",
     "kind": "recovery",
     "functionCode": "ListAssetDetail",
-    "description": "Theo dõi và xử lý dữ liệu mới nhất trong phạm vi được phân công.",
+    "description": "Kiểm tra thiết bị đã trả và lập phiếu đề nghị hoàn cọc gửi kế toán.",
     "back": "ListAssetRecovery",
     "sections": []
   },

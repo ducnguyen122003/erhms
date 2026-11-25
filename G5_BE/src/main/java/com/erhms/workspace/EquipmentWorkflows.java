@@ -16,7 +16,7 @@ public class EquipmentWorkflows {
     private static final int CANDIDATE_PAGE_SIZE = 25;
     private static final String INITIAL_CANDIDATES = """
             FROM training_enrollments e JOIN m_user student ON student.user_id=e.student_id
-            WHERE e.class_id=? AND e.status='ACTIVE' AND e.closed_at IS NULL
+            WHERE e.class_id=? AND e.status='ACTIVE' AND e.closed_at IS NULL AND e.academic_completed_at IS NULL AND e.academic_failed_at IS NULL
               AND student.role_id=3 AND student.account_enabled=TRUE AND student.account_locked=FALSE
               AND NOT EXISTS (SELECT 1 FROM equipment_requests r
                     WHERE r.class_id=e.class_id AND r.student_id=e.student_id AND r.request_type='INITIAL' AND r.status<>'REJECTED')
@@ -112,6 +112,8 @@ public class EquipmentWorkflows {
         } else {
             d.record("classes", classId.toString(), actor);
             d.requireClassStudent(classId, student);
+            if(d.count("SELECT COUNT(*) FROM training_enrollments WHERE class_id=? AND student_id=? AND academic_completed_at IS NULL AND academic_failed_at IS NULL",classId,student)==0)
+                throw conflict("Học viên đã được xác nhận kết quả khóa học");
         }
         return saved("EquipmentRequestDetail_Lecturer", insertRequest(classId, student, type, requestInfo(input), actor));
     }
@@ -163,6 +165,10 @@ public class EquipmentWorkflows {
         if(contracts.isEmpty())throw conflict("Chưa có hợp đồng đang học gắn với lớp và học viên");var contract=contracts.get(0);UUID contractId=uuid(contract.get("id").toString());
         contract=d.one("SELECT * FROM training_contracts WHERE id=? FOR UPDATE",contractId);
         if(!"ACTIVE".equals(contract.get("status")))throw conflict("Hợp đồng không còn ở trạng thái đang đào tạo");
+        if(d.count("SELECT COUNT(*) FROM training_enrollments WHERE contract_id=? AND (academic_completed_at IS NOT NULL OR academic_failed_at IS NOT NULL)",contractId)>0
+                ||d.count("SELECT COUNT(*) FROM deposit_refund_requests WHERE contract_id=?",contractId)>0
+                ||d.count("SELECT COUNT(*) FROM deposit_settlements WHERE contract_id=?",contractId)>0)
+            throw conflict("Hồ sơ đã hoàn thành học tập hoặc đang quyết toán cọc, không bàn giao thêm thiết bị");
         // Coordinate with initial requests so the candidate check cannot race a handover.
         d.one("SELECT id FROM training_classes WHERE id=? FOR UPDATE",classId);
         d.requireClassStudent(classId,student);
@@ -202,7 +208,14 @@ public class EquipmentWorkflows {
         String condition=text(p,"assetCondition",500,true);d.jdbc.update("UPDATE asset_maintenance SET status='COMPLETED',version=version+1 WHERE asset_id=? AND status='OPEN'",asset);d.jdbc.update("UPDATE equipment_assets SET status='AVAILABLE',asset_condition=?,version=version+1 WHERE id=?",condition,asset);return saved("AssetDetail",asset);
     }
     public Map<String,Object> recover(String id,Map<String,Object> p,User u){
-        role(u,"IT_SUPPORT");UUID key=uuid(id);var loan=d.record("loans",id,u);d.lock("equipment_loans",key,p);
+        role(u,"IT_SUPPORT");UUID key=uuid(id);var loan=d.record("loans",id,u);
+        if(loan.get("contractId")!=null)d.one("SELECT id FROM training_contracts WHERE id=? FOR UPDATE",uuid(loan.get("contractId").toString()));
+        else if(loan.get("classId")!=null)d.rows("""
+                SELECT id FROM training_contracts WHERE id IN (SELECT contract_id FROM training_enrollments
+                    WHERE class_id=? AND student_id=?) ORDER BY id FOR UPDATE
+                """,uuid(loan.get("classId").toString()),loan.get("studentId"));
+        d.lock("equipment_loans",key,p);
+        loan=d.record("loans",id,u);
         if(loan.get("returnedAt")!=null)throw conflict("Biên bản đã được xác nhận thu hồi");
         if(!flag(p,"identityChecked")||!flag(p,"receivedChecked"))throw invalid("receivedChecked","Chỉ xác nhận khi đã thực nhận đúng thiết bị");
         OffsetDateTime when=instant(p,"returnedAt",true);if(loan.get("receivedAt")!=null&&when.toInstant().isBefore(Instant.parse(loan.get("receivedAt").toString())))throw invalid("returnedAt","Thời điểm trả trước ngày bàn giao");

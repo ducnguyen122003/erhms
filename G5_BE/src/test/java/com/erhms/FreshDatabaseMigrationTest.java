@@ -24,7 +24,7 @@ import static org.junit.jupiter.api.Assertions.*;
 
 class FreshDatabaseMigrationTest {
     private static final String PASSWORD = "Demo@123456";
-    private static final int LATEST_MIGRATION = 33;
+    private static final int LATEST_MIGRATION = 36;
 
     @Test
     void confirmsExistingPaidClassReservationsWithoutChangingPaymentsOrReassigningStudents() throws Exception {
@@ -105,8 +105,10 @@ class FreshDatabaseMigrationTest {
             earlierPaymentCount = scalarLong(connection, "SELECT COUNT(*) FROM financial_transactions");
         }
 
-        assertEquals(1, flyway(url).migrate().migrationsExecuted);
-        assertEquals(0, flyway(url).migrate().migrationsExecuted);
+        Flyway tuitionBackfill = Flyway.configure().dataSource(url,"sa","")
+                .locations("classpath:db/migration").target("33").load();
+        assertEquals(1, tuitionBackfill.migrate().migrationsExecuted);
+        assertEquals(0, tuitionBackfill.migrate().migrationsExecuted);
         try (Connection connection = connection(url)) {
             assertEquals(Set.of("BACKFILL-PAID", "BACKFILL-SIGNED", "BACKFILL-ZERO-ACTIVE"), names(connection, """
                     SELECT contract.code
@@ -182,8 +184,9 @@ class FreshDatabaseMigrationTest {
         try(Connection c=connection(url)){
             assertEquals(0,scalarLong(c,"SELECT COUNT(*) FROM role_function WHERE function_code IN ('ListEquipmentGroup','AddEquipmentGroup','EditEquipmentGroup','ListStorageLocation','AddStorageLocation','EditStorageLocation')"));
             assertEquals(6,scalarLong(c,"SELECT COUNT(*) FROM m_function WHERE function_code IN ('ListEquipmentGroup','AddEquipmentGroup','EditEquipmentGroup','ListStorageLocation','AddStorageLocation','EditStorageLocation')"));
-            assertEquals(otherGrants,scalarLong(c,"SELECT COUNT(*) FROM role_function WHERE function_code NOT IN ('ListEquipmentGroup','AddEquipmentGroup','EditEquipmentGroup','ListStorageLocation','AddStorageLocation','EditStorageLocation')"));
-            assertEquals(revision+1,scalarLong(c,"SELECT version FROM permission_revision WHERE id=1"));
+            assertEquals(otherGrants+1,scalarLong(c,"SELECT COUNT(*) FROM role_function WHERE function_code NOT IN ('ListEquipmentGroup','AddEquipmentGroup','EditEquipmentGroup','ListStorageLocation','AddStorageLocation','EditStorageLocation')"));
+            assertEquals(3,scalarLong(c,"SELECT role_id FROM role_function WHERE function_code='StudentRetake'"));
+            assertEquals(revision+2,scalarLong(c,"SELECT version FROM permission_revision WHERE id=1"));
             assertEquals(1,scalarLong(c,"SELECT COUNT(*) FROM equipment_assets WHERE id='"+asset+"' AND category='Original group label' AND location='Original location label' AND equipment_group_id='"+group+"' AND storage_location_id='"+location+"' AND status='AVAILABLE' AND version=0"));
             assertEquals(1,scalarLong(c,"SELECT COUNT(*) FROM equipment_requests WHERE id='"+request+"' AND group_name='Original request group' AND equipment_group_id='"+group+"' AND title='Historical request' AND quantity=2 AND status='NEW'"));
             assertEquals(1,scalarLong(c,"SELECT COUNT(*) FROM m_equipment_group WHERE id='"+group+"' AND name='Historical group'"));
@@ -210,7 +213,7 @@ class FreshDatabaseMigrationTest {
             assertEquals(1,scalarLong(c,"SELECT COUNT(*) FROM training_courses WHERE id='"+legacy+"' AND fixed_catalog=FALSE AND name='Legacy negotiated program' AND tuition_fee=900 AND total_sessions=10 AND class_capacity=12"));
             assertEquals(1,scalarLong(c,"SELECT COUNT(*) FROM training_classes WHERE id='"+cl+"' AND course_id='"+legacy+"' AND plan_fixed=FALSE AND status='ACTIVE' AND total_sessions=10 AND capacity=12"));
             assertEquals(1,scalarLong(c,"SELECT COUNT(*) FROM training_contracts WHERE id='"+contract+"' AND course_id='"+legacy+"' AND class_id='"+cl+"' AND tuition_due=850 AND registered_course_name='Historical signed title' AND status='SIGNED'"));
-            assertEquals(usersBefore,scalarLong(c,"SELECT COUNT(*) FROM m_user"));assertEquals(revision+2,scalarLong(c,"SELECT version FROM permission_revision WHERE id=1"));
+            assertEquals(usersBefore,scalarLong(c,"SELECT COUNT(*) FROM m_user"));assertEquals(revision+3,scalarLong(c,"SELECT version FROM permission_revision WHERE id=1"));
             assertEquals(1,scalarLong(c,"SELECT COUNT(*) FROM role_function WHERE role_id=1 AND function_code='CourseSchedules'"));
             assertEquals(0,scalarLong(c,"SELECT COUNT(*) FROM role_function WHERE function_code IN ('ListProfession','AddProfession','EditProfession','ListCourse','AddCourse','EditCourse','CourseDetail')"));
             assertEquals(0,scalarLong(c,"SELECT COUNT(*) FROM role_function WHERE role_id=1 AND function_code='ListClass'"));
@@ -241,7 +244,7 @@ class FreshDatabaseMigrationTest {
             assertEquals(0,scalarLong(c,"SELECT COUNT(*) FROM role_function WHERE role_id<>1 AND function_code IN ('AddClass','EditClass','TimeTable_EditSession','TimeTable_Conflict')"));
             assertEquals(6,scalarLong(c,"SELECT COUNT(*) FROM role_function WHERE role_id=1 AND function_code IN ('ListClass','ClassDetail','AddClass','EditClass','TimeTable_Manager','TimeTable_EditSession','TimeTable_Conflict')"));
             assertEquals(3,scalarLong(c,"SELECT COUNT(*) FROM role_function WHERE role_id=6 AND function_code IN ('ListClass','ClassDetail','TimeTable_Manager')"));
-            assertEquals(revision+3,scalarLong(c,"SELECT version FROM permission_revision WHERE id=1"));
+            assertEquals(revision+4,scalarLong(c,"SELECT version FROM permission_revision WHERE id=1"));
             assertIntegrityViolation(c,"UPDATE training_contracts SET class_id='"+UUID.randomUUID()+"' WHERE id='"+contract+"'");
             assertIntegrityViolation(c,"UPDATE training_classes SET plan_fixed=TRUE WHERE id='"+planned+"'");
         }
@@ -577,7 +580,7 @@ class FreshDatabaseMigrationTest {
         assertEquals(LATEST_MIGRATION - 13, flyway(url).migrate().migrationsExecuted);
         try(Connection c=connection(url)) {
             assertEquals(usersBefore,scalarLong(c,"SELECT COUNT(*) FROM m_user"));
-            assertEquals(revision+7,scalarLong(c,"SELECT version FROM permission_revision WHERE id=1"));
+            assertEquals(revision+8,scalarLong(c,"SELECT version FROM permission_revision WHERE id=1"));
             assertEquals(1,scalarLong(c,"SELECT COUNT(*) FROM role_function WHERE function_code='ListStudentAccount'"));
             assertEquals(6,scalarLong(c,"SELECT role_id FROM role_function WHERE function_code='ListStudentAccount'"));
             assertEquals(1,scalarLong(c,"SELECT COUNT(*) FROM m_function WHERE function_code='ListStudentAccount' AND path='/screens/ListStudentAccount'"));
@@ -603,7 +606,7 @@ class FreshDatabaseMigrationTest {
         try(Connection c=connection(url)) {
             assertEquals(0,scalarLong(c,"SELECT COUNT(*) FROM role_function WHERE role_id<>1 AND function_code IN "+codes));
             assertEquals(0,scalarLong(c,"SELECT COUNT(*) FROM role_function WHERE role_id=1 AND function_code IN "+codes));
-            assertEquals(revision+8,scalarLong(c,"SELECT version FROM permission_revision WHERE id=1"));
+            assertEquals(revision+9,scalarLong(c,"SELECT version FROM permission_revision WHERE id=1"));
             assertEquals(1,scalarLong(c,"SELECT COUNT(*) FROM training_courses WHERE code='EXISTING' AND name='Khóa cũ' AND version=0 AND manager_id="+manager));
             assertEquals(1,scalarLong(c,"SELECT COUNT(*) FROM m_profession WHERE code='EXISTING' AND name='Ngành cũ'"));
             assertEquals(0,flyway(url).migrate().migrationsExecuted);
@@ -674,7 +677,7 @@ class FreshDatabaseMigrationTest {
                             "password_reset_challenges", "password_reset_rate_limits", "m_function", "role_function",
                             "permission_revision", "system_settings", "system_audit_log", "training_courses", "course_assessments",
                             "course_lecturers", "student_profiles", "consultation_notes", "payment_instructions", "asset_maintenance",
-                            "deposit_settlements", "user_notifications", "workflow_files", "admission_profile_documents", "m_equipment_group",
+                            "deposit_settlements", "deposit_refund_requests", "course_retake_offers", "user_notifications", "workflow_files", "admission_profile_documents", "m_equipment_group",
                             "m_storage_location", "m_profession", "m_classroom", "m_bank", "contract_signing_history", "student_payment_submissions"),
                     names(connection, """
                             SELECT LOWER(table_name) FROM information_schema.tables
@@ -741,7 +744,8 @@ class FreshDatabaseMigrationTest {
                     UUID.randomUUID(), configuredCourse, "Lý thuyết", 40);
         }
 
-        assertEquals(LATEST_MIGRATION - 31, flyway(url).migrate().migrationsExecuted);
+        assertEquals(1, Flyway.configure().dataSource(url,"sa","")
+                .locations("classpath:db/migration").target("32").load().migrate().migrationsExecuted);
         try (Connection connection = connection(url)) {
             assertEquals(Set.of("Thực hành", "Lý thuyết"), names(connection, """
                     SELECT title FROM course_assessments WHERE course_id = '64000000-0000-0000-0000-000000000001'
@@ -750,6 +754,55 @@ class FreshDatabaseMigrationTest {
                     SELECT COUNT(*) FROM course_assessments assessment JOIN training_courses course ON course.id = assessment.course_id
                     WHERE course.fixed_catalog = TRUE AND assessment.title = 'Điểm tổng kết' AND assessment.weight = 100
                     """));
+        }
+    }
+
+    @Test
+    void fixedCourseAssessmentsUpgradePreservesHistoricalResultsAndLeavesOtherCoursesAlone() throws Exception {
+        String url = databaseUrl();
+        Flyway.configure().dataSource(url,"sa","").locations("classpath:db/migration").target("33").load().migrate();
+        UUID fixed = UUID.fromString("64000000-0000-0000-0000-000000000001");
+        UUID customized = UUID.fromString("64000000-0000-0000-0000-000000000002");
+        UUID otherCourse = UUID.randomUUID();
+        UUID publishedEnrollment = UUID.randomUUID(), draftEnrollment = UUID.randomUUID();
+        UUID publishedGrade = UUID.randomUUID(), draftGrade = UUID.randomUUID();
+        OffsetDateTime originalPublication = OffsetDateTime.parse("2027-01-05T10:00:00+07:00");
+        try(Connection connection = connection(url)){
+            long manager = migrationUser(connection,"grade-manager",6), lecturer = migrationUser(connection,"grade-lecturer",2);
+            UUID classroom = migrationClass(connection,"LEGACY-GRADES",fixed,lecturer,"ACTIVE",20);
+            execute(connection,"INSERT INTO training_enrollments(id,class_id,student_id,status) VALUES (?,?,?,'ACTIVE')",
+                    publishedEnrollment,classroom,migrationUser(connection,"grade-published",3));
+            execute(connection,"INSERT INTO training_enrollments(id,class_id,student_id,status) VALUES (?,?,?,'ACTIVE')",
+                    draftEnrollment,classroom,migrationUser(connection,"grade-draft",3));
+            execute(connection,"INSERT INTO training_grades(id,enrollment_id,title,score,published_at) VALUES (?,?, 'Điểm tổng kết',7.5,?)",
+                    publishedGrade,publishedEnrollment,originalPublication);
+            execute(connection,"INSERT INTO training_grades(id,enrollment_id,title,score) VALUES (?,?,'Điểm tổng kết',8)",draftGrade,draftEnrollment);
+            execute(connection,"UPDATE course_assessments SET title='Đầu điểm riêng' WHERE course_id=?",customized);
+            execute(connection,"""
+                    INSERT INTO training_courses(id,code,name,profession,duration_months,total_sessions,tuition_fee,objectives,status,manager_id,class_capacity)
+                    VALUES (?,'LEGACY-GRADE-COURSE','Khóa cũ','Điện',3,2,1000,'Nội dung','OPEN',?,20)
+                    """,otherCourse,manager);
+            execute(connection,"INSERT INTO course_assessments(id,course_id,title,weight) VALUES (?,?,'Điểm đồ án',100)",UUID.randomUUID(),otherCourse);
+        }
+
+        assertEquals(1,Flyway.configure().dataSource(url,"sa","").locations("classpath:db/migration").target("34").load().migrate().migrationsExecuted);
+        try(Connection connection = connection(url)){
+            assertEquals(12,scalarLong(connection,"""
+                    SELECT COUNT(*) FROM course_assessments a JOIN training_courses c ON c.id=a.course_id WHERE c.fixed_catalog=TRUE
+                    """));
+            assertEquals(4,scalarLong(connection,"""
+                    SELECT COUNT(*) FROM (
+                        SELECT a.course_id FROM course_assessments a JOIN training_courses c ON c.id=a.course_id
+                        WHERE c.fixed_catalog=TRUE AND (a.title IN ('Điểm kiểm tra lần 1','Điểm kiểm tra lần 2') AND a.weight=30
+                            OR a.title='Điểm kiểm tra cuối kỳ' AND a.weight=40)
+                        GROUP BY a.course_id HAVING COUNT(*)=3 AND SUM(a.weight)=100
+                    ) fixed_assessments
+                    """));
+            assertEquals(1,scalarLong(connection,"SELECT COUNT(*) FROM course_assessments WHERE course_id='"+otherCourse+"' AND title='Điểm đồ án' AND weight=100"));
+            assertEquals(1,scalarLong(connection,"SELECT COUNT(*) FROM training_enrollments WHERE id='"+publishedEnrollment+"' AND legacy_assessments_complete=TRUE"));
+            assertEquals(1,scalarLong(connection,"SELECT COUNT(*) FROM training_enrollments WHERE id='"+draftEnrollment+"' AND legacy_assessments_complete=FALSE"));
+            assertEquals(1,scalarLong(connection,"SELECT COUNT(*) FROM training_grades WHERE id='"+publishedGrade+"' AND title='Điểm tổng kết' AND score=7.5 AND published_at=TIMESTAMP WITH TIME ZONE '2027-01-05 10:00:00+07:00'"));
+            assertEquals(1,scalarLong(connection,"SELECT COUNT(*) FROM training_grades WHERE id='"+draftGrade+"' AND title='Điểm tổng kết' AND score=8 AND published_at IS NULL"));
         }
     }
 

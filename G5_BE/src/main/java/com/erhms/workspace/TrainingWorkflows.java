@@ -3,12 +3,16 @@ package com.erhms.workspace;
 import com.erhms.user.entity.User;
 import org.springframework.stereotype.Service;
 import java.math.BigDecimal;
+import java.math.RoundingMode;
 import java.time.*;
 import java.util.*;
 import static com.erhms.workspace.WorkflowData.*;
 
 @Service
 public class TrainingWorkflows {
+    private static final String FIRST_TEST = "Điểm kiểm tra lần 1";
+    private static final String SECOND_TEST = "Điểm kiểm tra lần 2";
+    private static final String FINAL_TEST = "Điểm kiểm tra cuối kỳ";
     private static final String PAID_UNASSIGNED_CONTRACT="c.status='ACTIVE' AND COALESCE((SELECT SUM(t.amount) FROM financial_transactions t WHERE t.contract_id=c.id AND t.kind='TUITION' AND t.status='CONFIRMED'),0)>=c.tuition_due AND NOT EXISTS(SELECT 1 FROM training_enrollments linked WHERE linked.contract_id=c.id)";
     private static final String MATCH_CONTRACT_COURSE="(c.course_id=? OR (c.course_id IS NULL AND c.registered_course_name=?))";
     private static final String MATCH_SELECTED_CLASS="(c.class_id IS NULL OR c.class_id=?)";
@@ -20,7 +24,7 @@ public class TrainingWorkflows {
         role(u,"MANAGER");var cl=d.record("classes",classId,u);
         if(cl.get("courseId")==null||!List.of("PLANNED","ACTIVE").contains(cl.get("status")))return List.of();
         var registered=EnrollmentCourses.find(cl.get("courseName"));
-        return d.rows("SELECT scoped.id,scoped.student_code,scoped.full_name,scoped.email,scoped.phone FROM ("+d.base("students",u)+") scoped JOIN m_user account ON account.user_id=scoped.id WHERE account.account_enabled=TRUE AND account.account_locked=FALSE AND NOT EXISTS(SELECT 1 FROM training_enrollments e WHERE e.student_id=scoped.id AND (e.status IN ('ACTIVE','PENDING') OR e.class_id=?)) AND EXISTS(SELECT 1 FROM training_contracts c WHERE c.student_id=scoped.id AND "+MATCH_CONTRACT_COURSE+" AND c.manager_id=? AND "+MATCH_SELECTED_CLASS+" AND "+PAID_UNASSIGNED_CONTRACT+") ORDER BY scoped.full_name,scoped.id",uuid(classId),uuid(cl.get("courseId").toString()),registered==null?null:registered.name(),u.id,uuid(classId));
+        return d.rows("SELECT scoped.id,scoped.student_code,scoped.full_name,scoped.email,scoped.phone FROM ("+d.base("students",u)+") scoped JOIN m_user account ON account.user_id=scoped.id WHERE account.account_enabled=TRUE AND account.account_locked=FALSE AND NOT EXISTS(SELECT 1 FROM training_enrollments e WHERE e.student_id=scoped.id AND ((e.status IN ('ACTIVE','PENDING') AND e.academic_failed_at IS NULL) OR e.class_id=?)) AND EXISTS(SELECT 1 FROM training_contracts c WHERE c.student_id=scoped.id AND "+MATCH_CONTRACT_COURSE+" AND c.manager_id=? AND "+MATCH_SELECTED_CLASS+" AND "+PAID_UNASSIGNED_CONTRACT+") ORDER BY scoped.full_name,scoped.id",uuid(classId),uuid(cl.get("courseId").toString()),registered==null?null:registered.name(),u.id,uuid(classId));
     }
 
     public Map<String,Object> addClassStudents(String id,Map<String,Object> p,User u){
@@ -48,7 +52,7 @@ public class TrainingWorkflows {
         registered=EnrollmentCourses.find(latestCourse.get("name"));registeredName=registered==null?null:registered.name();
         for(long student:students){
             d.one("SELECT user_id FROM m_user WHERE user_id=? FOR UPDATE",student);d.record("students",Long.toString(student),u);d.requireRoleId(student,3);
-            if(d.count("SELECT COUNT(*) FROM training_enrollments WHERE student_id=? AND (status IN ('ACTIVE','PENDING') OR class_id=?)",student,key)>0)throw conflict("Học viên đã được xếp lớp hoặc đã có hồ sơ tại lớp này. Hãy tải lại danh sách.");
+            if(d.count("SELECT COUNT(*) FROM training_enrollments WHERE student_id=? AND ((status IN ('ACTIVE','PENDING') AND academic_failed_at IS NULL) OR class_id=?)",student,key)>0)throw conflict("Học viên đã được xếp lớp hoặc đã có hồ sơ tại lớp này. Hãy tải lại danh sách.");
             if(d.count("SELECT COUNT(*) FROM training_contracts c WHERE c.id=? AND c.student_id=? AND "+MATCH_CONTRACT_COURSE+" AND c.manager_id=? AND "+MATCH_SELECTED_CLASS+" AND "+PAID_UNASSIGNED_CONTRACT,contracts.get(student),student,courseId,registeredName,u.id,key)==0)throw conflict("Thông tin học phí hoặc xếp lớp đã thay đổi. Hãy tải lại danh sách học viên.");
         }
         d.lock("training_classes",key,p);cl=d.record("classes",id,u);
@@ -202,7 +206,7 @@ public class TrainingWorkflows {
     public Map<String,Object> assignment(String id,Map<String,Object> p,User u){
         role(u,"MANAGER");var enrollment=d.record("assignments",id,u);UUID key=uuid(id);
         d.one("SELECT id FROM training_classes WHERE id=? FOR UPDATE",uuid(enrollment.get("classId").toString()));d.lock("training_enrollments",key,p);
-        if(enrollment.get("closedAt")!=null||!List.of("ACTIVE","PENDING").contains(enrollment.get("status")))throw conflict("Ghi danh đã kết thúc, không thay đổi xếp lớp");
+        if(enrollment.get("closedAt")!=null||enrollment.get("academicFailedAt")!=null||!List.of("ACTIVE","PENDING").contains(enrollment.get("status")))throw conflict("Ghi danh đã kết thúc, không thay đổi xếp lớp");
         var cl=d.record("classes",enrollment.get("classId").toString(),u);
         if(cl.get("lecturerId")==null)throw conflict("Cần phân công giảng viên cho lớp trước khi xác nhận");
         if(d.count("SELECT COUNT(*) FROM training_enrollments WHERE class_id=? AND status IN ('ACTIVE','PENDING')",uuid(cl.get("id").toString()))>((Number)cl.get("capacity")).longValue())throw conflict("Lớp vượt sức chứa");
@@ -226,18 +230,33 @@ public class TrainingWorkflows {
     public Map<String,Object> grades(String id,Map<String,Object> p,User u,boolean publish){
         role(u,"LECTURER");UUID clId=uuid(id);var cl=d.record("classes",id,u);d.lock("training_classes",clId,p);
         if(List.of("COMPLETED","CANCELLED").contains(cl.get("status")))throw conflict("Lớp đã kết thúc, không sửa kết quả học tập");
-        var assessments=d.rows("SELECT title FROM course_assessments WHERE course_id=?",cl.get("courseId")==null?null:uuid(cl.get("courseId").toString()));
+        UUID courseId=cl.get("courseId")==null?null:uuid(cl.get("courseId").toString());
+        var assessments=d.rows("SELECT title FROM course_assessments WHERE course_id=?",courseId);
         if(assessments.isEmpty())throw conflict("Khóa học chưa cấu hình đầu điểm và trọng số");
+        // The Gradebook form sends one row per assessment per student still eligible for grading.
+        int recordLimit=FixedCourseCatalog.IDS.contains(courseId)?1500:500;
         Set<String> titles=new HashSet<>();for(var a:assessments)titles.add(a.get("title").toString());Set<String> unique=new HashSet<>();
-        for(var r:items(p,"records")){UUID enrollment=uuid(r,"enrollmentId");String title=text(r,"title",160,true);
+        for(var r:items(p,"records",recordLimit)){UUID enrollment=uuid(r,"enrollmentId");String title=text(r,"title",160,true);
             if(!titles.contains(title)||!unique.add(enrollment+":"+title))throw invalid("records","Đầu điểm không thuộc cấu hình hoặc bị trùng");
-            if(d.count("SELECT COUNT(*) FROM training_enrollments WHERE id=? AND class_id=? AND status='ACTIVE' AND closed_at IS NULL",enrollment,clId)==0)throw invalid("records","Học viên không thuộc lớp đang học hoặc hồ sơ đã đóng");
+            if(d.count("SELECT COUNT(*) FROM training_enrollments WHERE id=? AND class_id=? AND status='ACTIVE' AND closed_at IS NULL AND academic_completed_at IS NULL AND academic_failed_at IS NULL",enrollment,clId)==0)throw invalid("records","Học viên không thuộc lớp đang học hoặc kết quả học tập đã được xác nhận");
             BigDecimal score=r.get("score")==null||"".equals(r.get("score"))?null:money(r,"score");if(score!=null&&score.compareTo(BigDecimal.TEN)>0)throw invalid("records","Điểm phải từ 0 đến 10");
-            int changed=d.jdbc.update("UPDATE training_grades SET score=?,published_at=NULL WHERE enrollment_id=? AND title=?",score,enrollment,title);
+            int changed=d.jdbc.update("""
+                    UPDATE training_grades SET score=?,published_at=CASE WHEN score IS DISTINCT FROM CAST(? AS NUMERIC(4,2)) THEN NULL ELSE published_at END
+                    WHERE enrollment_id=? AND title=?
+                    """,score,score,enrollment,title);
             if(changed==0)d.jdbc.update("INSERT INTO training_grades(id,enrollment_id,title,score) VALUES (?,?,?,?)",UUID.randomUUID(),enrollment,title,score);
         }
-        if(publish){if(d.count("SELECT COUNT(*) FROM training_enrollments e CROSS JOIN course_assessments a WHERE e.class_id=? AND e.status='ACTIVE' AND a.course_id=? AND NOT EXISTS(SELECT 1 FROM training_grades g WHERE g.enrollment_id=e.id AND g.title=a.title AND g.score IS NOT NULL)",clId,uuid(cl.get("courseId").toString()))>0)throw conflict("Chưa đủ điểm theo cấu hình để công bố");
-            d.jdbc.update("UPDATE training_grades SET published_at=CURRENT_TIMESTAMP WHERE enrollment_id IN(SELECT id FROM training_enrollments WHERE class_id=? AND status='ACTIVE' AND closed_at IS NULL)",clId);
+        if(publish){
+            if(d.count("""
+                    SELECT COUNT(*) FROM training_enrollments e CROSS JOIN course_assessments a
+                    WHERE e.class_id=? AND e.status='ACTIVE' AND e.closed_at IS NULL AND e.academic_completed_at IS NULL AND e.academic_failed_at IS NULL AND a.course_id=?
+                    AND NOT EXISTS(SELECT 1 FROM training_grades g WHERE g.enrollment_id=e.id AND g.title=a.title AND g.score IS NOT NULL)
+                    """,clId,courseId)>0)throw conflict("Chưa đủ điểm theo cấu hình để công bố");
+            d.jdbc.update("""
+                    UPDATE training_grades SET published_at=CURRENT_TIMESTAMP WHERE published_at IS NULL
+                      AND enrollment_id IN (SELECT id FROM training_enrollments WHERE class_id=? AND status='ACTIVE' AND closed_at IS NULL AND academic_completed_at IS NULL AND academic_failed_at IS NULL)
+                      AND title IN (SELECT title FROM course_assessments WHERE course_id=?)
+                    """,clId,courseId);
         }
         d.jdbc.update("UPDATE training_classes SET version=version+1 WHERE id=?",clId);return saved("ClassGradebook",clId);
     }
@@ -285,13 +304,69 @@ public class TrainingWorkflows {
 
         // The signed contract already holds a seat in this class.
         if(ClassReservations.occupied(d,classId,null)>((Number)classroom.get("capacity")).longValue())return false;
-        return d.count("SELECT COUNT(*) FROM training_enrollments WHERE student_id=? AND (class_id=? OR status IN ('ACTIVE','PENDING'))",studentId,classId)==0;
+        return d.count("SELECT COUNT(*) FROM training_enrollments WHERE student_id=? AND (class_id=? OR (status IN ('ACTIVE','PENDING') AND academic_failed_at IS NULL))",studentId,classId)==0;
     }
-    public Map<String,Object> closureConditions(Map<String,Object> enrollment){
-        UUID e=uuid(enrollment.get("id").toString());long student=((Number)enrollment.get("studentId")).longValue();Object contract=enrollment.get("contractId");
-        long grades=d.count("SELECT COUNT(*) FROM training_grades WHERE enrollment_id=? AND score IS NOT NULL AND published_at IS NOT NULL",e);
-        long missing=d.count("SELECT COUNT(*) FROM course_assessments a JOIN training_classes cl ON cl.course_id=a.course_id JOIN training_enrollments en ON en.class_id=cl.id WHERE en.id=? AND NOT EXISTS(SELECT 1 FROM training_grades g WHERE g.enrollment_id=en.id AND g.title=a.title AND g.score IS NOT NULL AND g.published_at IS NOT NULL)",e);
-        boolean academic=Boolean.TRUE.equals(enrollment.get("recordsComplete"))&&grades>0&&missing==0;
+    private Map<String,Object> academicDetails(Map<String,Object> enrollment){
+        UUID classId=uuid(enrollment.get("classId").toString());
+        var attendance=d.one("""
+                SELECT COUNT(*) AS total_sessions,
+                       COUNT(CASE WHEN se.attendance_finalized=TRUE AND se.ends_at<=CURRENT_TIMESTAMP THEN 1 END) AS finalized_sessions,
+                       COUNT(CASE WHEN se.attendance_finalized=TRUE AND se.ends_at<=CURRENT_TIMESTAMP
+                                      AND a.status IN ('PRESENT','LATE') THEN 1 END) AS attended_sessions
+                FROM training_sessions se
+                LEFT JOIN training_attendance a ON a.session_id=se.id AND a.student_id=?
+                WHERE se.class_id=?
+                """,enrollment.get("studentId"),classId);
+        long totalSessions=((Number)attendance.get("totalSessions")).longValue();
+        long finalizedSessions=((Number)attendance.get("finalizedSessions")).longValue();
+        long attendedSessions=((Number)attendance.get("attendedSessions")).longValue();
+
+        var gradeRows=d.rows("""
+                SELECT title,score FROM training_grades
+                WHERE enrollment_id=? AND title IN (?,?,?) AND score IS NOT NULL AND published_at<=CURRENT_TIMESTAMP
+                ORDER BY published_at DESC,id DESC
+                """,uuid(enrollment.get("id").toString()),FIRST_TEST,SECOND_TEST,FINAL_TEST);
+        Map<String,BigDecimal> scores=new HashMap<>();
+        for(var grade:gradeRows)scores.putIfAbsent((String)grade.get("title"),(BigDecimal)grade.get("score"));
+
+        BigDecimal finalScore=scores.get(FINAL_TEST);
+        BigDecimal totalScore=null;
+        if(scores.size()==3){
+            totalScore=scores.get(FIRST_TEST).multiply(BigDecimal.valueOf(30))
+                    .add(scores.get(SECOND_TEST).multiply(BigDecimal.valueOf(30)))
+                    .add(finalScore.multiply(BigDecimal.valueOf(40))).movePointLeft(2).stripTrailingZeros();
+        }
+
+        Map<String,Object> details=new LinkedHashMap<>();
+        details.put("attendedSessions",attendedSessions);
+        details.put("totalSessions",totalSessions);
+        details.put("attendancePercent",totalSessions==0?null:BigDecimal.valueOf(attendedSessions*100)
+                .divide(BigDecimal.valueOf(totalSessions),2,RoundingMode.HALF_UP));
+        details.put("attendanceComplete",totalSessions>0&&totalSessions==finalizedSessions);
+        details.put("attendancePass",totalSessions>0&&attendedSessions*5>=totalSessions*4);
+        details.put("finalScore",finalScore);
+        details.put("totalScore",totalScore);
+        details.put("finalPass",finalScore!=null&&finalScore.compareTo(BigDecimal.valueOf(4))>0);
+        details.put("totalPass",totalScore!=null&&totalScore.compareTo(BigDecimal.valueOf(5))>0);
+        return details;
+    }
+
+    private boolean academicReviewReady(Map<String,Object> enrollment,Map<String,Object> details){
+        return "ACTIVE".equals(enrollment.get("status"))&&enrollment.get("closedAt")==null
+                &&enrollment.get("academicCompletedAt")==null&&enrollment.get("academicFailedAt")==null
+                &&Boolean.TRUE.equals(details.get("attendanceComplete"))&&details.get("totalScore")!=null;
+    }
+
+    private boolean passesAcademicRequirements(Map<String,Object> details){
+        return Boolean.TRUE.equals(details.get("attendancePass"))&&Boolean.TRUE.equals(details.get("finalPass"))
+                &&Boolean.TRUE.equals(details.get("totalPass"));
+    }
+
+    public Map<String,Object> closureConditions(Map<String,Object> enrollment,User viewer){
+        long student=((Number)enrollment.get("studentId")).longValue();Object contract=enrollment.get("contractId");
+        boolean academic=enrollment.get("academicCompletedAt")!=null
+                ||(enrollment.get("closedAt")!=null&&"COMPLETED".equals(enrollment.get("closureOutcome")));
+        boolean failed=enrollment.get("academicFailedAt")!=null;
         boolean assets=d.count("SELECT COUNT(*) FROM equipment_loans WHERE student_id=? AND returned_at IS NULL AND (contract_id=? OR (contract_id IS NULL AND class_id=?))",student,contract==null?null:uuid(contract.toString()),uuid(enrollment.get("classId").toString()))==0;
         boolean finance=false;
         if(contract!=null){UUID ct=uuid(contract.toString());var c=d.one("SELECT tuition_due FROM training_contracts WHERE id=?",ct);BigDecimal paid=amount("SELECT COALESCE(SUM(amount),0) FROM financial_transactions WHERE contract_id=? AND kind='TUITION' AND status='CONFIRMED'",ct);
@@ -300,25 +375,59 @@ public class TrainingWorkflows {
             BigDecimal requiredDeposit=amount("SELECT deposit_due FROM training_contracts WHERE id=?",ct);
             finance=paid.compareTo(new BigDecimal(c.get("tuitionDue").toString()))>=0&&deposits.compareTo(requiredDeposit)>=0&&unresolved==0&&(deposits.signum()==0||d.count("SELECT COUNT(*) FROM deposit_settlements WHERE contract_id=?",ct)>0);
         }
-        boolean withdrawal="WITHDRAWN".equals(enrollment.get("status"));return Map.of("academic",academic,"assets",assets,"finance",finance,"withdrawal",withdrawal,"ready",assets&&finance&&(withdrawal||academic));
+        boolean withdrawal="WITHDRAWN".equals(enrollment.get("status"));
+        Map<String,Object> conditions=new LinkedHashMap<>();
+        conditions.put("academic",academic);
+        conditions.put("academicFailed",failed);
+        conditions.put("assets",assets);
+        conditions.put("finance",finance);
+        conditions.put("withdrawal",withdrawal);
+        conditions.put("ready",assets&&finance&&(withdrawal||academic||failed));
+        if(viewer!=null&&"MANAGER".equals(viewer.getRoleCode())){
+            var details=academicDetails(enrollment);
+            boolean reviewReady=academicReviewReady(enrollment,details),passes=passesAcademicRequirements(details);
+            conditions.put("academicDetails",details);
+            conditions.put("academicEligible",reviewReady&&passes);
+            conditions.put("academicFailureEligible",reviewReady&&!passes);
+        }
+        return conditions;
     }
     BigDecimal amount(String sql,Object...args){return d.jdbc.queryForObject(sql,BigDecimal.class,args);}
     public Map<String,Object> close(String id,Map<String,Object> p,User u,String action){
         role(u,"MANAGER");var e=d.record("closures",id,u);UUID key=uuid(id);
         if(e.get("contractId")!=null)d.one("SELECT id FROM training_contracts WHERE id=? FOR UPDATE",uuid(e.get("contractId").toString()));
         d.one("SELECT id FROM training_classes WHERE id=? FOR UPDATE",uuid(e.get("classId").toString()));d.lock("training_enrollments",key,p);
+        e=d.record("closures",id,u);
         if(e.get("closedAt")!=null)throw conflict("Hồ sơ đã đóng");
         if(action.equals("withdraw")){
+            if(e.get("academicCompletedAt")!=null||e.get("academicFailedAt")!=null)throw conflict("Kết quả khóa học đã được xác nhận");
             LocalDate date=date(p,"withdrawnOn",true);d.jdbc.update("UPDATE training_enrollments SET status='WITHDRAWN',withdrawn_on=?,withdrawal_reason=?,withdrawal_evidence=?,version=version+1 WHERE id=?",date,text(p,"withdrawalReason",1000,true),text(p,"withdrawalEvidence",1000,true),key);
             d.jdbc.update("UPDATE equipment_loans SET return_status='RETURN_DUE',version=version+1 WHERE student_id=? AND class_id=? AND returned_at IS NULL",e.get("studentId"),uuid(e.get("classId").toString()));
-        }else if(action.equals("academic")){
-            // Administrative confirmation supplements, and never replaces, published lecturer results.
-            var candidate=new LinkedHashMap<>(e);candidate.put("recordsComplete",true);
-            if(!Boolean.TRUE.equals(closureConditions(candidate).get("academic")))throw conflict("Chưa đủ kết quả học tập đã công bố theo cấu hình khóa học");
-            text(p,"changeNote",1000,true);d.jdbc.update("UPDATE training_enrollments SET records_complete=TRUE,version=version+1 WHERE id=?",key);
+        }else if(Set.of("academic","academic-fail").contains(action)){
+            boolean passed=action.equals("academic");
+            if(e.get("academicCompletedAt")!=null||e.get("academicFailedAt")!=null)throw conflict("Kết quả khóa học đã được xác nhận");
+            var details=academicDetails(e);
+            if(!academicReviewReady(e,details))throw conflict("Cần chốt điểm danh toàn bộ lịch học và công bố đủ điểm trước khi xác nhận kết quả.");
+            if(passesAcademicRequirements(details)!=passed)throw conflict(passed
+                    ?"Học viên cần tham dự ít nhất 80% số buổi, đạt điểm cuối kỳ trên 4 và tổng điểm trên 5."
+                    :"Học viên đã đủ điều kiện hoàn thành khóa học.");
+            text(p,"changeNote",1000,true);
+            String outcomeColumn=passed?"academic_completed_at":"academic_failed_at";
+            d.jdbc.update("UPDATE training_enrollments SET records_complete=TRUE,"+outcomeColumn+"=CURRENT_TIMESTAMP,version=version+1 WHERE id=?",key);
+            Object contract=e.get("contractId");
+            int due=d.jdbc.update("""
+                    UPDATE equipment_loans SET return_status='RETURN_DUE',version=version+1
+                    WHERE student_id=? AND returned_at IS NULL AND (contract_id=? OR (contract_id IS NULL AND class_id=?))
+                    """,e.get("studentId"),contract==null?null:uuid(contract.toString()),uuid(e.get("classId").toString()));
+            notify(((Number)e.get("studentId")).longValue(),passed?"Đã hoàn thành khóa học":"Kết quả chưa đạt điều kiện hoàn thành khóa học",
+                    (passed?"Bạn đã được xác nhận hoàn thành lớp ":"Bạn chưa đủ điều kiện hoàn thành lớp ")+e.get("className")+"."
+                            +(due>0?" Vui lòng liên hệ bộ phận thiết bị để trả thiết bị đã mượn.":""),
+                    due>0?"StudentAssets":"StudentResults",null,u);
         }else{
-            if(!Boolean.TRUE.equals(closureConditions(e).get("ready")))throw conflict("Chưa đủ xác nhận học tập, thiết bị và tài chính để đóng hồ sơ");
-            boolean withdrawn="WITHDRAWN".equals(e.get("status"));d.jdbc.update("UPDATE training_enrollments SET status=?,closure_outcome=?,closed_at=CURRENT_TIMESTAMP,version=version+1 WHERE id=?",withdrawn?"WITHDRAWN":"COMPLETED",withdrawn?"WITHDRAWN":"COMPLETED",key);
+            if(!Boolean.TRUE.equals(closureConditions(e,null).get("ready")))throw conflict("Chưa đủ xác nhận học tập, thiết bị và tài chính để đóng hồ sơ");
+            boolean withdrawn="WITHDRAWN".equals(e.get("status"));
+            String outcome=withdrawn?"WITHDRAWN":e.get("academicFailedAt")!=null?"FAILED":"COMPLETED";
+            d.jdbc.update("UPDATE training_enrollments SET status=?,closure_outcome=?,closed_at=CURRENT_TIMESTAMP,version=version+1 WHERE id=?",withdrawn?"WITHDRAWN":"COMPLETED",outcome,key);
             if(e.get("contractId")!=null)d.jdbc.update("UPDATE training_contracts SET status=?,version=version+1 WHERE id=?",withdrawn?"CANCELLED":"COMPLETED",uuid(e.get("contractId").toString()));
             d.jdbc.update("UPDATE training_classes SET status='COMPLETED',version=version+1 WHERE id=? AND NOT EXISTS(SELECT 1 FROM training_enrollments en WHERE en.class_id=training_classes.id AND en.closed_at IS NULL)",uuid(e.get("classId").toString()));
         }return saved("TrainingClosureDetail",key);

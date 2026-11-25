@@ -17,8 +17,8 @@ public class WorkspaceService {
     final WorkflowData d;final CurrentUser current;final ScreenCatalog catalog;final ScreenPermissionsService permissions;
     final TrainingWorkflows training;final FinanceWorkflows finance;final EquipmentWorkflows equipment;final MasterDataService masters;final AdmissionProfiles profiles;
     final AdmissionDashboards admissionDashboards;final AdmissionForwarding admissionForwarding;final ContractTemplateData contractTemplate;final ContractSigningWorkflow signing;
-    final AdminClassPlanningService classPlanning;
-    public WorkspaceService(WorkflowData d,CurrentUser current,ScreenCatalog catalog,ScreenPermissionsService permissions,TrainingWorkflows training,FinanceWorkflows finance,EquipmentWorkflows equipment,MasterDataService masters,AdmissionProfiles profiles,AdmissionDashboards admissionDashboards,AdmissionForwarding admissionForwarding,ContractTemplateData contractTemplate,ContractSigningWorkflow signing,AdminClassPlanningService classPlanning){this.classPlanning=classPlanning;this.signing=signing;this.contractTemplate=contractTemplate;this.admissionForwarding=admissionForwarding;this.admissionDashboards=admissionDashboards;this.profiles=profiles;this.masters=masters;this.d=d;this.current=current;this.catalog=catalog;this.permissions=permissions;this.training=training;this.finance=finance;this.equipment=equipment;}
+    final AdminClassPlanningService classPlanning;final CourseRetakeService retakes;
+    public WorkspaceService(WorkflowData d,CurrentUser current,ScreenCatalog catalog,ScreenPermissionsService permissions,TrainingWorkflows training,FinanceWorkflows finance,EquipmentWorkflows equipment,MasterDataService masters,AdmissionProfiles profiles,AdmissionDashboards admissionDashboards,AdmissionForwarding admissionForwarding,ContractTemplateData contractTemplate,ContractSigningWorkflow signing,AdminClassPlanningService classPlanning,CourseRetakeService retakes){this.retakes=retakes;this.classPlanning=classPlanning;this.signing=signing;this.contractTemplate=contractTemplate;this.admissionForwarding=admissionForwarding;this.admissionDashboards=admissionDashboards;this.profiles=profiles;this.masters=masters;this.d=d;this.current=current;this.catalog=catalog;this.permissions=permissions;this.training=training;this.finance=finance;this.equipment=equipment;}
     User access(String code){var screen=catalog.get(code);User u=current.get();catalog.requireRole(screen,u.getRoleCode());permissions.require(screen.functionCode());return u;}
     private String pdfScreen(User actor){return switch(actor.getRoleCode()){
         case "MANAGER"->permissions.codes(actor).contains("TrainingContractDetail")?"TrainingContractDetail":"ContractSignature";
@@ -81,6 +81,7 @@ public class WorkspaceService {
     public Map<String,Object> view(String code,String id,String q,String status,int page,String from,String to,String tab,Integer year,String courseId){
         User u=access(code);if(code.startsWith("Reports_"))return report(code,u,from,to);
         if(code.equals("AdmissionContractSigning"))return signing.view(id,q,status,page,u);
+        if(code.equals("StudentRetake"))return retakes.view(id,u);
         String resource=resource(code);if(page<0||page>100000||q.length()>200||status.length()>40)throw invalid("filter","Bộ lọc không hợp lệ");
         if(code.equals("CourseSchedules")){if(id!=null)throw missing();return courseSchedules(u,q,status,page,year,courseId);}
         if(Set.of("ListAdmissionApplication","ListAdmissionEnrollment").contains(code)){
@@ -150,11 +151,15 @@ public class WorkspaceService {
             case "admissions"->{related.put("documents",profiles.documents(key));related.put("history",d.rows("SELECT n.id,n.outcome,n.channel,n.content,n.appointment_at,n.document_due_on,n.created_at,u.full_name AS actor_name,n.discontinuation_reason FROM consultation_notes n JOIN m_user u ON u.user_id=n.actor_id WHERE n.consultation_id=? ORDER BY n.created_at DESC,n.id",key));}
             case "students"->{long student=((Number)record.get("id")).longValue();related.put("enrollments",d.rows("SELECT e.id,e.class_id,e.status,c.code AS class_code,c.name AS class_name FROM training_enrollments e JOIN training_classes c ON c.id=e.class_id WHERE e.student_id=? AND "+learnerClassScope(u,"c","e.student_id","e.contract_id"),student));related.put("contracts",d.rows("SELECT id,code,course_name,status FROM ("+d.base("contracts",u)+") scoped WHERE student_id=?",student));}
             case "courses"->{related.put("assessments",d.rows("SELECT title,weight FROM course_assessments WHERE course_id=? ORDER BY title",key));related.put("lecturers",d.rows("SELECT l.lecturer_id AS id,u.full_name AS name FROM course_lecturers l JOIN m_user u ON u.user_id=l.lecturer_id WHERE l.course_id=?",key));related.put("classes",d.rows("SELECT id,code,name,status FROM training_classes c WHERE c.course_id=? AND "+(u.getRoleCode().equals("ADMIN")?"1=1":classScheduleScope(u,"c")),key));}
-            case "classes"->{related.put("students",d.rows("SELECT e.id AS enrollment_id,e.student_id,"+StudentCode.sql("e.student_id")+" AS student_code,u.full_name AS student_name,e.status,e.closed_at,e.assignment_status FROM training_enrollments e JOIN m_user u ON u.user_id=e.student_id JOIN training_classes cl ON cl.id=e.class_id WHERE e.class_id=? AND "+learnerClassScope(u,"cl","e.student_id","e.contract_id")+" ORDER BY u.full_name",key));
+            case "classes"->{related.put("students",d.rows("SELECT e.id AS enrollment_id,e.student_id,"+StudentCode.sql("e.student_id")+" AS student_code,u.full_name AS student_name,e.status,e.closed_at,e.academic_completed_at,e.academic_failed_at,e.assignment_status FROM training_enrollments e JOIN m_user u ON u.user_id=e.student_id JOIN training_classes cl ON cl.id=e.class_id WHERE e.class_id=? AND "+learnerClassScope(u,"cl","e.student_id","e.contract_id")+" ORDER BY u.full_name",key));
                 if(code.equals("ClassDetail")&&u.getRoleCode().equals("MANAGER"))related.put("unassignedStudents",training.unassignedStudents(id,u));
                 related.put("sessions",d.rows("SELECT id,title,starts_at,ends_at,room,attendance_finalized,version FROM training_sessions WHERE class_id=? ORDER BY starts_at",key));
                 if(code.equals("ClassGradebook")){
-                    related.put("assessments",d.rows("SELECT title,weight FROM course_assessments WHERE course_id=? ORDER BY title",record.get("courseId")==null?null:uuid(record.get("courseId").toString())));
+                    related.put("assessments",d.rows("""
+                            SELECT title,weight FROM course_assessments WHERE course_id=?
+                            ORDER BY CASE title WHEN 'Điểm kiểm tra lần 1' THEN 1 WHEN 'Điểm kiểm tra lần 2' THEN 2
+                                                WHEN 'Điểm kiểm tra cuối kỳ' THEN 3 ELSE 4 END,title
+                            """,record.get("courseId")==null?null:uuid(record.get("courseId").toString())));
                     related.put("grades",d.rows("SELECT g.* FROM training_grades g JOIN training_enrollments e ON e.id=g.enrollment_id JOIN training_classes cl ON cl.id=e.class_id WHERE e.class_id=? AND "+learnerClassScope(u,"cl","e.student_id","e.contract_id"),key));
                 }}
             case "sessions"->related.put("attendance",d.rows("SELECT e.student_id,"+StudentCode.sql("e.student_id")+" AS student_code,u.full_name AS student_name,a.id,a.status,a.note,a.version FROM training_enrollments e JOIN m_user u ON u.user_id=e.student_id JOIN training_classes cl ON cl.id=e.class_id LEFT JOIN training_attendance a ON a.student_id=e.student_id AND a.session_id=? WHERE e.class_id=? AND e.status='ACTIVE'"+(u.getRoleCode().equals("STUDENT")?" AND e.student_id="+u.id:"")+" AND "+learnerClassScope(u,"cl","e.student_id","e.contract_id")+" ORDER BY u.full_name",key,uuid(record.get("classId").toString())));
@@ -163,10 +168,19 @@ public class WorkspaceService {
                 if(u.getRoleCode().equals("MANAGER")&&record.get("consultationId")!=null)related.put("documents",profiles.documents(uuid(record.get("consultationId").toString())));
                 related.put("transactions",d.rows("SELECT t.id,t.kind,t.amount,t.status,t.created_at,t.confirmed_at FROM financial_transactions t WHERE t.contract_id=?"+(u.getRoleCode().equals("STUDENT")?" AND t.status='CONFIRMED'":"")+" ORDER BY t.created_at DESC",key));
                 related.put("instruction",d.rows("SELECT content,version,updated_at FROM payment_instructions WHERE contract_id=?",key));
-                if(code.equals("DepositRefund")){related.put("loans",d.rows("SELECT l.id,a.code AS asset_code,l.return_status,l.return_condition,l.returned_at FROM equipment_loans l JOIN equipment_assets a ON a.id=l.asset_id WHERE l.contract_id=?",key));related.put("incidents",d.rows("SELECT i.id,i.description,i.status,i.approved_amount,i.approval_reference,i.settled_at FROM equipment_incidents i JOIN equipment_loans l ON l.id=i.loan_id WHERE l.contract_id=?",key));related.put("settlements",d.rows("SELECT id,deposit_amount,deduction_amount,refund_amount,recipient,bank_reference,evidence,created_at FROM deposit_settlements WHERE contract_id=?",key));}}
+                if(code.equals("DepositRefund")&&u.getRoleCode().equals("ACCOUNTANT")){
+                    related.put("loans",d.rows("SELECT l.id,a.code AS asset_code,l.return_status,l.return_condition,l.returned_at FROM equipment_loans l JOIN equipment_assets a ON a.id=l.asset_id WHERE l.contract_id=?",key));
+                    related.put("incidents",d.rows("SELECT i.id,i.description,i.status,i.approved_amount,i.approval_reference,i.settled_at FROM equipment_incidents i JOIN equipment_loans l ON l.id=i.loan_id WHERE l.contract_id=?",key));
+                    related.put("settlements",d.rows("SELECT id,deposit_amount,deduction_amount,refund_amount,recipient,bank_reference,evidence,created_at FROM deposit_settlements WHERE contract_id=?",key));
+                    finance.attachRefundReview(related,record);
+                }}
             case "assets"->{related.put("history",d.rows("SELECT l.id,l.student_id,u.full_name AS student_name,l.received_at,l.returned_at,l.return_status FROM equipment_loans l JOIN m_user u ON u.user_id=l.student_id WHERE l.asset_id=? ORDER BY l.received_at DESC",key));related.put("maintenance",d.rows("SELECT m.*,u.full_name AS owner_name FROM asset_maintenance m JOIN m_user u ON u.user_id=m.owner_id WHERE m.asset_id=? ORDER BY m.discovered_on DESC",key));}
             case "requests"->{related.put("loans",d.rows("SELECT l.id,a.code AS asset_code,a.name AS asset_name,l.received_at,l.receipt_evidence,l.return_status FROM equipment_loans l JOIN equipment_assets a ON a.id=l.asset_id WHERE l.request_id=?",key));}
-            case "closures"->related.put("conditions",training.closureConditions(record));
+            case "loans"->{
+                if(u.getRoleCode().equals("IT_SUPPORT")&&Set.of("ListAssetDetail","Recovery_Withdrawal").contains(code)&&record.get("contractId")!=null){
+                    finance.attachRefundReview(related,d.one("SELECT id,status,student_id,version FROM training_contracts WHERE id=?",uuid(record.get("contractId").toString())));
+                }}
+            case "closures"->related.put("conditions",training.closureConditions(record,u));
             default->{}
         }
         return related;
@@ -203,7 +217,7 @@ public class WorkspaceService {
             case "TrainingContractDetail"->out.put("admissionsStaff",d.rows("SELECT user_id AS id,full_name AS name FROM m_user u WHERE role_id=7 AND account_enabled=TRUE AND account_locked=FALSE AND EXISTS(SELECT 1 FROM role_function rf WHERE rf.role_id=u.role_id AND rf.function_code='AdmissionContractSigning') ORDER BY full_name"));
             case "ContractSignature"->out.put("accountants",d.rows("SELECT user_id AS id,full_name AS name FROM m_user WHERE role_id=4 AND account_enabled=TRUE AND account_locked=FALSE ORDER BY full_name"));
             case "TimeTable_EditSession","TimeTable_Manager","TimeTable_Conflict"->{out.put("classes",d.rows("SELECT scoped.* FROM ("+d.base("classes",u)+") scoped WHERE status IN ('PLANNED','ACTIVE') ORDER BY code"));out.put("classrooms",masters.choices("classrooms"));}
-            case "AddEquipmentRequest"->{out.put("classes",choices("classes",u));out.put("students",d.rows("SELECT DISTINCT s.user_id AS id,s.full_name AS name,e.class_id FROM training_enrollments e JOIN m_user s ON s.user_id=e.student_id JOIN training_classes c ON c.id=e.class_id WHERE e.status='ACTIVE' AND "+classScope(u,"c")));}
+            case "AddEquipmentRequest"->{out.put("classes",choices("classes",u));out.put("students",d.rows("SELECT DISTINCT s.user_id AS id,s.full_name AS name,e.class_id FROM training_enrollments e JOIN m_user s ON s.user_id=e.student_id JOIN training_classes c ON c.id=e.class_id WHERE e.status='ACTIVE' AND e.academic_completed_at IS NULL AND e.academic_failed_at IS NULL AND "+classScope(u,"c")));}
             case "AssetHandover"->out.put("assets",d.rows("SELECT id,code,name FROM equipment_assets WHERE status='AVAILABLE' ORDER BY code"));
             case "AssetMaintenance"->{out.put("assets",choices("assets",u));out.put("itUsers",d.rows("SELECT user_id AS id,full_name AS name FROM m_user WHERE role_id=5 AND account_enabled=TRUE AND account_locked=FALSE ORDER BY full_name"));}
             case "SendNotification"->out.put("students",choices("students",u));
@@ -251,7 +265,13 @@ public class WorkspaceService {
             case "ClassGradebook:publish"->training.grades(requiredId,p,u,true);
             case "EquipmentRequestDetail_IT:prepare","EquipmentRequestDetail_IT:ready","EquipmentRequestDetail_IT:reject"->equipment.requestState(requiredId,p,u,action);
             case "AssetDetail:complete-maintenance"->equipment.completeMaintenance(requiredId,p,u);
-            case "ListAssetDetail:confirm","Recovery_Withdrawal:confirm"->equipment.recover(requiredId,p,u);
+            case "ListAssetDetail:confirm","Recovery_Withdrawal:confirm"->{
+                var result=equipment.recover(requiredId,p,u);
+                for(var enrollment:retakes.failedEnrollmentsForLoan(uuid(requiredId)))
+                    retakes.offerIfReadyForEnrollment(uuid(enrollment.get("id").toString()),u);
+                yield result;
+            }
+            case "ListAssetDetail:request-refund","Recovery_Withdrawal:request-refund"->finance.requestRefund(code,requiredId,p,u);
             case "ListAssetIncident:create"->equipment.incident(null,p,u);
             case "AssetIncidentDetail:save"->equipment.incident(requiredId,p,u);
             case "AssetIncidentDetail_Accountant:settle"->finance.incident(requiredId,p,u);
@@ -259,7 +279,13 @@ public class WorkspaceService {
             case "PaymentDetail:confirm","PaymentDetail:mismatch","PaymentDetail_Mismatch:resolve"->finance.payment(requiredId,p,u,action);
             case "TuitionDetail:activate-zero"->finance.activateZeroTuition(requiredId,p,u);
             case "TrainingClosureDetail:academic"->training.close(requiredId,p,u,action);
+            case "TrainingClosureDetail:academic-fail"->{
+                var result=training.close(requiredId,p,u,action);
+                retakes.offerIfReadyForEnrollment(uuid(requiredId),u);
+                yield result;
+            }
             case "TrainingClosureDetail_Ready:close","TrainingClosureDetail_Withdrawal:close"->training.close(requiredId,p,u,action);
+            case "StudentRetake:register"->retakes.register(requiredId,p,u);
             case "ViewNotification:read","ListNotification:read"->{UUID key=uuid(requiredId);d.record("notifications",requiredId,u);d.jdbc.update("UPDATE user_notifications SET read_at=COALESCE(read_at,CURRENT_TIMESTAMP) WHERE id=? AND recipient_id=?",key,u.id);yield TrainingWorkflows.saved("ViewNotification",key);}
             default->throw new AccessDeniedException("Không có quyền thực hiện thao tác này");
         };

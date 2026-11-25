@@ -62,7 +62,7 @@ class AdminWorkspaceIntegrationTest {
                 .andExpect(jsonPath("$.createdAt").isEmpty()).andExpect(jsonPath("$.lastLoginAt").isEmpty()).andReturn();
         String raw=result.getResponse().getContentAsString(StandardCharsets.UTF_8);
         for(String secret:List.of(password,student.passwordHash,"passwordHash","credentialsVersion","resetToken","codeHash"))assertFalse(raw.contains(secret));
-        assertEquals(12,body(result).path("functions").size());
+        assertEquals(13,body(result).path("functions").size());
         assertEquals(before,jdbc.queryForObject("SELECT COUNT(*) FROM system_audit_log",Long.class));
         User unchanged=users.findById(student.id).orElseThrow();assertEquals(student.fullName,unchanged.fullName);assertEquals(0,unchanged.adminVersion);assertEquals(0,unchanged.credentialsVersion);assertEquals(student.passwordHash,unchanged.passwordHash);
     }
@@ -109,13 +109,14 @@ class AdminWorkspaceIntegrationTest {
     @Test void profileReflectsCurrentRoleGrantsAndMissingUsersReturn404() throws Exception {
         jdbc.update("DELETE FROM role_function WHERE role_id=3 AND function_code='PROFILE'");
         JsonNode result=body(mvc.perform(get("/api/admin/users/"+student.id+"/profile").with(user(admin.email).roles("ADMIN"))).andExpect(status().isOk()).andReturn());
-        assertEquals(11,result.path("functions").size());assertEquals("DASHBOARD",result.path("functions").get(0).path("code").asText());
+        assertEquals(12,result.path("functions").size());assertEquals("DASHBOARD",result.path("functions").get(0).path("code").asText());
         mvc.perform(get("/api/admin/users/"+Long.MAX_VALUE+"/profile").with(user(admin.email).roles("ADMIN"))).andExpect(status().isNotFound());
     }
 
     @Test void migratedFunctionsAndDefaultGrantsMatchSevenRoles() throws Exception {
-        JsonNode source=matrix();assertEquals(7,source.path("roles").size());assertEquals(104,source.path("functions").size());
+        JsonNode source=matrix();assertEquals(7,source.path("roles").size());assertEquals(105,source.path("functions").size());
         assertEquals(List.of(7L),jdbc.queryForList("SELECT role_id FROM role_function WHERE function_code='AdmissionContractSigning'",Long.class));
+        assertEquals(List.of(3L),jdbc.queryForList("SELECT role_id FROM role_function WHERE function_code='StudentRetake'",Long.class));
         assertEquals(7,jdbc.queryForObject("SELECT COUNT(*) FROM role_function WHERE function_code='PROFILE'",Integer.class));
         assertEquals(1,jdbc.queryForObject("SELECT COUNT(*) FROM role_function WHERE function_code='USER_ACCOUNTS'",Integer.class));
         mvc.perform(get("/api/admin/settings").with(user(student.email).roles("ADMIN"))).andExpect(status().isForbidden());
