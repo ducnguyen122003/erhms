@@ -93,17 +93,21 @@ public class WorkspaceService {
         if(code.equals("ListAdmissionApplication"))result.put("canImport",u.getRoleCode().equals("HR"));
         if(id!=null){var record=d.record(resource,id,u);result.put("record",record);result.put("related",related(code,resource,record,u));
             if(code.equals("ContractSignature"))result.put("canWrite","SIGNATURE_REVIEW".equals(record.get("status"))&&record.get("signedScanFileId")!=null);
-            if(Set.of("TrainingContractDetail","ContractSignature").contains(code)&&u.getRoleCode().equals("MANAGER")&&record.get("consultationId")!=null){var assigned=d.rows("SELECT assigned_to FROM consultation_followups WHERE consultation_id=?",uuid(record.get("consultationId").toString()));record.put("defaultAdmissionsId",assigned.isEmpty()?null:assigned.get(0).get("assignedTo"));}
             if(Set.of("contracts","tuition","deposits").contains(resource)){contractTemplate.attachRecord(record,u);result.put("canExportContract",pdfScreen(u)!=null&&permissions.codes(u).contains(pdfScreen(u)));}
             if(resource.equals("admissions")){
                 boolean canConsult=u.getRoleCode().equals("HR")&&!"NOT_PROCEEDING".equals(record.get("status"))&&!AdmissionProfiles.submitted(record)&&permissions.codes(u).contains("AdmissionConsultation");
                 result.put("canConsult",canConsult);if(code.equals("AdmissionConsultation"))result.put("canWrite",canConsult);
             }
             if(code.equals("ListAdmissionApplicationDetail")){
+                if(u.getRoleCode().equals("HR")){
+                    String email=Objects.toString(record.get("email"),"").strip().toLowerCase(Locale.ROOT);
+                    record.put("emailHasAccount",!email.isEmpty()&&d.count("SELECT COUNT(*) FROM m_user WHERE LOWER(TRIM(email))=?",email)>0);
+                }
                 boolean canUpload=u.getRoleCode().equals("HR")&&permissions.codes(u).contains("AdmissionConsultation");
-                result.put("canSubmitProfile",canUpload&&"DOCUMENT_APPOINTMENT".equals(record.get("status"))&&record.get("documentDueOn")!=null);
+                result.put("canSubmitProfile",canUpload&&AdmissionProfiles.canSubmit(record));
                 result.put("canEditProfile",canUpload&&AdmissionProfiles.submitted(record));
                 result.put("canEditCourse",canUpload&&record.get("forwardedAt")==null);
+                result.put("canEditEmail",canUpload&&TrainingWorkflows.canEditAdmissionEmail(record));
             }}
         else if(!Set.of("AddCourse","AddClass","AddTrainingContract","AddEquipmentRequest","AddAsset","SendNotification").contains(code)){
             long total;
@@ -150,7 +154,7 @@ public class WorkspaceService {
         switch(resource){
             case "admissions"->{related.put("documents",profiles.documents(key));related.put("history",d.rows("SELECT n.id,n.outcome,n.channel,n.content,n.appointment_at,n.document_due_on,n.created_at,u.full_name AS actor_name,n.discontinuation_reason FROM consultation_notes n JOIN m_user u ON u.user_id=n.actor_id WHERE n.consultation_id=? ORDER BY n.created_at DESC,n.id",key));}
             case "students"->{long student=((Number)record.get("id")).longValue();related.put("enrollments",d.rows("SELECT e.id,e.class_id,e.status,c.code AS class_code,c.name AS class_name FROM training_enrollments e JOIN training_classes c ON c.id=e.class_id WHERE e.student_id=? AND "+learnerClassScope(u,"c","e.student_id","e.contract_id"),student));related.put("contracts",d.rows("SELECT id,code,course_name,status FROM ("+d.base("contracts",u)+") scoped WHERE student_id=?",student));}
-            case "courses"->{related.put("assessments",d.rows("SELECT title,weight FROM course_assessments WHERE course_id=? ORDER BY title",key));related.put("lecturers",d.rows("SELECT l.lecturer_id AS id,u.full_name AS name FROM course_lecturers l JOIN m_user u ON u.user_id=l.lecturer_id WHERE l.course_id=?",key));related.put("classes",d.rows("SELECT id,code,name,status FROM training_classes c WHERE c.course_id=? AND "+(u.getRoleCode().equals("ADMIN")?"1=1":classScheduleScope(u,"c")),key));}
+            case "courses"->{related.put("assessments",d.rows("SELECT title,weight FROM course_assessments WHERE course_id=? ORDER BY title",key));related.put("lecturers",d.rows("SELECT l.lecturer_id AS id,u.full_name AS name FROM course_lecturers l JOIN m_user u ON u.user_id=l.lecturer_id WHERE l.course_id=?",key));related.put("classes",d.rows("SELECT id,code,name,"+classStatusSql("c",LocalDate.now(ZoneId.of("Asia/Ho_Chi_Minh")))+" AS status FROM training_classes c WHERE c.course_id=? AND "+(u.getRoleCode().equals("ADMIN")?"1=1":classScheduleScope(u,"c")),key));}
             case "classes"->{related.put("students",d.rows("SELECT e.id AS enrollment_id,e.student_id,"+StudentCode.sql("e.student_id")+" AS student_code,u.full_name AS student_name,e.status,e.closed_at,e.academic_completed_at,e.academic_failed_at,e.assignment_status FROM training_enrollments e JOIN m_user u ON u.user_id=e.student_id JOIN training_classes cl ON cl.id=e.class_id WHERE e.class_id=? AND "+learnerClassScope(u,"cl","e.student_id","e.contract_id")+" ORDER BY u.full_name",key));
                 if(code.equals("ClassDetail")&&u.getRoleCode().equals("MANAGER"))related.put("unassignedStudents",training.unassignedStudents(id,u));
                 related.put("sessions",d.rows("SELECT id,title,starts_at,ends_at,room,attendance_finalized,version FROM training_sessions WHERE class_id=? ORDER BY starts_at",key));
@@ -160,7 +164,8 @@ public class WorkspaceService {
                             ORDER BY CASE title WHEN 'Điểm kiểm tra lần 1' THEN 1 WHEN 'Điểm kiểm tra lần 2' THEN 2
                                                 WHEN 'Điểm kiểm tra cuối kỳ' THEN 3 ELSE 4 END,title
                             """,record.get("courseId")==null?null:uuid(record.get("courseId").toString())));
-                    related.put("grades",d.rows("SELECT g.* FROM training_grades g JOIN training_enrollments e ON e.id=g.enrollment_id JOIN training_classes cl ON cl.id=e.class_id WHERE e.class_id=? AND "+learnerClassScope(u,"cl","e.student_id","e.contract_id"),key));
+                    related.put("grades",d.rows("SELECT g.* FROM training_grades g JOIN training_enrollments e ON e.id=g.enrollment_id JOIN training_classes cl ON cl.id=e.class_id WHERE e.class_id=? AND (g.published_at IS NULL OR g.score IS NOT NULL) AND "
+                            +learnerClassScope(u,"cl","e.student_id","e.contract_id")+" "+GRADEBOOK_GRADE_ORDER,key));
                 }}
             case "sessions"->related.put("attendance",d.rows("SELECT e.student_id,"+StudentCode.sql("e.student_id")+" AS student_code,u.full_name AS student_name,a.id,a.status,a.note,a.version FROM training_enrollments e JOIN m_user u ON u.user_id=e.student_id JOIN training_classes cl ON cl.id=e.class_id LEFT JOIN training_attendance a ON a.student_id=e.student_id AND a.session_id=? WHERE e.class_id=? AND e.status='ACTIVE'"+(u.getRoleCode().equals("STUDENT")?" AND e.student_id="+u.id:"")+" AND "+learnerClassScope(u,"cl","e.student_id","e.contract_id")+" ORDER BY u.full_name",key,uuid(record.get("classId").toString())));
             case "contracts","tuition","deposits"->{
@@ -214,8 +219,6 @@ public class WorkspaceService {
                 for(var cl:classes)cl.put("remainingSlots",Math.max(0,((Number)cl.get("capacity")).longValue()-ClassReservations.occupied(d,uuid(cl.get("id").toString()),excluded)));
                 out.put("classes",classes);
             }
-            case "TrainingContractDetail"->out.put("admissionsStaff",d.rows("SELECT user_id AS id,full_name AS name FROM m_user u WHERE role_id=7 AND account_enabled=TRUE AND account_locked=FALSE AND EXISTS(SELECT 1 FROM role_function rf WHERE rf.role_id=u.role_id AND rf.function_code='AdmissionContractSigning') ORDER BY full_name"));
-            case "ContractSignature"->out.put("accountants",d.rows("SELECT user_id AS id,full_name AS name FROM m_user WHERE role_id=4 AND account_enabled=TRUE AND account_locked=FALSE ORDER BY full_name"));
             case "TimeTable_EditSession","TimeTable_Manager","TimeTable_Conflict"->{out.put("classes",d.rows("SELECT scoped.* FROM ("+d.base("classes",u)+") scoped WHERE status IN ('PLANNED','ACTIVE') ORDER BY code"));out.put("classrooms",masters.choices("classrooms"));}
             case "AddEquipmentRequest"->{out.put("classes",choices("classes",u));out.put("students",d.rows("SELECT DISTINCT s.user_id AS id,s.full_name AS name,e.class_id FROM training_enrollments e JOIN m_user s ON s.user_id=e.student_id JOIN training_classes c ON c.id=e.class_id WHERE e.status='ACTIVE' AND e.academic_completed_at IS NULL AND e.academic_failed_at IS NULL AND "+classScope(u,"c")));}
             case "AssetHandover"->out.put("assets",d.rows("SELECT id,code,name FROM equipment_assets WHERE status='AVAILABLE' ORDER BY code"));
@@ -253,10 +256,18 @@ public class WorkspaceService {
         User u=access(code);String requiredId=required(id);
         return switch(code+":"+action){
             case "TrainingContractDetail:send-for-signature"->{permissions.require("ContractSignature");yield signing.send(requiredId,p,u);}
+            case "ListTrainingContract:send-for-signature"->{
+                permissions.require("ContractSignature");
+                var result=signing.send(requiredId,p,u);
+                yield Map.of("screen","ListTrainingContract","id",requiredId,"notice",result.get("notice"));
+            }
+            case "ListTrainingContract:send-for-signature-batch"->{permissions.require("ContractSignature");yield signing.sendBatch(p,u);}
+            case "ListTrainingContract:delete-draft"->{permissions.require("EditTrainingContract");yield training.deleteDraft(requiredId,p,u);}
             case "AdmissionContractSigning:submit-scan"->signing.submit(requiredId,p,u);
             case "ListAdmissionApplicationDetail:submit-profile"->{permissions.require("AdmissionConsultation");yield profiles.submit(requiredId,p,u);}
             case "ListAdmissionApplicationDetail:update-profile"->{permissions.require("AdmissionConsultation");yield profiles.update(requiredId,p,u);}
             case "ListAdmissionApplicationDetail:update-course"->{permissions.require("AdmissionConsultation");yield profiles.updateCourse(requiredId,p,u);}
+            case "ListAdmissionApplicationDetail:update-email"->{permissions.require("AdmissionConsultation");yield training.updateAdmissionEmail(requiredId,p,u);}
             case "ListAdmissionEnrollment:forward-profiles"->{permissions.require("AdmissionConsultation");yield admissionForwarding.forward(p,u);}
             case "ClassDetail:add-students"->training.addClassStudents(requiredId,p,u);
             case "AutoAssignmentDetail:confirm"->training.assignment(requiredId,p,u);

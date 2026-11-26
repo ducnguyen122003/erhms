@@ -776,19 +776,14 @@
     "proposedRoles": [],
     "public": false,
     "scope": "Đăng ký tư vấn, hợp đồng và trạng thái học phí của hồ sơ được phân công phụ trách.",
-    "actions": [
-      [
-        "Ghi nhận tư vấn",
-        "AdmissionConsultation"
-      ]
-    ],
+    "actions": [],
     "variant": "Màn hình chính",
     "kind": "detail",
     "functionCode": "ListAdmissionApplicationDetail",
-    "description": "Ghi nhận tư vấn và quyết định tiếp nhận theo nhu cầu người đăng ký.",
+    "description": "Chọn khóa học, cập nhật email và tiếp nhận giấy tờ của học viên.",
     "tabs": [
       "Thông tin đăng ký",
-      "Lịch sử tư vấn",
+      "Lịch sử xử lý",
       "Tài liệu"
     ],
     "back": "ListAdmissionApplication",
@@ -1993,11 +1988,11 @@
     "proposedRoles": [],
     "public": false,
     "scope": "Lớp, buổi dạy và học viên thuộc phân công; yêu cầu thiết bị trong phạm vi phụ trách. Role xem chéo chỉ đọc dữ liệu liên quan nhiệm vụ; ẩn các nút thay đổi của role chủ trì.",
-    "actions": "Lecturer nhập và công bố điểm của lớp được giao. Quản lý sinh viên chỉ xem để tổng hợp / hoàn tất đào tạo; ẩn nút nhập, lưu và công bố.",
+    "actions": "Giảng viên lưu nháp và công bố từng thành phần khi đủ điểm của lớp. Quản lý học viên được xem bảng điểm.",
     "variant": "Màn hình chính",
     "kind": "gradebook",
     "functionCode": "ClassGradebook",
-    "description": "Theo dõi và xử lý dữ liệu mới nhất trong phạm vi được phân công.",
+    "description": "Nhập, lưu nháp và công bố điểm theo từng thành phần của lớp.",
     "sections": []
   },
   {
@@ -2063,6 +2058,17 @@
       "Tất cả trạng thái"
     ],
     "sections": []
+  },
+  {
+    "code": "InitialEquipmentRequests",
+    "fe": "FE-13",
+    "title": "Cấp thiết bị ban đầu",
+    "roles": ["LECTURER"],
+    "public": false,
+    "kind": "list",
+    "functionCode": "ListEquipmentRequest",
+    "description": "Tạo yêu cầu cấp thiết bị lần đầu cho nhiều học viên cùng lớp.",
+    "back": "ListEquipmentRequest"
   },
   {
     "code": "AddEquipmentRequest",
@@ -3521,7 +3527,7 @@
     "public": false,
     "kind": "list",
     "functionCode": "AdmissionContractSigning",
-    "scope": "Chỉ hợp đồng được QLHV giao cho nhân viên tuyển sinh hiện tại.",
+    "scope": "Hợp đồng được chuyển về nhân viên tuyển sinh đã chuyển hồ sơ sang học vụ.",
     "description": "In hợp đồng, lấy chữ ký học viên và gửi bản scan cho QLHV xác nhận.",
     "sections": []
   },

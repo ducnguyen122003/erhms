@@ -1,13 +1,38 @@
 export const signingStates=['SENT_FOR_SIGNATURE','SIGNATURE_REVIEW','SIGNED','ACTIVE','COMPLETED'];
 
-export function canSendContract(record={}){return record.status==='DRAFT';}
+export const draftSendLimit=20;
+
+export function canSendContract(record={}){
+ return record.status==='DRAFT'
+  &&!['signatureSentAt','signatureSubmittedAt','signatureApprovedAt','printFileId','signedScanFileId','signedOn','handedOverAt'].some(field=>record[field]!=null)
+  &&!String(record.signatureEvidence??'').trim();
+}
+
+export function changeDraftSelection(selection,rows,checked){
+ const next=new Map(selection);
+ for(const row of rows){
+  if(!checked)next.delete(row.id);
+  else if(canSendContract(row)&&next.size<draftSendLimit)next.set(row.id,row);
+ }
+ return next;
+}
+
+export function refreshDraftSelection(selection,rows){
+ const stale=rows.filter(row=>selection.has(row.id)&&(!canSendContract(row)||selection.get(row.id).version!==row.version));
+ return stale.length?changeDraftSelection(selection,stale,false):selection;
+}
+
 export function canSubmitSignedScan(record={}){return record.status==='SENT_FOR_SIGNATURE';}
 export function canReviewSignedScan(record={}){return record.status==='SIGNATURE_REVIEW'&&Boolean(record.signedScanFileId);}
 export function canProvisionContract(record={}){return ['SIGNED','ACTIVE','COMPLETED'].includes(record.status)&&Boolean(record.signatureApprovedAt);}
 
 export function signingReviewFields(fields,values={}){
  const approving=values.decision!=='REJECT';
- return fields.filter(field=>approving||!['accountantId','handoverNote'].includes(field.key)).map(field=>field.key==='reviewNote'?{...field,label:approving?'Ý kiến xác nhận (nếu có)':'Lý do yêu cầu ký / scan lại',required:!approving}:field);
+ return fields.filter(field=>approving||field.key!=='handoverNote').map(field=>field.key==='reviewNote'?{...field,label:approving?'Ý kiến xác nhận (nếu có)':'Lý do yêu cầu ký / scan lại',required:!approving}:field);
+}
+
+export function signingReviewPayload({version,decision,reviewNote,handoverNote}){
+ return {version,decision,reviewNote,...(decision==='APPROVE'?{handoverNote}:{})};
 }
 
 export function validateSignedScan(file){

@@ -25,6 +25,14 @@ test('lecturer gradebooks return to the grade entry class list',()=>{
  assert.deepEqual(paths(updateBreadcrumbTrail(trail,list,teacher,functions)),['/dashboard/lecturer',list]);
 });
 
+test('the initial equipment screen has the request list as its breadcrumb parent',()=>{
+ const user=actor('LECTURER'),functions=grants(user.role);
+ const list='/screens/ListEquipmentRequest',initial='/screens/InitialEquipmentRequests';
+ const trail=initialBreadcrumbTrail(initial,user,functions);
+ assert.deepEqual(paths(trail),['/dashboard/lecturer',list,initial]);
+ assert.deepEqual(paths(updateBreadcrumbTrail(trail,list,user,functions)),['/dashboard/lecturer',list]);
+});
+
 test('admin account list, detail and edit have precise clickable parents and retain list queries',()=>{
  const functions=grants('ADMIN'),list='/admin/users?status=ACTIVE#results',detail='/admin/users/51/view',edit='/admin/users/51/edit';
  let trail=initialBreadcrumbTrail('/dashboard/admin',admin,functions);

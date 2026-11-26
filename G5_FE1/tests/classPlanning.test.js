@@ -46,9 +46,11 @@ test('contract class choices keep only the registered course with seats and pres
  const options={admissions:[{id:'admission',enrollmentCourse:'Laptop'}],courses:[{id:'laptop',name:'Laptop'}],classes:[
   {id:'open',courseId:'laptop',status:'PLANNED',remainingSlots:5},
   {id:'full',courseId:'laptop',status:'ACTIVE',remainingSlots:0},
+  {id:'duplicate-name',courseId:'other-laptop',courseName:'Laptop',status:'PLANNED',remainingSlots:5},
   {id:'other',courseId:'pc',courseName:'PC',status:'PLANNED',remainingSlots:5},
   {id:'closed',courseId:'laptop',status:'COMPLETED',remainingSlots:5}
  ]};
- assert.deepEqual(contractClassChoices({consultationId:'admission'},options).map(row=>row.id),['open']);
- assert.deepEqual(contractClassChoices({consultationId:'admission',classId:'full'},options).map(row=>row.id),['open','full']);
+ assert.deepEqual(contractClassChoices({consultationId:'admission'},options),[]);
+ assert.deepEqual(contractClassChoices({consultationId:'admission',courseId:'laptop'},options).map(row=>row.id),['open']);
+ assert.deepEqual(contractClassChoices({consultationId:'admission',courseId:'laptop',classId:'full'},options).map(row=>row.id),['open','full']);
 });

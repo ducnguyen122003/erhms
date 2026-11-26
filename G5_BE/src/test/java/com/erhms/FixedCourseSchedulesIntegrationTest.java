@@ -6,6 +6,7 @@ import com.erhms.user.repository.UserRepository;
 import com.erhms.workspace.FixedCourseCatalog;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import java.math.BigDecimal;
 import java.nio.charset.StandardCharsets;
 import java.time.OffsetDateTime;
 import java.util.*;
@@ -63,6 +64,9 @@ class FixedCourseSchedulesIntegrationTest {
         jdbc.update("INSERT INTO training_grades(id,enrollment_id,title,score) VALUES (?,?,'Đầu điểm nháp cũ',8)",historicalDraft,enrollmentId);
 
         String first="Điểm kiểm tra lần 1", second="Điểm kiểm tra lần 2", finalExam="Điểm kiểm tra cuối kỳ";
+        UUID historicalBlank=UUID.randomUUID();
+        jdbc.update("INSERT INTO training_grades(id,enrollment_id,title,published_at) VALUES (?,?,?,?)",
+                historicalBlank,enrollmentId,finalExam,originalPublication);
         for(UUID course : FixedCourseCatalog.IDS){
             assertEquals(3,jdbc.queryForObject("SELECT COUNT(*) FROM course_assessments WHERE course_id=?",Integer.class,course));
             assertEquals(100,jdbc.queryForObject("SELECT SUM(weight) FROM course_assessments WHERE course_id=?",Integer.class,course));
@@ -84,12 +88,19 @@ class FixedCourseSchedulesIntegrationTest {
                 values("enrollmentId", enrollmentId, "title", second, "score", 9),
                 values("enrollmentId", enrollmentId, "title", finalExam, "score", 10));
         var grades = values("version", version, "records", records);
-        write(otherTeacher, gradebook + "/actions/publish", grades).andExpect(status().isNotFound());
+        write(otherTeacher, gradebook + "/actions/publish", values("version",version,"assessmentTitle",first,"records",List.of(records.get(0))))
+                .andExpect(status().isNotFound());
         write(teacher, gradebook + "/actions/save", values("version",version,"records",
                 List.of(values("enrollmentId",enrollmentId,"title",finalExam,"score",10.25)))).andExpect(status().isBadRequest());
-        write(teacher, gradebook + "/actions/publish", values("version",version,"records",records.subList(0,2)))
+        write(teacher, gradebook + "/actions/publish", values("version",version,"assessmentTitle",finalExam,"records",List.of()))
                 .andExpect(status().isConflict());
-        write(teacher, gradebook + "/actions/publish", grades).andExpect(status().isOk());
+        write(teacher, gradebook + "/actions/save", grades).andExpect(status().isOk());
+        int nextVersion=version+1;
+        for(String title:List.of(first,second,finalExam)){
+            write(teacher,gradebook+"/actions/publish",values("version",nextVersion,"assessmentTitle",title,"records",List.of()))
+                    .andExpect(status().isOk());
+            nextVersion++;
+        }
         var results = body(read(student,"StudentResults").andExpect(status().isOk()).andReturn());
         assertEquals(4,results.path("total").asInt());
         Map<String,Double> scores = new HashMap<>();
@@ -97,8 +108,9 @@ class FixedCourseSchedulesIntegrationTest {
         assertEquals(Map.of(first,8.5,second,9d,finalExam,10d,"Điểm tổng kết",7.5),scores);
         assertEquals(originalPublication.toInstant(),jdbc.queryForObject("SELECT published_at FROM training_grades WHERE id=?",OffsetDateTime.class,historicalGrade).toInstant());
         assertNull(jdbc.queryForObject("SELECT published_at FROM training_grades WHERE id=?",OffsetDateTime.class,historicalDraft));
+        assertNull(jdbc.queryForObject("SELECT score FROM training_grades WHERE id=?",BigDecimal.class,historicalBlank));
 
-        grades.put("version",version+1);
+        grades.put("version",nextVersion);
         write(teacher,gradebook+"/actions/save",grades).andExpect(status().isOk());
         read(student,"StudentResults").andExpect(status().isOk()).andExpect(jsonPath("$.total").value(4));
     }

@@ -1,0 +1,25 @@
+.contract-draft-toolbar {
+ display: flex;
+ align-items: center;
+ gap: 14px;
+ flex-wrap: wrap;
+ padding: 0 24px 14px;
+ font-size: 12px;
+}
+.contract-draft-toolbar > button:last-child { margin-left: auto; }
+.admin-table.contract-draft-table .contract-draft-select { width: 1%; padding-inline: 24px 0; }
+.admin-table.contract-draft-table td:last-child { width: 200px; min-width: 140px; }
+.contract-draft-table .contract-draft-select input {
+ width: 16px;
+ height: 16px;
+ min-height: 0;
+ padding: 0;
+ accent-color: #17674d;
+ vertical-align: middle;
+}
+.contract-draft-table .contract-draft-selected { background: #f3f9f5; }
+.contract-draft-actions { display: flex; flex-wrap: wrap; column-gap: 14px; }
+.contract-draft-actions .admin-text-button { gap: 6px; }
+.contract-draft-review { padding: 0; margin: 0 0 16px; list-style: none; max-height: 200px; overflow: auto; }
+.contract-draft-review li { display: flex; flex-wrap: wrap; gap: 4px 12px; padding: 6px 0; border-bottom: 1px solid #edf2ef; }
+.contract-draft-errors { color: #a44634; padding-left: 20px; }

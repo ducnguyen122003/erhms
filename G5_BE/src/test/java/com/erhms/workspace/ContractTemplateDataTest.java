@@ -29,6 +29,7 @@ class ContractTemplateDataTest {
         record.put("templateData",Map.of("centerAddress","Địa chỉ bị thay đổi","centerTaxCode","000","centerBankAccount","Tài khoản khác","otherChargesDue",200000,"module1Name","Mô đun cũ","hasGuardian",true,"initialTotal",1,"studentName","Tên giả","agreementPlace","Hà Nội"));
         var values=templates.values(record,hr);
         assertEquals("Nguyễn Anh Đức",values.get("studentName"));assertEquals("HD-MAU-2026",values.get("contractNumber"));
+        assertEquals("Trung tâm dậy nghề Bách Khoa",values.get("agreementPlace"));
         assertEquals("Hà Nội",values.get("centerAddress"));assertEquals("12423453246134123",values.get("centerTaxCode"));
         assertEquals("3419120803",values.get("centerBankAccount"));assertEquals("BIDV - PGD Hàm Yên",values.get("centerBankName"));assertEquals("Ducnahe176071@fpt.edu.vn",values.get("complaintContactAddress"));
         assertEquals(new BigDecimal("14000000"),values.get("initialTotal"));assertEquals("Mười bốn triệu đồng",values.get("initialTotalInWords"));
@@ -38,10 +39,10 @@ class ContractTemplateDataTest {
 
     @Test void incompleteDraftsRemainValidButUnknownKeysAndInvalidActiveFieldsAreRejected(){
         UUID id=UUID.randomUUID();doReturn(record()).when(data).record("contracts",id.toString(),manager);
-        assertDoesNotThrow(()->templates.save(id,Map.of("templateData",Map.of("agreementPlace","Hà Nội")),manager));
+        assertDoesNotThrow(()->templates.save(id,Map.of("templateData",Map.of()),manager));
         var unknown=assertThrows(WorkflowException.class,()->templates.save(id,Map.of("templateData",Map.of("untrustedSetting","x")),manager));
         assertTrue(unknown.fields.containsKey("templateData.untrustedSetting"));
-        for(var invalid:List.of(Map.of("studentDateOfBirth","2026-02-30"),Map.of("studentAddress",42),Map.of("academicContact",false),Map.of("agreementPlace","Địa điểm"+(char)0+"không hợp lệ"),Map.of("endsOn","not-a-date"))){
+        for(var invalid:List.of(Map.of("studentDateOfBirth","2026-02-30"),Map.of("studentAddress",42),Map.of("academicContact",false),Map.of("accountingContact","Liên hệ"+(char)0+"không hợp lệ"),Map.of("endsOn","not-a-date"))){
             var failure=assertThrows(WorkflowException.class,()->templates.save(id,Map.of("templateData",invalid),manager));
             assertTrue(failure.fields.containsKey("templateData."+invalid.keySet().iterator().next()));
         }
@@ -49,11 +50,11 @@ class ContractTemplateDataTest {
 
     @Test void draftReplacementCannotPersistForgedPrefilledRootOrCalculatedValues()throws Exception{
         UUID id=UUID.randomUUID();var record=record();record.put("templateData","{\"studentIdentityNumber\":\"Old student identity\"}");doReturn(record).when(data).record("contracts",id.toString(),manager);
-        templates.save(id,Map.of("templateData",Map.of("agreementPlace","Hà Nội","centerAddress","Địa chỉ giả","centerEmail",Map.of("malicious","ignored"),"studentName","Tên giả","initialTotal",1)),manager);
+        templates.save(id,Map.of("templateData",Map.of("agreementPlace","Hà Nội","academicContact","Học vụ","centerAddress","Địa chỉ giả","centerEmail",Map.of("malicious","ignored"),"studentName","Tên giả","initialTotal",1)),manager);
         var encoded=ArgumentCaptor.forClass(String.class);
         verify(jdbc).update(eq("UPDATE training_contracts SET template_data=? WHERE id=?"),encoded.capture(),eq(id));
-        var stored=json.readTree(encoded.getValue());assertEquals("Hà Nội",stored.path("agreementPlace").asText());
-        for(String absent:List.of("studentIdentityNumber","centerAddress","centerEmail","studentName","initialTotal"))assertFalse(stored.has(absent),absent);
+        var stored=json.readTree(encoded.getValue());assertEquals("Học vụ",stored.path("academicContact").asText());
+        for(String absent:List.of("studentIdentityNumber","agreementPlace","centerAddress","centerEmail","studentName","initialTotal"))assertFalse(stored.has(absent),absent);
     }
 
     @Test void revisedPdfRequiresOnlyRemainingBlanksAndDoesNotRequireRemovedProgramGuardianOrEquipmentData(){

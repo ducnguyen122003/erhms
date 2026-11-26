@@ -2,4 +2,19 @@
 @media(max-width:1000px){.screen-detail-grid{grid-template-columns:minmax(0,1fr)}.screen-side-actions{display:flex;flex-direction:row;flex-wrap:wrap;align-items:center}.screen-side-actions>h2,.screen-side-actions>p,.screen-side-actions>.screen-conditions{width:100%}.screen-side-actions>button{width:auto}.screen-report-chart>div{grid-template-columns:minmax(130px,2fr) 3fr 35px}}
 @media(max-width:600px){.screen-toolbar{grid-template-columns:minmax(0,1fr);padding-inline:20px;gap:10px}.screen-facts{grid-template-columns:minmax(0,1fr);gap:19px}.screen-detail,.screen-side-actions,.screen-summary,.screen-settlement{padding:20px}.screen-summary{align-items:flex-start}.screen-summary h2{font-size:18px}.screen-settlement>div{grid-template-columns:minmax(0,1fr)}.screen-settlement strong{font-size:22px}.screen-report>.screen-toolbar{grid-template-columns:minmax(0,1fr)}.screen-report-chart>div{grid-template-columns:minmax(0,1fr) 30px}.screen-report-chart>div span{grid-column:1/-1}.screen-timetable{padding-inline:20px}.screen-actions>button{flex:1}.screen-action-form{padding:20px}.screen-assessments>div{grid-template-columns:minmax(0,2fr) minmax(0,1fr) 35px}.screen-timetable>button{padding:15px}.screen-summary .admin-badge{max-width:45%;white-space:normal}}
 .screen-toolbar>.screen-search{margin:0}
+.attendance-detail{display:flex;flex-direction:column}
+.attendance-detail>.attendance-actions{margin-top:auto;padding-top:25px}
+.attendance-back{margin-inline-end:auto}
+.admission-email-warning {
+  display: flex;
+  align-items: flex-start;
+  gap: 6px;
+  margin-top: 4px;
+  color: #815318;
+  line-height: 1.5;
+}
+.admission-email-warning svg {
+  flex-shrink: 0;
+  margin-top: 2px;
+}
 .screen-toolbar>.screen-search input,.screen-toolbar>.screen-search~select,.screen-toolbar>.screen-search~button{height:42px;min-height:42px}

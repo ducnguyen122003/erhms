@@ -18,7 +18,7 @@ test('only managers can open and discover student account provisioning, with an 
  assert.notEqual(screens[code].fe,screens.ListStudent.fe);
 });
 test('all enabled workspace and public screens have implementations',()=>{
- assert.equal(Object.keys(screens).length,126);
+ assert.equal(Object.keys(screens).length,127);
  let business=0,pages=0;
  for(const screen of Object.values(screens)){
   if(screen.code===screen.functionCode&&!screen.public&&screen.roles.length>0){assert.ok(fs.existsSync(new URL('../src/screens/pages/'+screen.code+'.jsx',import.meta.url)),screen.code);business++;}
@@ -28,8 +28,21 @@ test('all enabled workspace and public screens have implementations',()=>{
  assert.equal(business,85);assert.equal(pages,9);
 });
 test('screen access matches the current seven role totals including public and shared screens',()=>{
- const totals=[35,29,27,41,38,47,26];
+ const totals=[35,30,27,41,38,47,26];
  roles.forEach((role,index)=>{const user={role,roleId:index+1};assert.equal(Object.keys(screens).filter(code=>canScreen(code,user,grants(role))).length,totals[index],role);});
+});
+test('initial equipment requests share the lecturer menu and require both existing permissions',()=>{
+ const initial='InitialEquipmentRequests',list='ListEquipmentRequest',create='AddEquipmentRequest';
+ const path=screenPath(initial),lecturer={role:'LECTURER',roleId:2};
+ assert.equal(screenRoute(path).screen.code,initial);
+ assert.equal(screenRoute(path+'/42'),null);
+ assert.ok(fs.existsSync(new URL('../src/screens/pages/'+initial+'.jsx',import.meta.url)));
+ assert.equal(workspaceRoute(path,lecturer,[list,create]),'screen');
+ assert.equal(workspaceRoute(path,lecturer,[list]),'forbidden');
+ assert.equal(workspaceRoute(path,lecturer,[create]),'forbidden');
+ assert.equal(canScreen(initial,{role:'IT_SUPPORT'},[list,create]),false);
+ assert.equal(canScreen(list,lecturer,[list]),true);
+ assert.deepEqual(screenNavigation(lecturer,[list,create]).map(item=>item.code),[list]);
 });
 test('proposed rights and grants outside the declared role do not enable business screens',()=>{
  for(const role of ['ADMIN','LECTURER','HR'])assert.equal(canScreen('SendNotification',{role},['SendNotification']),false);

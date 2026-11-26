@@ -5,22 +5,35 @@ import {canRecordConsultation,consultationFields,consultationPayload,newConsulta
 
 const fields=status=>Object.fromEntries(consultationFields(forms.AdmissionConsultation,{status}).map(field=>[field.key,field]));
 
-test('each consultation starts with empty inputs rather than copying the previous consultation',()=>{
+test('each consultation prefills the current email and starts with fresh consultation fields',()=>{
  for(const status of ['NEW','NEEDS_COUNSELING','DOCUMENT_APPOINTMENT']){
   const record={id:'admission-id',version:8,status,email:'learner@gmail.com',channel:'PHONE',notes:'Previous notes',appointmentAt:'2026-12-15T01:30:00Z',documentDueOn:'2026-12-20',discontinuationReason:'Previous reason'};
   const first=newConsultationValues(record);
   assert.equal(first.id,record.id);assert.equal(first.version,8);
-  for(const key of ['email','channel','status','notes','appointmentAt','documentDueOn','discontinuationReason'])assert.equal(first[key],'',key);
+  assert.equal(first.email,record.email);
+  for(const key of ['channel','status','notes','appointmentAt','documentDueOn','discontinuationReason'])assert.equal(first[key],'',key);
   first.notes='Unsaved draft';
   assert.equal(newConsultationValues(record).notes,'');assert.equal(record.notes,'Previous notes');
  }
+});
+
+test('the email input is editable and only a new address is submitted',()=>{
+ const currentEmail='learner@gmail.com';
+ const current=newConsultationValues({email:currentEmail});
+ assert.equal(fields('NEW').email.type,'email');
+ assert.notEqual(fields('NEW').email.readOnly,true);
+ assert.equal(newConsultationValues({email:null}).email,'');
+ assert.equal(consultationPayload(current,currentEmail).email,undefined);
+ assert.equal(consultationPayload({...current,email:''},currentEmail).email,undefined);
+ assert.equal(consultationPayload({...current,email:'updated@gmail.com'},currentEmail).email,'updated@gmail.com');
 });
 
 test('legacy managed states retain their automatic stage defensively while consultation access is blocked',()=>{
  for(const status of ['PROFILE_PENDING','CONTRACTED','PROFILE_CREATED']){
   const values=newConsultationValues({id:'admission-id',version:4,status,email:'learner@gmail.com',channel:'EMAIL',notes:'Previous notes',documentDueOn:'2026-12-20'});
   assert.equal(values.status,status);assert.equal(values.version,4);
-  for(const key of ['email','channel','notes','appointmentAt','documentDueOn','discontinuationReason'])assert.equal(values[key],'');
+  assert.equal(values.email,'learner@gmail.com');
+  for(const key of ['channel','notes','appointmentAt','documentDueOn','discontinuationReason'])assert.equal(values[key],'');
   assert.equal(fields(status).status.disabled,true);
   assert.equal(canRecordConsultation(status),false);
  }

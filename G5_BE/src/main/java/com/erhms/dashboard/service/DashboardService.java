@@ -7,6 +7,7 @@ import com.erhms.role.DashboardRole;
 import com.erhms.role.InvalidRoleException;
 import com.erhms.shared.exception.BusinessException;
 import com.erhms.user.service.CurrentUser;
+import com.erhms.workspace.WorkflowData;
 import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.sql.Timestamp;
@@ -81,8 +82,9 @@ public class DashboardService {
     }
 
     private DashboardView lecturer(long id, Time t) {
-        long classes=n("SELECT COUNT(*) FROM training_classes WHERE lecturer_id=? AND status='ACTIVE'",id);
-        long students=n("SELECT COUNT(DISTINCT e.student_id) FROM training_enrollments e JOIN training_classes c ON c.id=e.class_id WHERE c.lecturer_id=? AND c.status='ACTIVE' AND e.status='ACTIVE'",id);
+        String state=WorkflowData.classStatusSql("c",t.today());
+        long classes=n("SELECT COUNT(*) FROM training_classes c WHERE c.lecturer_id=? AND "+state+"='ACTIVE'",id);
+        long students=n("SELECT COUNT(DISTINCT e.student_id) FROM training_enrollments e JOIN training_classes c ON c.id=e.class_id WHERE c.lecturer_id=? AND "+state+"='ACTIVE' AND e.status='ACTIVE'",id);
         long sessions=n("SELECT COUNT(*) FROM training_sessions s JOIN training_classes c ON c.id=s.class_id WHERE c.lecturer_id=? AND c.status<>'CANCELLED' AND s.starts_at>=? AND s.starts_at<?",id,t.week(),t.nextWeek());
         long requests=n("SELECT COUNT(*) FROM equipment_requests WHERE requested_by=? AND status IN ('NEW','PREPARING','READY')",id);
         long today=n("SELECT COUNT(*) FROM training_sessions s JOIN training_classes c ON c.id=s.class_id WHERE c.lecturer_id=? AND c.status<>'CANCELLED' AND s.starts_at>=? AND s.starts_at<?",id,t.day(),t.nextDay());
@@ -91,12 +93,12 @@ public class DashboardService {
         var schedule=schedule("Lịch dạy hôm nay & sắp tới","Chỉ hiển thị các lớp được phân công cho bạn.","c.lecturer_id=?",t,id);
         var classPanel=panel("classes","Các lớp đang phụ trách","Tình trạng các lớp trong phạm vi giảng dạy.",List.of("Lớp / nội dung","Học viên","Tiến độ"),
                 """
-                SELECT c.id,c.code,c.name,c.status,c.total_sessions,
+                SELECT c.id,c.code,c.name,%s AS status,c.total_sessions,
                   (SELECT COUNT(*) FROM training_enrollments e WHERE e.class_id=c.id AND e.status='ACTIVE') AS students,
                   (SELECT COUNT(*) FROM training_sessions s WHERE s.class_id=c.id AND s.ends_at<=?) AS completed
                 FROM training_classes c WHERE c.lecturer_id=? AND c.status IN ('ACTIVE','PLANNED')
                 ORDER BY c.code FETCH FIRST 6 ROWS ONLY
-                """, r->row(r,List.of(s(r,"code")+" · "+s(r,"name"),s(r,"students")+" học viên",s(r,"completed")+" / "+s(r,"total_sessions")+" buổi"),status(s(r,"status")),tone(s(r,"status")),null),t.now(),id);
+                """.formatted(state), r->row(r,List.of(s(r,"code")+" · "+s(r,"name"),s(r,"students")+" học viên",s(r,"completed")+" / "+s(r,"total_sessions")+" buổi"),"ACTIVE".equals(s(r,"status"))?"Đang học":status(s(r,"status")),tone(s(r,"status")),null),t.now(),id);
         return view(DashboardRole.LECTURER,t,
                 List.of(m("classes","Lớp đang phụ trách",classes,"","Các lớp được phân công"),m("students","Học viên đang học",students,"","Trong các lớp đang phụ trách"),m("sessions","Buổi dạy tuần này",sessions,"","Theo lịch giảng dạy"),m("requests","Yêu cầu thiết bị mở",requests,"","Đang được IT xử lý","amber")),
                 List.of(m("today","Lịch dạy",today,"ca","Trong ngày hôm nay"),m("attendance","Điểm danh",attendance,"buổi","Chưa hoàn tất","amber"),m("grades","Nhập điểm",grades,"mục","Chưa công bố","amber")),

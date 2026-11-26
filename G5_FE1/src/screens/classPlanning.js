@@ -56,9 +56,12 @@ export function classPlanPreview(values={}){
 
 export function contractClassChoices(values={},options={}){
  const admission=options.admissions?.find(row=>String(row.id)===String(values.consultationId));
+ const courseId=String(values.courseId??'');
+ if(!admission||!courseId)return [];
  const normalized=value=>String(value||'').normalize('NFC').trim().replace(/\s+/gu,' ').toLocaleLowerCase('vi-VN');
  const registered=normalized(admission?.enrollmentCourse);
  return (options.classes||[]).filter(row=>{
+  if(String(row.courseId??'')!==courseId)return false;
   if(!['PLANNED','ACTIVE'].includes(row.status))return false;
   if(row.remainingSlots!==undefined&&Number(row.remainingSlots)<=0&&String(row.id)!==String(values.classId))return false;
   const course=options.courses?.find(course=>String(course.id)===String(row.courseId));

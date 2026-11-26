@@ -4,8 +4,8 @@ import {contractTemplateValue,isComputedTemplateField,templateFieldError,templat
 import './contract-template.css';
 
 export default function ContractTemplateForm({metadata,values,selection,onChange,errors={},disabled=false}){
- const prefix=useId(),sections=metadata?.sections||[];
- const [expanded,setExpanded]=useState(()=>Object.fromEntries(sections.map(section=>[section.key,!section.optional||templateSectionFilled(section,values,selection)>0])));
+ const prefix=useId(),sections=metadata?.sections||[],fixedValues=metadata?.fixedValues||{};
+ const [expanded,setExpanded]=useState(()=>Object.fromEntries(sections.map(section=>[section.key,!section.optional||templateSectionFilled(section,values,selection,fixedValues)>0])));
  useEffect(()=>{
   const invalid=sections.filter(section=>visibleTemplateFields(section,values).some(field=>templateFieldError(errors,field.key)));
   if(invalid.length)setExpanded(current=>({...current,...Object.fromEntries(invalid.map(section=>[section.key,true]))}));
@@ -16,10 +16,10 @@ export default function ContractTemplateForm({metadata,values,selection,onChange
   {sections.map(section=>{
    const fields=visibleTemplateFields(section,values),invalid=fields.filter(field=>templateFieldError(errors,field.key)).length;
    return <details key={section.key} className="contract-template-section" open={Boolean(expanded[section.key])} onToggle={event=>{const open=event.currentTarget.open;setExpanded(current=>current[section.key]===open?current:{...current,[section.key]:open});}}>
-    <summary><span><strong>{section.title}</strong>{section.optional&&<small>Nếu áp dụng</small>}</span><span className="contract-template-section-status">{invalid?<b>{invalid} mục cần kiểm tra</b>:<small>{templateSectionFilled(section,values,selection)}/{fields.length} mục đã điền</small>}<ChevronDown size={16}/></span></summary>
+    <summary><span><strong>{section.title}</strong>{section.optional&&<small>Nếu áp dụng</small>}</span><span className="contract-template-section-status">{invalid?<b>{invalid} mục cần kiểm tra</b>:<small>{templateSectionFilled(section,values,selection,fixedValues)}/{fields.length} mục đã điền</small>}<ChevronDown size={16}/></span></summary>
     <div className="contract-template-section-content">{section.description&&<p className="admin-muted">{section.description}</p>}<div className="admin-field-grid">
      {fields.map(field=>{
-      const id=prefix+'-'+field.key,error=templateFieldError(errors,field.key),readOnly=isComputedTemplateField(field),value=contractTemplateValue(field,values,selection);
+      const id=prefix+'-'+field.key,error=templateFieldError(errors,field.key),readOnly=isComputedTemplateField(field),value=contractTemplateValue(field,values,selection,fixedValues);
       const shared={id,name:'templateData.'+field.key,disabled,readOnly,'aria-invalid':Boolean(error),'aria-describedby':error?id+'-error':undefined};
       const choices=Array.isArray(field.source)?field.source:field.options||[];
       return <label key={field.key} htmlFor={id} className={'admin-field'+(field.type==='textarea'||field.wide?' screen-field-wide':'')}>{field.label}{field.requiredForPdf&&<span className="contract-template-required" title="Cần điền để xuất PDF"> *</span>}

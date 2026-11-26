@@ -19,6 +19,7 @@ import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.time.LocalDate;
 import java.time.OffsetDateTime;
 import java.time.ZoneId;
 import java.util.ArrayList;
@@ -418,6 +419,52 @@ class DashboardIntegrationTest {
         return users.saveAndFlush(account);
     }
 
+    @Test
+    void teachingDashboardAndClassDetailsUseTheFirstScheduledDayToOpenClasses() throws Exception {
+        User lecturer = account("LECTURER");
+        User otherLecturer = account("LECTURER", "other");
+        ZoneId classroomZone = ZoneId.of("Asia/Ho_Chi_Minh");
+        LocalDate today = LocalDate.now(classroomZone);
+
+        UUID startsToday = datedClass("FIRST-DAY-TODAY", lecturer, today.minusDays(2), "PLANNED");
+        session(startsToday, "First session today", today.atTime(23, 30).atZone(classroomZone).toOffsetDateTime());
+        enrollment(startsToday, account("STUDENT"));
+        UUID startsTomorrow = datedClass("FIRST-DAY-TOMORROW", lecturer, today.minusDays(2), "PLANNED");
+        session(startsTomorrow, "First session tomorrow", today.plusDays(1).atTime(0, 15).atZone(classroomZone).toOffsetDateTime());
+        enrollment(startsTomorrow, account("STUDENT", "tomorrow"));
+        UUID noSessions = datedClass("NO-SESSIONS-YET", lecturer, today.minusDays(1), "PLANNED");
+        UUID cancelled = datedClass("CANCELLED-CLASS", lecturer, today.minusDays(1), "CANCELLED");
+        UUID completed = datedClass("COMPLETED-CLASS", lecturer, today.minusDays(1), "COMPLETED");
+        UUID otherClass = datedClass("OTHER-LECTURER", otherLecturer, today.minusDays(1), "PLANNED");
+        enrollment(otherClass, account("STUDENT", "other"));
+
+        var teaching = dashboard(login(lecturer.email), "/api/dashboard/lecturer");
+        assertStat(teaching, "classes", 2);
+        assertStat(teaching, "students", 1);
+        var rows = new LinkedHashMap<String, String>();
+        for (var panel : teaching.path("panels")) {
+            if (panel.path("key").asText().equals("classes")) {
+                for (var row : panel.path("rows")) rows.put(row.path("id").asText(), row.path("status").asText());
+            }
+        }
+        assertEquals(Map.of(startsToday.toString(), "Đang học", noSessions.toString(), "Đang học",
+                startsTomorrow.toString(), "Sắp khai giảng"), rows);
+
+        for (var expected : Map.of(startsToday, "ACTIVE", startsTomorrow, "PLANNED", noSessions, "ACTIVE",
+                cancelled, "CANCELLED", completed, "COMPLETED").entrySet()) {
+            var result = mvc.perform(get("/api/workspace/screens/ClassDetail_Lecturer/" + expected.getKey())
+                            .with(user(lecturer.email).roles("LECTURER")))
+                    .andExpect(status().isOk()).andReturn();
+            var record = json.readTree(result.getResponse().getContentAsByteArray()).path("record");
+            assertEquals(expected.getValue(), record.path("status").asText());
+        }
+    }
+
+    private UUID datedClass(String code, User lecturer, LocalDate startsOn, String status) {
+        return insert("training_classes", "code", code, "name", code + " name", "lecturer_id", lecturer.id,
+                "starts_on", startsOn, "status", status, "total_sessions", 4);
+    }
+
     private UUID trainingClass(String code, User lecturer) {
         return insert("training_classes", "code", code, "name", code + " name", "lecturer_id", lecturer.id,
                 "status", "ACTIVE", "total_sessions", 4);
@@ -499,7 +546,7 @@ class DashboardIntegrationTest {
 
     private JsonNode dashboard(MockHttpSession session, String path) throws Exception {
         return json.readTree(mvc.perform(get(path).session(session))
-                .andExpect(status().isOk()).andReturn().getResponse().getContentAsString());
+                .andExpect(status().isOk()).andReturn().getResponse().getContentAsByteArray());
     }
 
     private static String slug(String role) {

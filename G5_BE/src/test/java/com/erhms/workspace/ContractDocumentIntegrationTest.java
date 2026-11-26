@@ -47,11 +47,13 @@ class ContractDocumentIntegrationTest {
     ResultActions pdf(User actor,String id,boolean download)throws Exception{return mvc.perform(get("/api/workspace/contracts/"+id+"/pdf").param("download",Boolean.toString(download)).with(user(actor.email).roles(actor.getRoleCode())));}
 
     @Test void incompleteDocumentCanBeSavedAsADraftAndReportsExactlyWhichFieldsAreMissingForPdf()throws Exception{
-        String id=create(Map.of("agreementPlace","Hà Nội"));
+        String id=create(Map.of());
         var edit=detail(id);assertEquals("Hà Nội",edit.path("record").path("templateData").path("centerAddress").asText());
+        assertEquals("Trung tâm dậy nghề Bách Khoa",edit.path("record").path("templateData").path("agreementPlace").asText());
         assertEquals(5,edit.path("options").path("contractTemplate").path("sections").size());assertTrue(edit.path("canExportContract").asBoolean());
         pdf(manager,id,false).andExpect(status().isBadRequest()).andExpect(jsonPath("$.fields['templateData.centerTaxCode']").doesNotExist())
-                .andExpect(jsonPath("$.fields['templateData.centerAddress']").doesNotExist()).andExpect(jsonPath("$.fields['templateData.studentDateOfBirth']").exists());
+                .andExpect(jsonPath("$.fields['templateData.centerAddress']").doesNotExist()).andExpect(jsonPath("$.fields['templateData.agreementPlace']").doesNotExist())
+                .andExpect(jsonPath("$.fields['templateData.studentDateOfBirth']").exists());
         assertEquals(1,jdbc.queryForObject("SELECT COUNT(*) FROM training_contracts WHERE id=?",Integer.class,UUID.fromString(id)));
     }
 
@@ -65,6 +67,7 @@ class ContractDocumentIntegrationTest {
 
     @Test void completedDocumentProducesAnInlinePdfAndADownloadWithTheSavedVietnameseValues()throws Exception{
         var details=ContractTemplateFixtures.completeDetails(templates);details.put("studentName","Tên do client giả mạo");details.put("initialTotal",1);
+        details.put("agreementPlace","FORGED-AGREEMENT-PLACE");
         details.put("centerTaxCode","FORGED-TAX-CODE");details.put("centerBankAccount","FORGED-BANK-ACCOUNT");
         details.put("endsOn","2099-01-01");details.put("latestOpeningOn","2099-01-01");
         String id=create(details);var stored=detail(id).path("record").path("templateData");
@@ -75,6 +78,8 @@ class ContractDocumentIntegrationTest {
                 .andExpect(header().string("Content-Disposition",org.hamcrest.Matchers.startsWith("inline;"))).andExpect(header().string("Cache-Control","private, no-store")).andReturn();
         try(var document=Loader.loadPDF(inline.getResponse().getContentAsByteArray())){
             String text=new PDFTextStripper().getText(document);assertTrue(text.contains("Nguyễn Anh Đức"));assertTrue(text.contains("13.500.000"));
+            assertTrue(text.replaceAll("\\s+"," ").contains("tại Trung tâm dậy nghề Bách Khoa,"));
+            assertFalse(text.contains("FORGED-AGREEMENT-PLACE"));
             assertFalse(text.replaceAll("\\s+","").contains("PHỤLỤC03TIẾPTHEO"));assertFalse(text.contains("Tên do client giả mạo"));assertFalse(text.contains("LEGACY-SCHEDULE-MUST-NOT-APPEAR"));
             assertFalse(text.contains("FORGED-TAX-CODE"));assertFalse(text.contains("FORGED-BANK-ACCOUNT"));
             assertFalse(text.contains("2099"));

@@ -15,7 +15,7 @@ export function initialContractTemplateData(values,options={},admission){
 }
 
 export function resetContractTemplateData(values,options={},admission){
- const retained=Object.fromEntries(Object.entries(map(values.templateData)).filter(([key])=>key.startsWith('center')||key==='agreementPlace'));
+ const retained=Object.fromEntries(Object.entries(map(values.templateData)).filter(([key])=>key.startsWith('center')));
  return editableTemplateData({...map(options.contractTemplateDefaults),...map(admission?.contractTemplateDefaults),...retained},options.contractTemplate);
 }
 
@@ -55,7 +55,8 @@ export function computedContractTemplateData(values={}){
 
 const calculatedFields=new Set(['initialTotal','initialTotalInWords']);
 
-export function contractTemplateValue(field,values={},selection={}){
+export function contractTemplateValue(field,values={},selection={},fixedValues={}){
+ if(Object.hasOwn(fixedValues,field.key))return fixedValues[field.key];
  if(calculatedFields.has(field.key))return computedContractTemplateData(values)[field.key];
  const admission=selection.admission;
  const unchangedAdmission=Boolean(selection.savedRecord?.id&&String(values.consultationId)===String(selection.savedRecord.consultationId));
@@ -77,7 +78,10 @@ export function contractTemplateValue(field,values={},selection={}){
 export function isComputedTemplateField(field){return authoritativeFields.has(field.key)||Boolean(field.readOnly||field.computed);}
 export function templateFieldError(errors,key){return errors?.['templateData.'+key]||'';}
 export function visibleTemplateFields(section,values){return (section.fields||[]).filter(field=>!field.condition||values.templateData?.[field.condition]===true);}
-export function templateSectionFilled(section,values,selection){return visibleTemplateFields(section,values).filter(field=>field.type==='checkbox'?Boolean(contractTemplateValue(field,values,selection)):String(contractTemplateValue(field,values,selection)).trim()!=='').length;}
+export function templateSectionFilled(section,values,selection,fixedValues){return visibleTemplateFields(section,values).filter(field=>{
+ const value=contractTemplateValue(field,values,selection,fixedValues);
+ return field.type==='checkbox'?Boolean(value):String(value).trim()!=='';
+}).length;}
 
 export function contractPdfFieldErrors(errors={},metadata){
  const labels=new Map((metadata?.sections||[]).flatMap(section=>(section.fields||[]).map(field=>['templateData.'+field.key,field.label])));

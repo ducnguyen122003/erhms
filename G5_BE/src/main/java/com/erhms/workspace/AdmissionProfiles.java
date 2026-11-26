@@ -9,6 +9,7 @@ import static com.erhms.workspace.WorkflowData.*;
 public class AdmissionProfiles {
     public static final List<String> ENROLLMENT_COURSES=EnrollmentCourses.NAMES;
     private static final Set<String> TYPES=Set.of("IDENTITY_CARD","CURRICULUM_VITAE","BIRTH_CERTIFICATE","ID_PHOTO","APPLICATION_FORM");
+    private static final Set<String> INITIAL_SUBMISSION_STATES=Set.of("NEW","CONTACTED","NEEDS_COUNSELING","DOCUMENT_APPOINTMENT");
     private static final int MAX_FILES=50;
     // Completeness is derived from the current categorized files, independently of contract/account progress.
     public static final String DOCUMENT_STATUS_SQL="CASE WHEN f.profile_submitted_at IS NOT NULL OR f.status IN ('PROFILE_PENDING','CONTRACTED','PROFILE_CREATED') THEN CASE WHEN (SELECT COUNT(DISTINCT doc.document_type) FROM admission_profile_documents doc WHERE doc.consultation_id=r.id AND doc.document_type IN ('IDENTITY_CARD','CURRICULUM_VITAE','BIRTH_CERTIFICATE','ID_PHOTO','APPLICATION_FORM'))=5 THEN 'DOCUMENTS_COMPLETE' ELSE 'DOCUMENTS_INCOMPLETE' END END";
@@ -46,6 +47,11 @@ public class AdmissionProfiles {
         return record.get("profileSubmittedAt")!=null||Set.of("PROFILE_PENDING","PROFILE_CREATED","CONTRACTED").contains(record.get("status"));
     }
 
+    public static boolean canSubmit(Map<String,Object> record) {
+        return INITIAL_SUBMISSION_STATES.contains(Objects.toString(record.get("status"),""))
+                &&record.get("forwardedAt")==null&&!submitted(record);
+    }
+
     public Map<String,Object> submit(String id, Map<String,Object> input, User actor) {
         return save(id,input,actor,false);
     }
@@ -63,8 +69,7 @@ public class AdmissionProfiles {
         if (number(input, "version", 0, Long.MAX_VALUE) != ((Number)record.get("version")).longValue())
             throw conflict("Hồ sơ vừa được cập nhật. Hãy tải lại trước khi gửi.");
         if(editing&&!submitted(record))throw conflict("Chỉ bổ sung hoặc chỉnh sửa bộ hồ sơ đã gửi.");
-        if (!editing&&(!"DOCUMENT_APPOINTMENT".equals(record.get("status")) || record.get("documentDueOn") == null))
-            throw conflict("Chỉ gửi bản scan sau khi đã ghi nhận Hẹn nộp hồ sơ và ngày hẹn nộp.");
+        if(!editing&&!canSubmit(record))throw conflict("Hồ sơ hiện tại không thể tiếp nhận bản scan lần đầu.");
         var existing=documents(admission);
         Map<UUID,String> existingTypes=new HashMap<>();
         for(var document:existing)existingTypes.put(UUID.fromString(document.get("fileId").toString()),document.get("documentType").toString());
@@ -99,7 +104,16 @@ public class AdmissionProfiles {
             var attachment=attachments.get(index);
             data.jdbc.update("INSERT INTO admission_profile_documents(id,consultation_id,document_type,file_id,submitted_by,display_order) VALUES (?,?,?,?,?,?)",UUID.randomUUID(),admission,attachment.getKey(),attachment.getValue(),actor.id,index);
         }
-        data.jdbc.update("UPDATE consultation_followups SET scan_file_id=?,profile_submitted_at=COALESCE(profile_submitted_at,CURRENT_TIMESTAMP),status=?,version=version+1,updated_at=CURRENT_TIMESTAMP WHERE consultation_id=?", attachments.isEmpty()?null:attachments.get(0).getValue(),editing?record.get("status"):"PROFILE_PENDING",admission);
+        UUID scan=attachments.isEmpty()?null:attachments.get(0).getValue();
+        int updated=data.jdbc.update("""
+                UPDATE consultation_followups SET assigned_to=COALESCE(assigned_to,?),scan_file_id=?,
+                    profile_submitted_at=COALESCE(profile_submitted_at,CURRENT_TIMESTAMP),status=?,version=version+1,updated_at=CURRENT_TIMESTAMP
+                WHERE consultation_id=?
+                """,editing?record.get("assignedTo"):actor.id,scan,editing?record.get("status"):"PROFILE_PENDING",admission);
+        if(updated==0)data.jdbc.update("""
+                INSERT INTO consultation_followups(id,consultation_id,assigned_to,scan_file_id,profile_submitted_at,status,version)
+                VALUES (?,?,?,?,CURRENT_TIMESTAMP,'PROFILE_PENDING',1)
+                """,UUID.randomUUID(),admission,actor.id,scan);
         boolean complete=seenTypes.containsAll(TYPES);
         String documentStatus=complete?"DOCUMENTS_COMPLETE":"DOCUMENTS_INCOMPLETE",label=complete?"Đã hoàn thành hồ sơ":"Hồ sơ còn thiếu";
         long added=seenFiles.stream().filter(file->!existingTypes.containsKey(file)).count(),removed=existingTypes.keySet().stream().filter(file->!seenFiles.contains(file)).count();

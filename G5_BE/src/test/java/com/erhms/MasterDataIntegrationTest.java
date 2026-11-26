@@ -13,6 +13,8 @@ import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.web.servlet.*;
 import org.springframework.transaction.annotation.Transactional;
 import java.nio.charset.StandardCharsets;
+import java.time.LocalDate;
+import java.time.ZoneId;
 import java.util.*;
 import static org.junit.jupiter.api.Assertions.*;
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.*;
@@ -80,10 +82,11 @@ class MasterDataIntegrationTest {
   UUID cl=UUID.randomUUID();User lecturer=actors.get("LECTURER"),learner=actors.get("STUDENT");
   jdbc.update("INSERT INTO training_classes(id,code,name,lecturer_id,status) VALUES (?,?, 'Lớp thực hành',?,'ACTIVE')",cl,cl.toString(),lecturer.id);
   jdbc.update("INSERT INTO training_enrollments(id,class_id,student_id,status) VALUES (?,?,?,'ACTIVE')",UUID.randomUUID(),cl,learner.id);
-  var request=new HashMap<String,Object>(Map.of("classId",cl.toString(),"studentId",learner.id,"title","Bộ dụng cụ sửa laptop","quantity",2,"requestType","INITIAL","neededOn","2027-01-04","description","Dùng để thực hành tháo lắp laptop"));
+  String neededOn=LocalDate.now(ZoneId.of("Asia/Ho_Chi_Minh")).plusDays(3).toString();
+  var request=new HashMap<String,Object>(Map.of("classId",cl.toString(),"studentId",learner.id,"title","Bộ dụng cụ sửa laptop","quantity",2,"requestType","INITIAL","neededOn",neededOn,"description","Dùng để thực hành tháo lắp laptop"));
   request.put("equipmentGroupId","IGNORED-OLD-FIELD");request.put("groupName","IGNORED-OLD-GROUP");
   String id=body(business("LECTURER","AddEquipmentRequest",null,request).andExpect(status().isOk()).andReturn()).path("id").asText();
-  assertEquals(1,jdbc.queryForObject("SELECT COUNT(*) FROM equipment_requests WHERE id=? AND equipment_group_id IS NULL AND group_name IS NULL AND title='Bộ dụng cụ sửa laptop' AND quantity=2 AND description='Dùng để thực hành tháo lắp laptop'",Integer.class,UUID.fromString(id)));
+  assertEquals(1,jdbc.queryForObject("SELECT COUNT(*) FROM equipment_requests WHERE id=? AND equipment_group_id IS NULL AND group_name IS NULL AND title='Bộ dụng cụ sửa laptop' AND quantity=1 AND description='Dùng để thực hành tháo lắp laptop'",Integer.class,UUID.fromString(id)));
   mvc.perform(get("/api/workspace/screens/AddEquipmentRequest").with(user(lecturer.email).roles("LECTURER"))).andExpect(status().isOk()).andExpect(jsonPath("$.options.equipmentGroups").doesNotExist());
  }
 

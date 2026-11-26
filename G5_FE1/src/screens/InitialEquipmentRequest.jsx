@@ -1,6 +1,7 @@
 import {useEffect, useRef, useState} from 'react';
 import {ClipboardList, Search, Send} from 'lucide-react';
 import {api} from '../api';
+import {nextVietnamDay} from '../localCalendar';
 import {AdminDialog, AdminLoading, AdminMessage, AdminPagination} from '../admin/AdminUI';
 import {forms} from './definitions';
 import {Fields, prepareValues, useUnsavedChanges} from './ScreenForm';
@@ -9,14 +10,13 @@ import './initial-equipment-request.css';
 const endpoint = '/api/workspace/equipment-initial-requests';
 const maxStudents = 50;
 const fields = forms.AddEquipmentRequest
-  .filter(field => ['title', 'quantity', 'neededOn', 'description'].includes(field.key))
+  .filter(field => ['title', 'neededOn', 'description'].includes(field.key))
   .map(field => {
-    if (field.key === 'quantity') return {...field, label: 'Số lượng cho mỗi học viên', step: 1};
     if (field.key === 'title') return {...field, wide: true, maxLength: 160};
     if (field.key === 'description') return {...field, maxLength: 2000};
     return field;
   });
-const defaultValues = {title: 'Cấp thiết bị ban đầu', quantity: '1', neededOn: '', description: ''};
+const defaultValues = {title: 'Cấp thiết bị ban đầu', neededOn: '', description: ''};
 const classLabel = selected => [selected?.code, selected?.name].filter(Boolean).join(' · ');
 const enrollmentDate = new Intl.DateTimeFormat('vi-VN', {dateStyle: 'short', timeZone: 'Asia/Ho_Chi_Minh'});
 
@@ -151,7 +151,7 @@ export default function InitialEquipmentRequest({onLogout, onCreated}) {
 
   return <section className="admin-card initial-equipment" aria-labelledby="initial-equipment-title">
     <header className="admin-card-heading"><div>
-      <h2 id="initial-equipment-title"><ClipboardList size={18} aria-hidden="true"/> Cấp thiết bị lần đầu</h2>
+      <h2 id="initial-equipment-title"><ClipboardList size={18} aria-hidden="true"/> Học viên cần cấp thiết bị</h2>
       <p>Chọn học viên chưa từng nhận thiết bị trong lớp và chưa có yêu cầu cấp ban đầu đang hiệu lực.</p>
     </div></header>
     <div className="initial-equipment-notice"><AdminMessage notice={notice}/></div>
@@ -193,9 +193,10 @@ export default function InitialEquipmentRequest({onLogout, onCreated}) {
       <form className="admin-dialog-body initial-equipment-confirm" aria-busy={submitting} onSubmit={submit}>
         <AdminMessage error={submitError}/>
         <p><strong>{classLabel(selectedClass)}</strong> · {selection.size} học viên</p>
+        <p>Mỗi học viên được cấp <strong>1 thiết bị</strong>. Chọn ngày cần thiết bị từ ngày mai.</p>
         <details><summary>Xem học viên đã chọn</summary><ul>{[...selection.values()].map(row => <li key={row.id}>{row.name} · {row.studentCode}</li>)}</ul></details>
         <fieldset disabled={submitting || conflict}>
-          <Fields fields={fields} values={values} errors={fieldErrors}
+          <Fields fields={fields.map(field => field.key === 'neededOn' ? {...field, min: nextVietnamDay()} : field)} values={values} errors={fieldErrors}
             setValue={(key, value) => setValues(current => ({...current, [key]: value}))}/>
         </fieldset>
         <div className="admin-dialog-actions">

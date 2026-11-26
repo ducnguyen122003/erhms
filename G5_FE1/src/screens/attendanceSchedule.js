@@ -1,5 +1,6 @@
+import {shiftCalendarDay, vietnamLocalDay} from '../localCalendar.js';
+
 const zone = 'Asia/Ho_Chi_Minh';
-const dateKey = new Intl.DateTimeFormat('sv-SE', {timeZone: zone, year: 'numeric', month: '2-digit', day: '2-digit'});
 const shortDate = new Intl.DateTimeFormat('vi-VN', {timeZone: zone, day: '2-digit', month: '2-digit'});
 const fullDate = new Intl.DateTimeFormat('vi-VN', {timeZone: zone, weekday: 'long', day: '2-digit', month: '2-digit', year: 'numeric'});
 const time = new Intl.DateTimeFormat('vi-VN', {timeZone: zone, hour: '2-digit', minute: '2-digit', hour12: false});
@@ -15,24 +16,19 @@ function validDay(day) {
  return Number.isFinite(date.getTime()) && date.toISOString().slice(0, 10) === day;
 }
 
-export function shiftAttendanceDay(day, delta) {
- const date = asDate(day);
- date.setUTCDate(date.getUTCDate() + delta);
- return date.toISOString().slice(0, 10);
-}
+export {shiftCalendarDay as shiftAttendanceDay, vietnamLocalDay as attendanceLocalDay};
 
 export function attendanceWeek(day) {
  if (!validDay(day)) return '';
  const weekday = asDate(day).getUTCDay();
- return shiftAttendanceDay(day, -((weekday + 6) % 7));
+ return shiftCalendarDay(day, -((weekday + 6) % 7));
 }
 
-export function attendanceLocalDay(value = new Date()) { return dateKey.format(new Date(value)); }
 export function attendanceDayLabel(day) { return fullDate.format(asDate(day)); }
 export function attendanceTime(value) { return time.format(new Date(value)); }
 
 export function attendanceWeekLabel(week) {
- const end = shiftAttendanceDay(week, 6);
+ const end = shiftCalendarDay(week, 6);
  return `${shortDate.format(asDate(week))} – ${shortDate.format(asDate(end))}/${end.slice(0, 4)}`;
 }
 
@@ -42,7 +38,7 @@ export function attendanceFilters(params) {
  const status = params.get('status');
  const page = params.get('page');
  return {
-  week: attendanceWeek(week) || attendanceWeek(attendanceLocalDay()),
+  week: attendanceWeek(week) || attendanceWeek(vietnamLocalDay()),
   classId: classIdPattern.test(classId || '') ? classId : '',
   status: statuses.has(status) ? status : 'ALL',
   page: /^\d{1,6}$/.test(page || '') && Number(page) <= 100000 ? Number(page) : 0,

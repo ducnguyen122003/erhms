@@ -122,7 +122,7 @@ class EquipmentInitialRequestsIntegrationTest {
         assertEquals(Set.of(single.id), studentIds(body(read(lecturer, classId))));
         assertEquals(2, jdbc.queryForObject("""
                 SELECT COUNT(*) FROM equipment_requests WHERE class_id=? AND requested_by=?
-                AND status='NEW' AND request_type='INITIAL' AND quantity=2 AND title=? AND needed_on=? AND description=?
+                AND status='NEW' AND request_type='INITIAL' AND quantity=1 AND title=? AND needed_on=? AND description=?
                 """, Integer.class, classId, lecturer.id, TITLE, neededOn, DESCRIPTION));
         assertEquals(Set.of(first.id, retry.id), new HashSet<>(jdbc.queryForList("""
                 SELECT student_id FROM equipment_requests WHERE class_id=? AND status='NEW'
@@ -131,7 +131,8 @@ class EquipmentInitialRequestsIntegrationTest {
                 SELECT id FROM equipment_requests WHERE class_id=? AND status='NEW'
                 """, UUID.class, classId)) {
             mvc.perform(asActor(get(SCREENS + "EquipmentRequestDetail_IT/" + requestId), it))
-                    .andExpect(status().isOk()).andExpect(jsonPath("$.record.requestType").value("INITIAL"));
+                    .andExpect(status().isOk()).andExpect(jsonPath("$.record.requestType").value("INITIAL"))
+                    .andExpect(jsonPath("$.record.quantity").value(1));
         }
 
         submit(lecturer, input(classId, List.of(first.id, retry.id))).andExpect(status().isConflict());
@@ -141,8 +142,53 @@ class EquipmentInitialRequestsIntegrationTest {
         submitSingle(first, "REPLACEMENT").andExpect(status().isOk());
         assertTrue(studentIds(body(read(lecturer, classId))).isEmpty());
         assertEquals(3, jdbc.queryForObject("""
-                SELECT COUNT(*) FROM equipment_requests WHERE class_id=? AND status='NEW' AND request_type='INITIAL'
+                SELECT COUNT(*) FROM equipment_requests WHERE class_id=? AND status='NEW' AND request_type='INITIAL' AND quantity=1
                 """, Integer.class, classId));
+        assertEquals(2, jdbc.queryForObject("SELECT quantity FROM equipment_requests WHERE class_id=? AND student_id=? AND request_type='REPLACEMENT'",
+                Integer.class, classId, first.id));
+    }
+
+    @Test
+    void initialRequestsDoNotRequireAQuantityInThePayload() throws Exception {
+        User batchStudent = student("An", classId, "ACTIVE");
+        User singleStudent = student("Bình", classId, "ACTIVE");
+
+        var batchInput = new LinkedHashMap<>(input(classId, List.of(batchStudent.id)));
+        batchInput.remove("quantity");
+        submit(lecturer, batchInput).andExpect(status().isOk()).andExpect(jsonPath("$.createdCount").value(1));
+
+        var singleInput = new LinkedHashMap<>(batchInput);
+        singleInput.remove("studentIds");
+        singleInput.put("studentId", singleStudent.id);
+        singleInput.put("requestType", "INITIAL");
+        mvc.perform(asActor(post(SCREENS + "AddEquipmentRequest"), lecturer).with(csrf())
+                .contentType("application/json").content(json.writeValueAsString(singleInput))).andExpect(status().isOk());
+        assertEquals(2, jdbc.queryForObject("SELECT COUNT(*) FROM equipment_requests WHERE class_id=? AND quantity=1 AND request_type='INITIAL'",
+                Integer.class, classId));
+    }
+
+    @Test
+    void initialRequestsRequireTomorrowOrLaterInTheTrainingCentersTimeZone() throws Exception {
+        User batchStudent = student("An", classId, "ACTIVE");
+        User singleStudent = student("Bình", classId, "ACTIVE");
+        LocalDate today = LocalDate.now(ZoneId.of("Asia/Ho_Chi_Minh"));
+        var batchInput = new LinkedHashMap<>(input(classId, List.of(batchStudent.id)));
+
+        for (LocalDate invalidDate : List.of(today.minusDays(1), today)) {
+            batchInput.put("neededOn", invalidDate.toString());
+            submit(lecturer, batchInput).andExpect(status().isBadRequest()).andExpect(jsonPath("$.fields.neededOn").exists());
+            submitSingle(singleStudent, "INITIAL", invalidDate).andExpect(status().isBadRequest())
+                    .andExpect(jsonPath("$.fields.neededOn").exists());
+        }
+        assertEquals(0, requestCount());
+
+        LocalDate tomorrow = today.plusDays(1);
+        batchInput.put("neededOn", tomorrow.toString());
+        submit(lecturer, batchInput).andExpect(status().isOk());
+        submitSingle(singleStudent, "INITIAL", tomorrow).andExpect(status().isOk());
+        assertEquals(2, jdbc.queryForObject("SELECT COUNT(*) FROM equipment_requests WHERE class_id=? AND needed_on=?",
+                Integer.class, classId, tomorrow));
+        submitSingle(singleStudent, "REPLACEMENT", today).andExpect(status().isOk());
     }
 
     @Test
@@ -237,10 +283,15 @@ class EquipmentInitialRequestsIntegrationTest {
     }
 
     private ResultActions submitSingle(User student, String type) throws Exception {
+        return submitSingle(student, type, neededOn);
+    }
+
+    private ResultActions submitSingle(User student, String type, LocalDate requestedDate) throws Exception {
         var data = new LinkedHashMap<>(input(classId, List.of(student.id)));
         data.remove("studentIds");
         data.put("studentId", student.id);
         data.put("requestType", type);
+        data.put("neededOn", requestedDate.toString());
         return mvc.perform(asActor(post(SCREENS + "AddEquipmentRequest"), lecturer).with(csrf())
                 .contentType("application/json").content(json.writeValueAsString(data)));
     }

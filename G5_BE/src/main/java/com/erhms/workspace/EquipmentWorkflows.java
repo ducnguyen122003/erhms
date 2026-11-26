@@ -13,6 +13,8 @@ import static com.erhms.workspace.TrainingWorkflows.saved;
 @Service
 public class EquipmentWorkflows {
     private static final int INITIAL_REQUEST_LIMIT = 50;
+    private static final int INITIAL_REQUEST_QUANTITY = 1;
+    private static final ZoneId EQUIPMENT_ZONE = ZoneId.of("Asia/Ho_Chi_Minh");
     private static final int CANDIDATE_PAGE_SIZE = 25;
     private static final String INITIAL_CANDIDATES = """
             FROM training_enrollments e JOIN m_user student ON student.user_id=e.student_id
@@ -85,7 +87,7 @@ public class EquipmentWorkflows {
     public Map<String,Object> initialRequests(Map<String,Object> input, User actor) {
         role(actor, "LECTURER");
         UUID classId = uuid(input, "classId");
-        var info = requestInfo(input);
+        var info = requestInfo(input, "INITIAL");
         if (!(input.get("studentIds") instanceof List<?> ids) || ids.isEmpty() || ids.size()>INITIAL_REQUEST_LIMIT)
             throw invalid("studentIds", "Chọn từ 1 đến " + INITIAL_REQUEST_LIMIT + " học viên");
         Set<Long> students = new LinkedHashSet<>();
@@ -115,7 +117,7 @@ public class EquipmentWorkflows {
             if(d.count("SELECT COUNT(*) FROM training_enrollments WHERE class_id=? AND student_id=? AND academic_completed_at IS NULL AND academic_failed_at IS NULL",classId,student)==0)
                 throw conflict("Học viên đã được xác nhận kết quả khóa học");
         }
-        return saved("EquipmentRequestDetail_Lecturer", insertRequest(classId, student, type, requestInfo(input), actor));
+        return saved("EquipmentRequestDetail_Lecturer", insertRequest(classId, student, type, requestInfo(input, type), actor));
     }
 
     private void requireInitialClass(UUID classId, User actor, boolean lock) {
@@ -139,9 +141,13 @@ public class EquipmentWorkflows {
 
     private record RequestInfo(String title, long quantity, LocalDate neededOn, String description) {}
 
-    private RequestInfo requestInfo(Map<String,Object> input) {
-        return new RequestInfo(text(input,"title",160,true), number(input,"quantity",1,100),
-                date(input,"neededOn",true), text(input,"description",2000,true));
+    private RequestInfo requestInfo(Map<String,Object> input, String type) {
+        boolean initial = type.equals("INITIAL");
+        long quantity = initial ? INITIAL_REQUEST_QUANTITY : number(input,"quantity",1,100);
+        LocalDate neededOn = date(input,"neededOn",true);
+        if (initial && !neededOn.isAfter(LocalDate.now(EQUIPMENT_ZONE)))
+            throw invalid("neededOn", "Chọn ngày cần thiết bị từ ngày mai trở đi.");
+        return new RequestInfo(text(input,"title",160,true), quantity, neededOn, text(input,"description",2000,true));
     }
 
     private UUID insertRequest(UUID classId, long student, String type, RequestInfo info, User actor) {

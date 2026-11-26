@@ -24,6 +24,7 @@ import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.*;
 import org.springframework.transaction.annotation.Transactional;
+import static org.hamcrest.Matchers.containsString;
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.ArgumentMatchers.anyMap;
 import static org.mockito.Mockito.*;
@@ -68,7 +69,7 @@ class ContractSigningIntegrationTest {
     String scan(User u)throws Exception{return body(mvc.perform(multipart("/api/workspace/files").file(new MockMultipartFile("file","hop-dong-da-ky.pdf","application/pdf",pdfBytes())).param("screen","AdmissionContractSigning").with(user(u.email).roles(u.getRoleCode())).with(csrf())).andExpect(status().isOk()).andReturn()).path("id").asText();}
     ResultActions submit(User u,String id,String file,long version)throws Exception{return action(u,"AdmissionContractSigning",id,"submit-scan",Map.of("version",version,"signedOn",LocalDate.now().toString(),"signedScanId",file));}
     void submit(String id)throws Exception{submit(hr,id,scan(hr),version(id)).andExpect(status().isOk());}
-    Map<String,Object> approval(String id)throws Exception{return Map.of("version",version(id),"decision","APPROVE","reviewNote","Đã đối chiếu đầy đủ chữ ký","accountantId",accountant.id,"handoverNote","Chuyển kế toán sau khi cấp tài khoản");}
+    Map<String,Object> approval(String id)throws Exception{return Map.of("version",version(id),"decision","APPROVE","reviewNote","Đã đối chiếu đầy đủ chữ ký","handoverNote","Chuyển kế toán sau khi cấp tài khoản");}
     ResultActions createAccount(String id)throws Exception{
         var record=detail(id);UUID application=UUID.fromString(record.path("consultationId").asText());
         long version=jdbc.queryForObject("SELECT version FROM consultation_followups WHERE consultation_id=?",Long.class,application);
@@ -87,10 +88,17 @@ class ContractSigningIntegrationTest {
         mvc.perform(get("/api/workspace/files/"+scan).with(user(manager.email).roles("MANAGER"))).andExpect(status().isOk());
         write(manager,"ContractSignature",id,approval(id)).andExpect(status().isOk());
         var approved=detail(id);assertEquals("SIGNED",approved.path("status").asText());assertFalse(approved.path("signatureApprovedAt").isNull());assertTrue(approved.path("studentId").isNull());assertTrue(approved.path("handedOverAt").isNull());
+        assertTrue(approved.path("accountantId").isNull());
         read(accountant,"TuitionDetail",id).andExpect(status().isNotFound());
         var account=body(createAccount(id).andExpect(status().isOk()).andReturn());assertTrue(account.path("accountId").asLong()>0);
         var linked=detail(id);assertEquals(account.path("accountId").asLong(),linked.path("studentId").asLong());assertFalse(linked.path("handedOverAt").isNull());
         read(accountant,"TuitionDetail",id).andExpect(status().isOk());
+        User otherAccountant=actor("ACCOUNTANT");
+        read(otherAccountant,"TuitionDetail",id).andExpect(status().isOk());
+        write(accountant,"PaymentInstruction",id,Map.of("content","Vui lòng đối chiếu nội dung chuyển khoản"))
+                .andExpect(status().isOk());
+        assertEquals(accountant.id,detail(id).path("accountantId").asLong());
+        read(otherAccountant,"TuitionDetail",id).andExpect(status().isNotFound());
     }
 
     @Test void assignedAdmissionsOnlyAndOwnerOnlyControlsCannotBeBypassedWithDirectRequests()throws Exception{
@@ -112,6 +120,82 @@ class ContractSigningIntegrationTest {
         action(manager,"TrainingContractDetail",id,"send-for-signature",Map.of("version",version(id))).andExpect(status().isBadRequest()).andExpect(jsonPath("$.fields['templateData.studentDateOfBirth']").exists());
         assertEquals("DRAFT",detail(id).path("status").asText());assertTrue(detail(id).path("printFileId").isNull());verifyNoInteractions(renderer);
         write(manager,"ContractSignature",id,Map.of("version",version(id),"signedOn","2026-11-01","signatureMethod","PAPER","signatureEvidence","Tự khai đã ký","accountantId",accountant.id)).andExpect(status().isConflict());
+    }
+
+    @Test void aDraftFromTheListGoesToTheAdmissionsStaffWhoForwardedIt()throws Exception{
+        String id=draft();
+        UUID admission=UUID.fromString(detail(id).path("consultationId").asText());
+        jdbc.update("UPDATE consultation_followups SET forwarded_by=? WHERE consultation_id=?",otherHr.id,admission);
+        action(manager,"ListTrainingContract",id,"send-for-signature",Map.of("version",version(id),"admissionsId",hr.id))
+                .andExpect(status().isOk()).andExpect(jsonPath("$.screen").value("ListTrainingContract"));
+        assertEquals(otherHr.id.longValue(),detail(id).path("signatureAdmissionsId").asLong());
+        read(otherHr,"AdmissionContractSigning",id).andExpect(status().isOk());
+        read(hr,"AdmissionContractSigning",id).andExpect(status().isNotFound());
+        verify(renderer).pdf(anyMap());
+    }
+
+    @Test void batchSendingRoutesEveryDraftToItsOwnAdmissionsStaffAndPreservesEachPdf()throws Exception{
+        String first=draft(),second=draft();
+        UUID legacyAdmission=UUID.fromString(detail(second).path("consultationId").asText());
+        jdbc.update("UPDATE consultation_followups SET forwarded_by=NULL,assigned_to=? WHERE consultation_id=?",otherHr.id,legacyAdmission);
+        var payload=Map.<String,Object>of("contracts",List.of(
+                Map.of("id",second,"version",version(second)),Map.of("id",first,"version",version(first))));
+        action(manager,"ListTrainingContract","new","send-for-signature-batch",payload)
+                .andExpect(status().isOk()).andExpect(jsonPath("$.screen").value("ListTrainingContract"))
+                .andExpect(jsonPath("$.sentCount").value(2));
+
+        for(String id:List.of(first,second)){
+            boolean fromFirstAdmission=id.equals(first);
+            User recipient=fromFirstAdmission?hr:otherHr;
+            User unrelated=fromFirstAdmission?otherHr:hr;
+            var contract=detail(id);
+            assertEquals("SENT_FOR_SIGNATURE",contract.path("status").asText());
+            assertEquals(recipient.id.longValue(),contract.path("signatureAdmissionsId").asLong());
+            read(unrelated,"AdmissionContractSigning",id).andExpect(status().isNotFound());
+            assertArrayEquals(printable,pdf(recipient,id).andExpect(status().isOk()).andReturn().getResponse().getContentAsByteArray());
+            assertEquals(1L,jdbc.queryForObject("SELECT COUNT(*) FROM user_notifications WHERE recipient_id=? AND target_id=?",Long.class,recipient.id,id));
+            assertEquals(1L,jdbc.queryForObject("SELECT COUNT(*) FROM contract_signing_history WHERE contract_id=? AND action='SENT'",Long.class,UUID.fromString(id)));
+        }
+        assertNotEquals(detail(first).path("printFileId"),detail(second).path("printFileId"));
+        action(manager,"ListTrainingContract","new","send-for-signature-batch",payload).andExpect(status().isConflict());
+        verify(renderer,times(2)).pdf(anyMap());
+    }
+
+    @Test void invalidBatchDraftOrMissingScopePreventsSendingAnySelectedContract()throws Exception{
+        String complete=draft(),incomplete=draft(Map.of());
+        var chosen=Map.of("id",complete,"version",version(complete));
+        var payload=Map.<String,Object>of("contracts",List.of(
+                chosen,Map.of("id",incomplete,"version",version(incomplete))));
+        action(otherManager,"ListTrainingContract","new","send-for-signature-batch",payload).andExpect(status().isNotFound());
+        action(accountant,"ListTrainingContract","new","send-for-signature-batch",payload).andExpect(status().isForbidden());
+        action(manager,"ListTrainingContract","new","send-for-signature-batch",Map.of("contracts",List.of(chosen,chosen)))
+                .andExpect(status().isBadRequest()).andExpect(jsonPath("$.fields.contracts").exists());
+        action(manager,"ListTrainingContract","new","send-for-signature-batch",payload)
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.message").value(containsString(detail(incomplete).path("code").asText())))
+                .andExpect(jsonPath("$.fields['templateData.studentDateOfBirth']").exists());
+
+        for(String id:List.of(complete,incomplete)){
+            assertEquals("DRAFT",detail(id).path("status").asText());
+            assertTrue(detail(id).path("printFileId").isNull());
+            read(hr,"AdmissionContractSigning",id).andExpect(status().isNotFound());
+        }
+        verifyNoInteractions(renderer);
+    }
+
+    @Test void missingOrDisabledAdmissionsOwnerPreventsAutomaticSending()throws Exception{
+        String id=draft();
+        UUID admission=UUID.fromString(detail(id).path("consultationId").asText());
+        jdbc.update("UPDATE consultation_followups SET forwarded_by=NULL,assigned_to=NULL WHERE consultation_id=?",admission);
+        var payload=Map.<String,Object>of("version",version(id),"admissionsId",otherHr.id);
+        action(manager,"TrainingContractDetail",id,"send-for-signature",payload)
+                .andExpect(status().isBadRequest()).andExpect(jsonPath("$.fields.admissionsId").exists());
+        jdbc.update("UPDATE consultation_followups SET forwarded_by=?,assigned_to=? WHERE consultation_id=?",hr.id,otherHr.id,admission);
+        jdbc.update("UPDATE m_user SET account_enabled=FALSE WHERE user_id=?",hr.id);
+        action(manager,"TrainingContractDetail",id,"send-for-signature",payload)
+                .andExpect(status().isBadRequest()).andExpect(jsonPath("$.fields.admissionsId").exists());
+        assertEquals("DRAFT",detail(id).path("status").asText());
+        verifyNoInteractions(renderer);
     }
 
     @Test void originalPrintablePdfRemainsFrozenAfterSending()throws Exception{
@@ -160,7 +244,9 @@ class ContractSigningIntegrationTest {
         long pending=version(id);write(manager,"ContractSignature",id,Map.of("version",pending,"decision","REJECT","reviewNote","Trang cuối thiếu chữ ký học viên")).andExpect(status().isOk());
         assertEquals("SENT_FOR_SIGNATURE",detail(id).path("status").asText());assertEquals("Trang cuối thiếu chữ ký học viên",detail(id).path("signatureReviewNote").asText());createAccount(id).andExpect(status().isConflict());
         submit(id);var stale=approval(id);stale=new LinkedHashMap<>(stale);stale.put("version",pending);write(manager,"ContractSignature",id,stale).andExpect(status().isConflict());
-        write(manager,"ContractSignature",id,approval(id)).andExpect(status().isOk());assertEquals("SIGNED",detail(id).path("status").asText());
+        var legacyApproval=new LinkedHashMap<>(approval(id));legacyApproval.put("accountantId",accountant.id);
+        write(manager,"ContractSignature",id,legacyApproval).andExpect(status().isOk());
+        var approved=detail(id);assertEquals("SIGNED",approved.path("status").asText());assertTrue(approved.path("accountantId").isNull());
         assertNotEquals(first,detail(id).path("signedScanFileId").asText());
         assertTrue(body(read(manager,"TrainingContractDetail",id).andExpect(status().isOk()).andReturn()).path("related").path("signingHistory").size()>=5);
     }

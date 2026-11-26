@@ -28,14 +28,31 @@ test('choosing a planned class fixes the start date and course while admission c
  assert.equal(changed.classId,'');assert.equal(changed.startsOn,'');assert.equal(trainingContractSelection(changed,options).classes.length,0);
 });
 
-test('legacy admissions choose a class to derive its course instead of entering the course and date separately',()=>{
+test('legacy admissions choose a course before selecting a class, which sets only the start date',()=>{
  const options=fixtures();options.admissions.push({id:'legacy',email:'legacy@gmail.com'});
- options.classes=[{id:'pc-2027',courseId:'course-1',courseName:catalog[1].name,status:'PLANNED',remainingSlots:2,planYear:2027,startsOn:'2027-03-01'}];
+ options.classes=[
+  {id:'laptop-2027',courseId:'course-0',courseName:catalog[0].name,status:'PLANNED',remainingSlots:2,planYear:2027,startsOn:'2027-02-01'},
+  {id:'pc-2027',courseId:'course-1',courseName:catalog[1].name,status:'PLANNED',remainingSlots:2,planYear:2027,startsOn:'2027-03-01'}
+ ];
  const initial=initialTrainingContractValues('AddTrainingContract',{consultationId:'legacy'},options);
- assert.equal(trainingContractCourseField(courseField,trainingContractSelection(initial,options)).readOnly,true);
- const selected=changeTrainingContractValue(initial,'classId','pc-2027',options);
+ assert.deepEqual(trainingContractCourseField(courseField,trainingContractSelection(initial,options)),courseField);
+ assert.deepEqual(trainingContractSelection(initial,options).classes,[]);
+ const course=changeTrainingContractValue(initial,'courseId','course-1',options);
+ assert.deepEqual(trainingContractSelection(course,options).classes.map(row=>row.id),['pc-2027']);
+ const wrong=changeTrainingContractValue(course,'classId','laptop-2027',options);
+ assert.equal(wrong.classId,'');assert.equal(wrong.courseId,'course-1');assert.equal(wrong.startsOn,'');
+ const selected=changeTrainingContractValue(course,'classId','pc-2027',options);
  assert.equal(selected.courseId,'course-1');assert.equal(selected.startsOn,'2027-03-01');
- assert.equal(trainingContractCourseField(courseField,trainingContractSelection(selected,options)).displayValue,catalog[1].name);
+ const switched=changeTrainingContractValue(selected,'courseId','course-0',options);
+ assert.equal(switched.classId,'');assert.equal(switched.startsOn,'');
+ assert.deepEqual(trainingContractSelection(switched,options).classes.map(row=>row.id),['laptop-2027']);
+});
+
+test('reopening a draft keeps its course ID when its saved class belongs to another course',()=>{
+ const options=fixtures();options.classes=[{id:'wrong-class',courseId:'course-1',courseName:catalog[0].name,status:'PLANNED',startsOn:'2027-03-01'}];
+ const draft={id:'draft',consultationId:'admission-0',courseId:'course-0',classId:'wrong-class',startsOn:'2027-03-01',tuitionDue:12000000};
+ const opened=initialTrainingContractValues('EditTrainingContract',draft,options);
+ assert.equal(opened.courseId,'course-0');assert.equal(opened.classId,'');assert.equal(opened.startsOn,'');assert.equal(opened.tuitionDue,12000000);
 });
 
 test('all four registered courses populate their name fee and duration without any training catalog records',()=>{

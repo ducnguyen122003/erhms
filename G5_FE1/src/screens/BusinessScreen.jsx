@@ -1,5 +1,5 @@
 import {useEffect,useRef,useState} from 'react';
-import {ArrowLeft,ArrowUpRight,CalendarDays,Check,Download,Plus,RefreshCw,Search,ShieldCheck} from 'lucide-react';
+import {ArrowLeft,ArrowUpRight,CalendarDays,Check,Download,Plus,RefreshCw,Search,ShieldCheck,TriangleAlert} from 'lucide-react';
 import {api} from '../api';
 import {dashboardRoles} from '../roles';
 import {AdminDialog,AdminLoading,AdminMessage,AdminPage,AdminPagination,AdminStats} from '../admin/AdminUI';
@@ -17,9 +17,11 @@ import {admissionHome} from './admissionDashboard';
 import {canRecordConsultation} from './admissionConsultation';
 import ClassEnrollment from './ClassEnrollment';
 import ClassSchedule from './ClassSchedule';
+import Gradebook from './Gradebook';
 import ContractPdfActions from './ContractPdfActions';
 import ContractSigningDetails from './ContractSigningDetails';
-import {canProvisionContract,canReviewSignedScan,canSendContract} from './contractSigning';
+import {canProvisionContract,canReviewSignedScan,canSendContract,changeDraftSelection,refreshDraftSelection} from './contractSigning';
+import {ContractDraftDialog,ContractDraftList} from './ContractDraftList';
 import StudentContractPayment from './StudentContractPayment';
 import StudentPaymentReview from './StudentPaymentReview';
 import {DepositSettlementOverview,RefundReview,refundRequestFields,refundRequestPayload,refundRequestValues,refundTransferFields,refundTransferPayload} from './EquipmentRefund';
@@ -35,40 +37,65 @@ sectionNames.signingHistory='Lịch sử ký hợp đồng';
 function Badge({value}){return <span className={'admin-badge '+(['PENDING','NEW','NOT_PROCEEDING','DOCUMENTS_INCOMPLETE','MISMATCH','ABSENT','OPEN','RETURN_DUE','WITHDRAWN','FAILED','SENT_FOR_SIGNATURE','SIGNATURE_REVIEW'].includes(value)?'is-warning':'')}>{display(value)}</span>;}
 function AdmissionBadges({record}){const primary=admissionStatus(record);return <div className="admission-status-badges"><Badge value={primary}/>{record.documentStatus&&primary!==record.documentStatus&&<Badge value={record.documentStatus}/>}</div>;}
 function destination(result){const kind=screens[result.screen]?.kind;return screenPath(result.screen,['list','notifications','timetable','report'].includes(kind)?null:result.id);}
-function Facts({record,showManager=true,hideEquipmentCatalogs=false}){return <dl className="screen-facts">{Object.entries(record).filter(([key,value])=>labels[key]&&value!==null&&value!==undefined&&!['status','state','content','profileEvidence'].includes(key)&&(showManager||key!=='managerName')&&!(hideEquipmentCatalogs&&['category','location','groupName'].includes(key))).map(([key,value])=><div key={key}><dt>{key==='signatureApprovedAt'&&record.signatureMethod==='RETAKE_ACCEPTANCE'?'Ngày xác nhận trực tuyến':labels[key]}</dt><dd>{/Evidence$|^evidence$|^approvalReference$/.test(key)?<Evidence value={value}/>:display(value,key)}</dd></div>)}</dl>;}
+function Facts({record,showManager=true,hideEquipmentCatalogs=false}){return <dl className="screen-facts">{Object.entries(record).filter(([key,value])=>labels[key]&&value!==null&&value!==undefined&&!['status','state','content','profileEvidence'].includes(key)&&(showManager||key!=='managerName')&&!(hideEquipmentCatalogs&&['category','location','groupName'].includes(key))).map(([key,value])=><div key={key}>
+ <dt>{key==='signatureApprovedAt'&&record.signatureMethod==='RETAKE_ACCEPTANCE'?'Ngày xác nhận trực tuyến':labels[key]}</dt>
+ <dd>{/Evidence$|^evidence$|^approvalReference$/.test(key)?<Evidence value={value}/>:display(value,key)}
+  {key==='email'&&record.emailHasAccount&&<span className="admission-email-warning"><TriangleAlert size={13} aria-hidden="true"/>Email này đã được dùng để tạo tài khoản.</span>}
+ </dd>
+</div>)}</dl>;}
 function RelatedTable({rows,title,onOpen}){if(!rows?.length)return <section className="screen-related"><h3>{title}</h3><p className="admin-muted">Chưa có dữ liệu được ghi nhận.</p></section>;const keys=[...new Set(rows.flatMap(Object.keys))].filter(key=>labels[key]).slice(0,7);return <section className="screen-related"><h3>{title}</h3><div className="admin-table-scroll"><table className="admin-table"><thead><tr>{keys.map(key=><th key={key}>{labels[key]}</th>)}{onOpen&&<th>Thao tác</th>}</tr></thead><tbody>{rows.map((row,index)=><tr key={row.id||index}>{keys.map(key=><td key={key}>{/Evidence$|^evidence$|^approvalReference$/.test(key)?<Evidence value={row[key]}/>:display(row[key],key)}</td>)}{onOpen&&<td><button type="button" className="admin-text-button" onClick={()=>onOpen(row)}>Xem<ArrowUpRight size={13}/></button></td>}</tr>)}</tbody></table></div></section>;}
 function ActionEditor({title,action,fields,record,options,code,busy,errors,error,onSave,onClose}){
  const [values,setValues]=useState(()=>({...defaults,...record,returnedAt:localDateTime(new Date().toISOString()),assets:[],recipients:[]})),[uploading,setUploading]=useState(false);const dirty=useUnsavedChanges();
- const submit=event=>{event.preventDefault();onSave(prepareValues(values,fields),()=>{dirty.current=false;});};
- const submitLabel=action==='request-refund'?'Gửi kế toán':'Xác nhận';
+ const submit=event=>{
+  event.preventDefault();
+  const payload=action==='update-email'?{version:values.version,email:values.email}:prepareValues(values,fields);
+  onSave(payload,()=>{dirty.current=false;});
+ };
+ const submitLabel=action==='request-refund'?'Gửi kế toán':action==='update-email'?'Lưu email':'Xác nhận';
  return <AdminDialog title={title} onClose={onClose} busy={busy||uploading}><form className="admin-dialog-body screen-action-form" onSubmit={submit} aria-busy={busy||uploading}><AdminMessage error={error}/>
-  {action==='send-for-signature'&&<p className="admin-muted">Hoàn tất thông tin xuất PDF trước khi gửi. Nội dung và bản PDF được chốt khi gửi tuyển sinh để in, lấy chữ ký học viên.</p>}
   <fieldset disabled={busy||uploading}><Fields fields={fields} values={values} setValue={(key,value)=>{dirty.current=true;setValues(current=>({...current,[key]:value}));}} options={options} errors={errors} code={code} disabled={busy} onUploading={setUploading}/></fieldset><div className="admin-dialog-actions"><button type="button" className="admin-secondary" onClick={onClose} disabled={busy||uploading} data-initial-focus>Hủy</button><button type="submit" disabled={busy||uploading}><Check size={14}/>{busy||uploading?'Đang xử lý…':submitLabel}</button></div></form></AdminDialog>;
 }
 
-export default function BusinessScreen({code,accountId:id,user,functions=[],onNavigate,onLogout,onChanged,initialNotice='',listIntro=null,listRevision=0}){
+export default function BusinessScreen({code,accountId:id,user,functions=[],onNavigate,onLogout,onChanged,initialNotice='',listNavigation=null}){
  const spec=screens[code],[data,setData]=useState(null),[loading,setLoading]=useState(true),[error,setError]=useState(''),[notice,setNotice]=useState(initialNotice),[fieldErrors,setFieldErrors]=useState({}),[failureCode,setFailureCode]=useState(''),[revision,setRevision]=useState(0),[saving,setSaving]=useState(false),[action,setAction]=useState(null),[search,setSearch]=useState(()=>code==='PaymentStatus_Admissions'?(new URLSearchParams(window.location.search).get('q')||'').slice(0,200):''),[filter,setFilter]=useState(()=>({q:code==='PaymentStatus_Admissions'?(new URLSearchParams(window.location.search).get('q')||'').slice(0,200):'',status:'',year:'',page:0,from:'',to:'',...(screens[code].kind==='timetable'?weekRange():{})}));
  const controllerRef=useRef(null),pending=useRef(false),mounted=useRef(false);
  const [editingProfile,setEditingProfile]=useState(false);
+ const [gradebookRefreshPending,setGradebookRefreshPending]=useState(false);
+ const [draftSelection,setDraftSelection]=useState(()=>new Map()),[draftDialog,setDraftDialog]=useState(null);
  const isReport=spec.kind==='report',record=data?.record,related=data?.related||empty,options=data?.options||empty,can=target=>canScreen(target,user,functions);
+ const managesContractList=code==='ListTrainingContract'&&user.role==='MANAGER';
+ const canSendDrafts=managesContractList&&can('ContractSignature'),canDeleteDrafts=managesContractList&&can('EditTrainingContract');
  const refundContext=related.refundContext||empty,refundReview=related.refundReview?.[0],depositSettlement=related.settlements?.[0];
  const isEquipmentReturn=['ListAssetDetail','Recovery_Withdrawal'].includes(code);
  useEffect(()=>{mounted.current=true;return()=>{mounted.current=false;controllerRef.current?.abort();};},[]);
  useEffect(()=>{const timer=setTimeout(()=>setFilter(current=>current.q===search?current:{...current,q:search,page:0}),300);return()=>clearTimeout(timer);},[search]);
- useEffect(()=>{const controller=new AbortController();setLoading(true);setError('');const params=new URLSearchParams(filter);api('/api/workspace/screens/'+code+(id?'/'+id:'')+'?'+params,{signal:controller.signal}).then(result=>{if(!controller.signal.aborted)setData(result);}).catch(cause=>{if(!controller.signal.aborted){if(cause.status===401)onLogout();else setError(cause.message);}}).finally(()=>{if(!controller.signal.aborted)setLoading(false);});return()=>controller.abort();},[code,id,filter,revision,listRevision]);
+ useEffect(()=>{const controller=new AbortController();setLoading(true);setError('');const params=new URLSearchParams(filter);api('/api/workspace/screens/'+code+(id?'/'+id:'')+'?'+params,{signal:controller.signal}).then(result=>{
+  if(controller.signal.aborted)return;
+  if(code==='ListTrainingContract'&&filter.page>0&&filter.page>=result.totalPages){setFilter(current=>({...current,page:Math.max(0,result.totalPages-1)}));return;}
+  setData(result);
+  if(code==='ClassGradebook')setGradebookRefreshPending(false);
+  if(code==='ListTrainingContract'&&result.items)setDraftSelection(current=>refreshDraftSelection(current,result.items));
+ }).catch(cause=>{if(!controller.signal.aborted){if(cause.status===401)onLogout();else setError(cause.message);}}).finally(()=>{if(!controller.signal.aborted)setLoading(false);});return()=>controller.abort();},[code,id,filter,revision]);
  const go=(target,key)=>onNavigate(screenPath(target,key));
  function handleAdmissionImported(result){
   setError('');setNotice(result.notice||`Đã nhập ${result.importedCount} hồ sơ học sinh.`);
   setSearch('');setFilter(current=>({...current,q:'',status:'',page:0}));setRevision(value=>value+1);onChanged?.();
  }
  function paymentUpdated(message){setNotice(message||'Đã cập nhật trạng thái thanh toán.');setRevision(value=>value+1);onChanged?.();}
- async function mutate(values,clearDirty,actionName=null){
+ async function mutate(values,clearDirty,actionName=null,targetId=id){
   if(pending.current)return false;pending.current=true;setSaving(true);setError('');setNotice('');setFieldErrors({});setFailureCode('');const controller=new AbortController();controllerRef.current=controller;
-  try{const response=await api('/api/workspace/screens/'+code+(id?'/'+id:actionName?'/new':'')+(actionName?'/actions/'+actionName:''),{method:'POST',body:JSON.stringify(values),signal:controller.signal});if(!mounted.current)return false;clearDirty?.();onChanged?.();setAction(null);const params=new URLSearchParams(window.location.search);let path=code==='TimeTable_EditSession'&&params.has('returnClassId')&&can('ClassDetail')?screenPath('ClassDetail',values.classId):destination(response);
+  try{const response=await api('/api/workspace/screens/'+code+(targetId?'/'+targetId:actionName?'/new':'')+(actionName?'/actions/'+actionName:''),{method:'POST',body:JSON.stringify(values),signal:controller.signal});if(!mounted.current)return false;clearDirty?.();onChanged?.();setAction(null);const params=new URLSearchParams(window.location.search);let path=code==='TimeTable_EditSession'&&params.has('returnClassId')&&can('ClassDetail')?screenPath('ClassDetail',values.classId):destination(response);
    if(code==='Attendance_Correction'&&params.get('returnAttendance')==='1')path+='?'+attendanceDetailSearch(params);
-   if(path===window.location.pathname){setRevision(current=>current+1);setNotice(response.notice);}else onNavigate(path,{notice:response.notice});return true;
+   if(path===window.location.pathname){if(code==='ClassGradebook')setGradebookRefreshPending(true);setRevision(current=>current+1);setNotice(response.notice);}else onNavigate(path,{notice:response.notice});return true;
   }catch(cause){if(!mounted.current||controller.signal.aborted)return false;if(cause.status===401)onLogout();else{setError(cause.message);setFailureCode(cause.code||'');setFieldErrors(cause.fields||{});if(cause.code==='TIMETABLE_CONFLICT')setFieldErrors(current=>({...current,startsAt:cause.message}));}return false;}
   finally{pending.current=false;if(mounted.current&&!controller.signal.aborted)setSaving(false);}
+ }
+ function openDraftDialog(kind,rows){setError('');setFieldErrors({});setDraftDialog({kind,rows});}
+ function saveDraftAction(key,targetId,values){
+  return mutate(values,()=>{
+   if(managesContractList)setDraftSelection(current=>changeDraftSelection(current,draftDialog.rows,false));
+   setDraftDialog(null);
+  },key,targetId);
  }
  function openAction(key,title,fields=actionForms[key],override={}){setError('');setFieldErrors({});setAction({key,title,fields,override});}
  const run=(key,payload=empty)=>mutate({version:record?.version,...payload},null,key);
@@ -110,9 +137,9 @@ export default function BusinessScreen({code,accountId:id,user,functions=[],onNa
  function addButton(key,label,handler,disabled=false){actionButtons.push(<button key={key} type="button" className="admin-secondary" disabled={saving||disabled} onClick={handler}>{label}</button>);}
  if(record){
   if(code==='ListAdmissionApplicationDetail'&&data.canEditCourse)addButton('update-course',record.enrollmentCourse?'Đổi khóa học':'Chọn khóa học',()=>openAction('update-course','Khóa học đăng ký',[{key:'enrollmentCourse',label:'Khóa học đăng ký',type:'select',source:'enrollmentCourses',required:true,wide:true}]));
+  if(code==='ListAdmissionApplicationDetail'&&data.canEditEmail)addButton('update-email','Sửa email',()=>openAction('update-email','Sửa email học viên'));
   if(code==='ListAdmissionApplicationDetail'&&data.canEditProfile)addButton('edit-profile','Bổ sung / chỉnh sửa hồ sơ',()=>setEditingProfile(true),editingProfile);
   for(const [label,target] of Array.isArray(spec.actions)?spec.actions:[])if(can(target)){let nextId=record.id;if(target==='AddEquipmentRequest'){addButton(target,label,()=>onNavigate(screenPath(target)+'?classId='+record.id));continue;}
-   if(target==='AdmissionConsultation'&&(!canRecordConsultation(record.status)||data.canConsult===false))continue;
    if(target==='AddTrainingContract'&&data.resource==='admissions'&&!['PROFILE_PENDING','PROFILE_CREATED'].includes(record.status))continue;
    if(target==='AddTrainingContract'){addButton(target,label,()=>onNavigate(screenPath(target)+'?consultationId='+record.id));continue;}
    if(target==='ClassAttendance')continue; // A session is selected from the actual timetable below.
@@ -127,7 +154,7 @@ export default function BusinessScreen({code,accountId:id,user,functions=[],onNa
    if(target==='ContractSignature'&&!canReviewSignedScan(record))continue;
    addButton(target,label,()=>go(target,nextId));
   }
-  if(code==='TrainingContractDetail'&&canSendContract(record)&&can('ContractSignature'))addButton('send-for-signature','Gửi tuyển sinh in & ký',()=>openAction('send-for-signature','Gửi hợp đồng cho tuyển sinh ký',[{key:'admissionsId',label:'Nhân viên tuyển sinh nhận hợp đồng',type:'select',source:'admissionsStaff',required:true,wide:true}],{admissionsId:record.defaultAdmissionsId||''}));
+  if(code==='TrainingContractDetail'&&canSendContract(record)&&can('ContractSignature'))addButton('send-for-signature','Gửi tuyển sinh in & ký',()=>openDraftDialog('send',[record]));
   if(code==='TrainingContractDetail'&&canProvisionContract(record)&&!record.studentId&&can('ListStudentAccount'))addButton('create-account','Tạo tài khoản theo email hợp đồng',()=>onNavigate(screenPath('ListStudentAccount')+'?q='+encodeURIComponent(record.studentEmail||'')));
   if(code==='EquipmentRequestDetail_IT'&&data.canWrite){if(record.status==='NEW'){addButton('prepare','Tiếp nhận & chuẩn bị',()=>run('prepare'));addButton('reject','Từ chối yêu cầu',()=>run('reject'));}if(record.status==='PREPARING')addButton('ready','Xác nhận sẵn sàng',()=>run('ready'));}
   if(code==='AutoAssignmentDetail'&&data.canWrite)addButton('confirm','Xác nhận đã kiểm tra',()=>run('confirm'),record.assignmentStatus==='CONFIRMED');
@@ -166,11 +193,11 @@ export default function BusinessScreen({code,accountId:id,user,functions=[],onNa
   extra={failureCode==='TIMETABLE_CONFLICT'?<TimetableConflictNotice/>:null}
  />;
  return <AdminPage title={screenTitle(code,user)} description={code==='ClassGradebook'&&!id?'Chọn lớp để mở bảng điểm.':spec.description} eyebrow={dashboardRoles[user.role]?.category} code={code}>
-  {!showForm&&<AdminMessage error={action?'':error} notice={notice}/>}
-  {!id&&listIntro}
+  {!showForm&&<AdminMessage error={action||draftDialog?'':error} notice={notice}/>}
+  {!id&&listNavigation}
   {consultationClosed&&code==='AdmissionConsultation'&&<p className="admin-message">{record?.status==='NOT_PROCEEDING'?'Hồ sơ này đã Không tiếp tục đăng ký và đã kết thúc tư vấn. Khi học viên có nhu cầu trở lại, hãy nhập một hồ sơ đăng ký mới.':'Hồ sơ đã gửi và đã kết thúc tư vấn. Mở chi tiết đăng ký để bổ sung hoặc chỉnh sửa bộ hồ sơ.'}</p>}
   {code==='PaymentDetail_Duplicate'&&record&&<p className="admin-message">Đây là bản ghi giao dịch gốc đã được tiếp nhận. Kiểm tra trạng thái tại đây; không ghi nhận khoản thu thứ hai.</p>}
-  {loading?<AdminLoading/>:!data?<AdminLoading error={error} onRetry={()=>setRevision(v=>v+1)}/>:<>
+  {loading&&!(code==='ClassGradebook'&&record)?<AdminLoading/>:!data?<AdminLoading error={error} onRetry={()=>setRevision(v=>v+1)}/>:<>
    {code==='StudentRetake'?(record?<StudentRetakeOffer
     record={record} classes={related.classes} canRegister={data.canWrite} canPay={can('TuitionDetail_Student')}
     busy={saving} errors={fieldErrors} onRegister={values=>mutate(values,null,'register')}
@@ -188,14 +215,22 @@ export default function BusinessScreen({code,accountId:id,user,functions=[],onNa
     {data.stats?.length===4?<AdminStats labels={data.stats.map(metric=>metric.label)} values={data.stats.map(metric=>metric.value)}/>:<div className="screen-count"><ShieldCheck size={15}/>{data.total} bản ghi trong phạm vi truy cập</div>}
     <section className="admin-card admin-list-card"><header className="admin-card-heading"><div><h2>{spec.title}</h2><p>Tìm kiếm, lọc và mở hồ sơ theo phân công.</p></div><div className="screen-actions">{code==='ListAdmissionApplication'&&data.canImport&&<AdmissionExcelImport disabled={search!==filter.q} onLogout={onLogout} onError={setError} onImported={handleAdmissionImported}/>}{spec.action&&can(spec.action[1])&&<button type="button" onClick={()=>go(spec.action[1])}><Plus size={15}/>{spec.action[0]}</button>}{code==='ListPayment'&&data.canWrite&&<button type="button" onClick={()=>openAction('import','Tiếp nhận chứng từ giao dịch ngân hàng')}><Plus size={15}/>Tiếp nhận giao dịch</button>}{code==='ListAssetIncident'&&data.canWrite&&<button type="button" onClick={()=>openAction('create','Ghi nhận sự cố',[{key:'assetId',label:'Thiết bị',type:'select',source:'assets',required:true},{key:'loanId',label:'Biên bản bàn giao liên quan',type:'select',source:'loans'},...actionForms.incident])}><Plus size={15}/>Ghi nhận sự cố</button>}{code==='ListNotification'&&can('SendNotification')&&<button type="button" onClick={()=>go('SendNotification')}><Plus size={15}/>Gửi thông báo</button>}{code==='TimeTable_Manager'&&can('TimeTable_EditSession')&&<button type="button" onClick={()=>go('TimeTable_EditSession')}><Plus size={15}/>Thêm buổi học</button>}</div></header>
     <div className={"screen-toolbar"+(code==='ListClass'?' class-plan-toolbar':'')}><label className="screen-search"><Search size={16}/><input aria-label="Tìm kiếm hồ sơ" type="search" placeholder="Tìm theo mã, tên hoặc nội dung liên quan…" maxLength={200} value={search} onChange={e=>setSearch(e.target.value)}/></label>{code==='ListClass'&&<select aria-label="Năm kế hoạch" value={filter.year} onChange={event=>setFilter(current=>({...current,year:event.target.value,page:0}))}><option value="">Tất cả năm kế hoạch</option>{(options.planYears||[]).map(year=><option key={year} value={year}>{year}</option>)}</select>}{!['grades','sessions'].includes(data.resource)&&<select aria-label="Lọc trạng thái" value={filter.status} onChange={e=>setFilter(current=>({...current,status:e.target.value,page:0}))}><option value="">Tất cả trạng thái</option>{(filterStates[data.resource]||[]).map(key=><option key={key} value={key}>{statuses[key]}</option>)}</select>}</div>
-    {spec.kind==='timetable'?<Timetable rows={data.items} from={filter.from} onWeek={value=>setFilter(current=>({...current,...weekRange(value),page:0}))} onOpen={openRow}/>:<div className="admin-table-scroll"><table className="admin-table"><thead><tr>{(columns[data.resource]||[]).map(key=><th key={key}>{labels[key]}</th>)}<th>Thao tác</th></tr></thead><tbody>{data.items?.map(row=><tr key={row.id}>{(columns[data.resource]||[]).map(key=><td key={key}>{key==='status'&&data.resource==='admissions'?<AdmissionBadges record={row}/>:['status','state','returnStatus'].includes(key)?<Badge value={row[key]}/>:display(row[key],key)}</td>)}<td>{targetFor(row)&&can(targetFor(row))?<button type="button" className="admin-text-button" onClick={()=>openRow(row)}>{rowActionLabel(row)}<ArrowUpRight size={13}/></button>:<span className="admin-muted">Chỉ xem</span>}</td></tr>)}</tbody></table></div>}
+    {spec.kind==='timetable'?<Timetable rows={data.items} from={filter.from} onWeek={value=>setFilter(current=>({...current,...weekRange(value),page:0}))} onOpen={openRow}/>
+     :canSendDrafts||canDeleteDrafts?<ContractDraftList rows={data.items||[]} canSend={canSendDrafts} canDelete={canDeleteDrafts} canOpen={can('TrainingContractDetail')}
+      selection={draftSelection} busy={saving} renderStatus={status=><Badge value={status}/>} onOpen={openRow}
+      onSend={row=>openDraftDialog('send',[row])} onDelete={row=>openDraftDialog('delete',[row])}
+      onBatch={()=>openDraftDialog('batch',[...draftSelection.values()])} onSelect={(rows,checked)=>setDraftSelection(current=>changeDraftSelection(current,rows,checked))}
+      onClear={()=>setDraftSelection(new Map())}/>
+     :<div className="admin-table-scroll"><table className="admin-table"><thead><tr>{(columns[data.resource]||[]).map(key=><th key={key}>{labels[key]}</th>)}<th>Thao tác</th></tr></thead><tbody>{data.items?.map(row=><tr key={row.id}>{(columns[data.resource]||[]).map(key=><td key={key}>{key==='status'&&data.resource==='admissions'?<AdmissionBadges record={row}/>:['status','state','returnStatus'].includes(key)?<Badge value={row[key]}/>:display(row[key],key)}</td>)}<td>{targetFor(row)&&can(targetFor(row))?<button type="button" className="admin-text-button" onClick={()=>openRow(row)}>{rowActionLabel(row)}<ArrowUpRight size={13}/></button>:<span className="admin-muted">Chỉ xem</span>}</td></tr>)}</tbody></table></div>}
     {!data.items?.length&&<div className="admin-empty">Chưa có dữ liệu phù hợp. Các bản ghi sẽ xuất hiện khi được cập nhật vào hệ thống.</div>}
     <AdminPagination page={data.page||0} total={data.total||0} size={25} totalPages={data.totalPages||0} onPage={page=>setFilter(current=>({...current,page}))}/></section>
    </>:record?<>
     <section className="admin-card screen-summary"><div><span>{spec.fe}</span><h2>{record.name||record.fullName||record.title||record.code||record.studentName||spec.title}</h2><p>{record.code||record.classCode||record.contractCode||''}</p></div>{data.resource==='admissions'?<AdmissionBadges record={record}/>:(record.status||record.state||record.returnStatus)&&<Badge value={record.state||record.returnStatus||record.status}/>}</section>
     {code==='TuitionDetail_Student'&&user.role==='STUDENT'&&<StudentContractPayment key={record.id} contractId={record.id} user={user} onLogout={onLogout} onUpdated={paymentUpdated}/>}
-    {code==='ClassAttendance'?<Attendance record={record} related={related} editable={data.canWrite} onSave={(values,clear)=>mutate(values,clear,'save')} busy={saving} onCorrection={student=>{const params=attendanceDetailSearch(new URLSearchParams(window.location.search));params.set('studentId',student);onNavigate(screenPath('Attendance_Correction',id)+'?'+params);}} canCorrect={can('Attendance_Correction')}/>
-    :code==='ClassGradebook'?<Gradebook record={record} related={related} editable={data.canWrite&&editableClass(record)} busy={saving} onBack={back} onSave={(values,clear,publish)=>mutate(values,clear,publish?'publish':'save')}/>
+    {code==='ClassAttendance'?<Attendance record={record} related={related} editable={data.canWrite} onBack={back} onSave={(values,clear)=>mutate(values,clear,'save')} busy={saving} onCorrection={student=>{const params=attendanceDetailSearch(new URLSearchParams(window.location.search));params.set('studentId',student);onNavigate(screenPath('Attendance_Correction',id)+'?'+params);}} canCorrect={can('Attendance_Correction')}/>
+    :code==='ClassGradebook'?<Gradebook key={record.id} record={record} related={related} editable={data.canWrite&&editableClass(record)} busy={saving||loading||gradebookRefreshPending} onBack={back}
+     onReload={!loading&&error&&(gradebookRefreshPending||failureCode==='CONFLICT')?()=>setRevision(current=>current+1):undefined}
+     onSave={(values,clear,operation)=>mutate(values,clear,operation)}/>
     :<div className="screen-detail-grid"><section className="admin-card screen-detail"><h2>Thông tin hồ sơ</h2><Facts record={data.resource==='admissions'?{...record,enrollmentCourse:record.enrollmentCourse||'Chưa chọn'}:record} showManager={data.resource!=='classes'} hideEquipmentCatalogs={['assets','requests'].includes(data.resource)}/>{code==='ListAdmissionApplicationDetail'&&<p className="admin-muted">{record.forwardedAt?'Khóa học đăng ký đã chốt khi chuyển hồ sơ sang học vụ.':'Có thể chọn và thay đổi khóa học đăng ký đến khi chuyển hồ sơ sang học vụ.'}</p>}{record.content&&<p className="screen-body">{record.content}</p>}{!editingProfile&&<ProfileDocuments documents={related.documents||[]} legacyEvidence={record.profileEvidence} showCompleteness={Boolean(record.documentStatus)}/>}
      {code==='ListAdmissionApplicationDetail'&&(data.canSubmitProfile||(data.canEditProfile&&editingProfile))&&<AdmissionDocumentUpload key={record.id+':'+editingProfile} record={record} busy={saving} errors={fieldErrors} error={error} onLogout={onLogout} editing={editingProfile} initialDocuments={editingProfile?related.documents||[]:[]} onCancel={()=>setEditingProfile(false)} onSave={(values,clear)=>mutate(values,()=>{clear();setEditingProfile(false);},editingProfile?'update-profile':'submit-profile')}/>}
      {code==='TrainingContractDetail'&&<ContractSigningDetails record={record} onLogout={onLogout} disabled={saving}/>}
@@ -219,13 +254,20 @@ export default function BusinessScreen({code,accountId:id,user,functions=[],onNa
    </>:null}
   </>}
   {action&&<ActionEditor title={action.title} action={action.key} fields={action.fields} record={{...record,...action.override}} options={options} code={code} busy={saving} errors={fieldErrors} error={error} onSave={(values,clear)=>mutate(action.key==='request-refund'?refundRequestPayload(values):values,clear,action.key)} onClose={()=>{setAction(null);setError('');}}/>}
+  {draftDialog&&<ContractDraftDialog operation={draftDialog} busy={saving} error={error} errors={fieldErrors} onSave={saveDraftAction}
+   onClose={()=>{setDraftDialog(null);setError('');}}/>}
  </AdminPage>;
 }
 function Timetable({rows,from,onWeek,onOpen}){const days=Array.from({length:7},(_,i)=>{const day=new Date(from+'T12:00:00');day.setDate(day.getDate()+i);return day;});const shift=offset=>{const next=new Date(from+'T12:00:00');next.setDate(next.getDate()+offset);onWeek(next);};return <><div className="screen-calendar-controls"><button type="button" className="admin-secondary" onClick={()=>shift(-7)}>Tuần trước</button><input type="date" aria-label="Chọn tuần học" value={from} onChange={e=>{if(e.target.value)onWeek(new Date(e.target.value+'T12:00:00'));}}/><button type="button" className="admin-secondary" onClick={()=>shift(7)}>Tuần sau</button></div><div className="admin-table-scroll"><div className="screen-week">{days.map(day=><section key={day.toISOString()}><h3>{day.toLocaleDateString('vi-VN',{weekday:'short',day:'2-digit',month:'2-digit'})}</h3>{(rows||[]).filter(row=>new Date(row.startsAt).toDateString()===day.toDateString()).sort((a,b)=>a.startsAt.localeCompare(b.startsAt)).map(row=><button type="button" key={row.id} onClick={()=>onOpen(row)}><time>{new Date(row.startsAt).toLocaleTimeString('vi-VN',{hour:'2-digit',minute:'2-digit'})} – {new Date(row.endsAt).toLocaleTimeString('vi-VN',{hour:'2-digit',minute:'2-digit'})}</time><strong>{row.title}</strong><span>{row.classCode}</span><span>{row.room} · {row.lecturerName}</span></button>)}</section>)}</div></div></>;}
-function Attendance({record,related,editable,busy,onSave,onCorrection,canCorrect}){
+function Attendance({record,related,editable,busy,onBack,onSave,onCorrection,canCorrect}){
  const [rows,setRows]=useState(related.attendance||[]),dirty=useUnsavedChanges();useEffect(()=>{setRows(related.attendance||[]);dirty.current=false;},[related]);const locked=record.attendanceFinalized;
  const save=finalize=>onSave({version:record.version,records:rows.filter(row=>finalize||row.status).map(row=>({studentId:row.studentId,status:row.status||'',note:row.note||''})),finalize},()=>{dirty.current=false;});
- return <section className="admin-card screen-detail"><header className="screen-section-header"><h2>Danh sách điểm danh</h2><span>{locked?'Đã chốt điểm danh':'Chưa chốt'}</span></header><div className="admin-table-scroll"><table className="admin-table"><thead><tr><th>Học viên</th><th>Trạng thái</th><th>Ghi chú</th>{canCorrect&&<th>Điều chỉnh</th>}</tr></thead><tbody>{rows.map((row,index)=><tr key={row.studentId}><td>{row.studentName}</td><td>{editable&&!locked?<select aria-label={'Điểm danh '+row.studentName} value={row.status||''} disabled={busy} onChange={e=>{dirty.current=true;setRows(current=>current.map((r,i)=>i===index?{...r,status:e.target.value}:r));}}><option value="">Chọn trạng thái</option>{['PRESENT','LATE','EXCUSED','ABSENT'].map(status=><option key={status} value={status}>{statuses[status]}</option>)}</select>:display(row.status)}</td><td>{editable&&!locked?<input aria-label={'Ghi chú '+row.studentName} value={row.note||''} disabled={busy} maxLength={1000} onChange={e=>{dirty.current=true;setRows(current=>current.map((r,i)=>i===index?{...r,note:e.target.value}:r));}}/>:row.note||'—'}</td>{canCorrect&&<td><button type="button" className="admin-text-button" disabled={locked||busy} onClick={()=>onCorrection(row.studentId)}>Điều chỉnh</button></td>}</tr>)}</tbody></table></div>{!rows.length&&<p className="admin-muted">Chưa có học viên đang học trong lớp.</p>}{editable&&!locked&&<footer className="screen-actions"><button type="button" className="admin-secondary" disabled={busy||!rows.length} onClick={()=>save(false)}>Lưu tạm</button><button type="button" disabled={busy||!rows.length||rows.some(row=>!row.status)} onClick={()=>save(true)}>Lưu & hoàn tất</button></footer>}</section>;
+ return <section className="admin-card screen-detail attendance-detail"><header className="screen-section-header"><h2>Danh sách điểm danh</h2><span>{locked?'Đã chốt điểm danh':'Chưa chốt'}</span></header><div className="admin-table-scroll"><table className="admin-table"><thead><tr><th>Học viên</th><th>Trạng thái</th><th>Ghi chú</th>{canCorrect&&<th>Điều chỉnh</th>}</tr></thead><tbody>{rows.map((row,index)=><tr key={row.studentId}><td>{row.studentName}</td><td>{editable&&!locked?<select aria-label={'Điểm danh '+row.studentName} value={row.status||''} disabled={busy} onChange={e=>{dirty.current=true;setRows(current=>current.map((r,i)=>i===index?{...r,status:e.target.value}:r));}}><option value="">Chọn trạng thái</option>{['PRESENT','LATE','EXCUSED','ABSENT'].map(status=><option key={status} value={status}>{statuses[status]}</option>)}</select>:display(row.status)}</td><td>{editable&&!locked?<input aria-label={'Ghi chú '+row.studentName} value={row.note||''} disabled={busy} maxLength={1000} onChange={e=>{dirty.current=true;setRows(current=>current.map((r,i)=>i===index?{...r,note:e.target.value}:r));}}/>:row.note||'—'}</td>{canCorrect&&<td><button type="button" className="admin-text-button" disabled={locked||busy} onClick={()=>onCorrection(row.studentId)}>Điều chỉnh</button></td>}</tr>)}</tbody></table></div>{!rows.length&&<p className="admin-muted">Chưa có học viên đang học trong lớp.</p>}
+  <footer className="screen-actions attendance-actions">
+   <button type="button" className="admin-secondary attendance-back" disabled={busy} onClick={onBack}><ArrowLeft size={14} aria-hidden="true"/>Quay lại</button>
+   {editable&&!locked&&<><button type="button" className="admin-secondary" disabled={busy||!rows.length} onClick={()=>save(false)}>Lưu tạm</button><button type="button" disabled={busy||!rows.length||rows.some(row=>!row.status)} onClick={()=>save(true)}>Lưu & hoàn tất</button></>}
+  </footer>
+ </section>;
 }
 function StudentGradeTable({data,onPage}){
  const grades=data.items||[];
@@ -240,72 +282,5 @@ function StudentGradeTable({data,onPage}){
    </table>
   </div>:<div className="admin-empty">Giảng viên chưa công bố điểm cho bạn.</div>}
   <AdminPagination page={data.page||0} total={data.total||0} size={data.size||25} totalPages={data.totalPages||0} onPage={onPage}/>
- </section>;
-}
-
-function Gradebook({record,related,editable,busy,onBack,onSave}){
- const [grades,setGrades]=useState(related.grades||[]);
- const dirty=useUnsavedChanges();
- useEffect(()=>{setGrades(related.grades||[]);dirty.current=false;},[related]);
-
- const assessments=related.assessments||[],students=related.students||[];
- const canEnter=student=>student.status==='ACTIVE'&&!student.closedAt&&!student.academicCompletedAt&&!student.academicFailedAt;
- const scoreKey=(enrollmentId,title)=>enrollmentId+':'+title;
- const scores=new Map(grades.map(grade=>[scoreKey(grade.enrollmentId,grade.title),grade.score]));
- const score=(id,title)=>scores.get(scoreKey(id,title))??'';
-
- const activeTitles=new Set(assessments.map(assessment=>assessment.title));
- const studentNames=new Map(students.map(student=>[student.enrollmentId,student.studentName]));
- const historical=grades.filter(grade=>grade.score!=null&&!activeTitles.has(grade.title));
-
- function change(enrollmentId,title,value){
-  dirty.current=true;
-  setGrades(current=>[...current.filter(grade=>grade.enrollmentId!==enrollmentId||grade.title!==title),{enrollmentId,title,score:value}]);
- }
-
- function save(publish){
-  const records=students.filter(canEnter).flatMap(student=>assessments.map(({title})=>{
-   const value=score(student.enrollmentId,title);
-   return {enrollmentId:student.enrollmentId,title,score:value===''?null:Number(value)};
-  }));
-  onSave({version:record.version,records},()=>{dirty.current=false;},publish);
- }
-
- const disableSave=busy||!assessments.length||!students.some(canEnter);
- return <section className="admin-card screen-detail">
-  <header className="screen-section-header">
-   <h2>Bảng điểm lớp</h2>
-   <button type="button" className="admin-text-button" disabled={busy} onClick={onBack}><ArrowLeft size={14}/>Danh sách lớp</button>
-  </header>
-  <p className="admin-muted">Thang điểm 10. Chỉ kết quả đã công bố mới hiển thị cho học viên.</p>
-  {!assessments.length?<p className="admin-message">Khóa học chưa có đầu điểm.</p>:<div className="admin-table-scroll">
-   <table className="admin-table">
-    <thead><tr><th scope="col">Học viên</th>{assessments.map(({title,weight})=><th scope="col" key={title}>{title}<small> {weight}%</small></th>)}<th scope="col">Điểm tổng</th></tr></thead>
-    <tbody>{students.map(student=>{
-     const {enrollmentId,studentName}=student;
-     const complete=assessments.every(({title})=>score(enrollmentId,title)!=='');
-     const total=complete?assessments.reduce((sum,{title,weight})=>sum+Number(score(enrollmentId,title))*Number(weight)/100,0):null;
-     return <tr key={enrollmentId}>
-      <td>{studentName}</td>
-      {assessments.map(({title})=><td key={title}>{editable&&canEnter(student)
-       ?<input type="number" min="0" max="10" step="0.01" aria-label={title+' · '+studentName} value={score(enrollmentId,title)} disabled={busy} onChange={event=>change(enrollmentId,title,event.target.value)}/>
-       :score(enrollmentId,title)===''?'—':score(enrollmentId,title)}</td>)}
-      <td>{total===null?'Chưa đủ điểm':total.toLocaleString('vi-VN',{minimumFractionDigits:2,maximumFractionDigits:4})}</td>
-     </tr>;
-    })}</tbody>
-   </table>
-  </div>}
-  {!students.length&&<p className="admin-empty">Lớp chưa có học viên.</p>}
-  {editable&&<footer className="screen-actions">
-   <button type="button" className="admin-secondary" disabled={disableSave} onClick={()=>save(false)}>Lưu bảng điểm</button>
-   <button type="button" disabled={disableSave} onClick={()=>save(true)}>Công bố điểm</button>
-  </footer>}
-  {historical.length>0&&<section className="screen-related">
-   <h3>Điểm theo cấu hình trước</h3>
-   <div className="admin-table-scroll"><table className="admin-table">
-    <thead><tr><th scope="col">Học viên</th><th scope="col">Đầu điểm</th><th scope="col">Điểm</th><th scope="col">Ngày công bố</th></tr></thead>
-    <tbody>{historical.map(grade=><tr key={grade.id}><td>{studentNames.get(grade.enrollmentId)||'—'}</td><td>{grade.title}</td><td>{grade.score}</td><td>{grade.publishedAt?display(grade.publishedAt,'publishedAt'):'Chưa công bố'}</td></tr>)}</tbody>
-   </table></div>
-  </section>}
  </section>;
 }

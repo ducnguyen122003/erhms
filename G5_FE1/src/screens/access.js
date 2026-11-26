@@ -13,9 +13,14 @@ export function screenPath(code,id){
 }
 export function screenRoute(path){
  const match=/^\/screens\/([A-Za-z0-9_]+)(?:\/([1-9][0-9]*|[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}))?$/.exec(path);
+ if(match?.[1]==='InitialEquipmentRequests'&&match[2])return null;
  return match&&screens[match[1]]&&!screens[match[1]].public?{screen:screens[match[1]],id:match[2]||null}:null;
 }
-export function canScreen(code,user,functions=[]){const s=screens[code];return Boolean(s&&(s.public||(s.roles.includes(user?.role)&&functions.includes(s.functionCode))));}
+export function canScreen(code,user,functions=[]){
+ const s=screens[code];
+ if(code==='InitialEquipmentRequests'&&!functions.includes('AddEquipmentRequest'))return false;
+ return Boolean(s&&(s.public||(s.roles.includes(user?.role)&&functions.includes(s.functionCode))));
+}
 export function screenTitle(code,user){return code==='ClassGradebook'&&user?.role==='LECTURER'?'Nhập điểm':screens[code]?.title;}
 export function contractQueueReturnPath(params) {
  if (params.get('returnStage') !== 'NEEDS_CONTRACT') return null;

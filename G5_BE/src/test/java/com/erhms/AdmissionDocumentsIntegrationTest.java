@@ -133,15 +133,34 @@ class AdmissionDocumentsIntegrationTest {
         assertEquals(0,jdbc.queryForObject("SELECT COUNT(*) FROM workflow_files",Integer.class));
     }
 
-    @Test void permissionsCsrfCurrentVersionAndDocumentAppointmentAreRequired()throws Exception {
+    @Test void initialSubmissionRequiresPermissionsCsrfCurrentVersionAndAnActiveDossier()throws Exception {
         String file=pdf(hr,"cccd.pdf").path("id").asText();var input=input(List.of(group("IDENTITY_CARD",file)));
         submit(otherHr,input).andExpect(status().isNotFound());submit(manager,input).andExpect(status().isForbidden());
         mvc.perform(post(actionPath()).with(user(hr.email).roles("HR")).contentType("application/json").content(json.writeValueAsString(input))).andExpect(status().isForbidden());
         input.put("version",1);submit(hr,input).andExpect(status().isConflict());input.put("version",0);
-        jdbc.update("UPDATE consultation_followups SET status='NEEDS_COUNSELING' WHERE consultation_id=?",admission);submit(hr,input).andExpect(status().isConflict());
+        jdbc.update("UPDATE consultation_followups SET status='NOT_PROCEEDING' WHERE consultation_id=?",admission);submit(hr,input).andExpect(status().isConflict());
         jdbc.update("UPDATE consultation_followups SET status='DOCUMENT_APPOINTMENT' WHERE consultation_id=?",admission);
         jdbc.update("DELETE FROM role_function WHERE role_id=7 AND function_code='AdmissionConsultation'");
         submit(hr,input).andExpect(status().isForbidden());upload(hr,"more.pdf",PDF,"application/pdf").andExpect(status().isForbidden());
+    }
+
+    @Test void newDossierCanSubmitDocumentsAndAssignTheHandlerWithoutAConsultation()throws Exception {
+        jdbc.update("DELETE FROM consultation_followups WHERE consultation_id=?",admission);
+        assertTrue(detail().path("canSubmitProfile").asBoolean());
+        String file=pdf(hr,"cccd.pdf").path("id").asText();
+        submit(hr,input(List.of(group("IDENTITY_CARD",file)))).andExpect(status().isOk());
+
+        var result=detail();
+        var record=result.path("record");
+        assertEquals("PROFILE_PENDING",record.path("status").asText());
+        assertTrue(record.path("documentDueOn").isNull());
+        assertEquals(hr.id.longValue(),record.path("assignedTo").asLong());
+        assertEquals(1,record.path("version").asInt());
+        assertTrue(result.path("canEditProfile").asBoolean());
+        assertFalse(result.path("canSubmitProfile").asBoolean());
+        assertEquals(file,result.path("related").path("documents").get(0).path("fileId").asText());
+        assertEquals(1,result.path("related").path("history").size());
+        submit(hr,revision(List.of(group("IDENTITY_CARD",file)))).andExpect(status().isConflict());
     }
 
     @Test void allCategorizedFilesRemainAvailableToTheContractOwnerAfterContractCreation()throws Exception {

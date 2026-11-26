@@ -6,11 +6,11 @@ import {computedContractTemplateData,contractPdfFieldErrors,contractTemplateValu
 import {changeTrainingContractValue,initialTrainingContractValues,trainingContractSelection} from '../src/screens/trainingContract.js';
 
 const name='Sửa chữa máy tính Laptop chuyên nghiệp';
-const metadata={title:'Hợp đồng đào tạo',sections:[
+const metadata={title:'Hợp đồng đào tạo',fixedValues:{agreementPlace:'Trung tâm dậy nghề Bách Khoa'},sections:[
  {key:'student',title:'Thông tin học viên',fields:[{key:'studentName',label:'Họ và tên',type:'text',readOnly:true,requiredForPdf:true},{key:'studentBirthDate',label:'Ngày sinh',type:'date',requiredForPdf:true}]},
  {key:'guardian',title:'Người bảo lãnh',optional:true,fields:[{key:'guardianName',label:'Họ tên người bảo lãnh',type:'text'}]}
 ]};
-const options=()=>({contractTemplate:metadata,contractTemplateDefaults:{centerName:'Trung tâm đào tạo',agreementPlace:'Hà Nội'},enrollmentCourseCatalog:[{name,durationMonths:4,tuitionFee:14200000}],courses:[],admissions:[
+const options=()=>({contractTemplate:metadata,contractTemplateDefaults:{centerName:'Trung tâm đào tạo'},enrollmentCourseCatalog:[{name,durationMonths:4,tuitionFee:14200000}],courses:[],admissions:[
  {id:'first',fullName:'Học viên một',email:'FIRST@gmail.com',phone:'0912345678',enrollmentCourse:name,contractTemplateDefaults:{studentBirthDate:'2000-01-02',guardianName:'Gia đình một',module1Name:'Học phần mới'}},
  {id:'second',fullName:'Học viên hai',email:'second@gmail.com',enrollmentCourse:name,contractTemplateDefaults:{studentBirthDate:'2002-03-04',guardianName:''}}
 ]});
@@ -19,7 +19,7 @@ test('saved flat template data overrides admission and center defaults including
  const config=options(),values={consultationId:'first',templateData:{centerName:'Trung tâm theo hợp đồng',studentBirthDate:'',module1TheoryHours:0}};
  const data=initialContractTemplateData(values,config,config.admissions[0]);
  assert.equal(data.centerName,'Trung tâm theo hợp đồng');assert.equal(data.studentBirthDate,'');assert.equal(data.module1TheoryHours,0);
- assert.equal(data.agreementPlace,'Hà Nội');assert.equal(data.guardianName,'Gia đình một');assert.equal(data.module1Name,'Học phần mới');
+ assert.equal(data.guardianName,'Gia đình một');assert.equal(data.module1Name,'Học phần mới');
  assert.equal(config.admissions[0].contractTemplateDefaults.studentBirthDate,'2000-01-02');
 });
 
@@ -34,7 +34,7 @@ test('opening and reopening a draft preserves all entered template blanks withou
 test('switching students removes the former identity guardian emergency and module values while retaining center edits',()=>{
  const config=options(),values={consultationId:'first',tuitionDue:12500000,templateData:{centerName:'Tên trung tâm đã chỉnh',centerPhone:'0900000000',agreementPlace:'Đà Nẵng',studentIdentityNumber:'OLD-ID',studentAddress:'Địa chỉ cũ',emergencyPhone:'0987654321',guardianName:'Người cũ',module5Name:'Học phần cũ'}};
  const next=changeTrainingContractValue(values,'consultationId','second',config);
- assert.equal(next.templateData.centerName,'Tên trung tâm đã chỉnh');assert.equal(next.templateData.centerPhone,'0900000000');assert.equal(next.templateData.agreementPlace,'Đà Nẵng');
+ assert.equal(next.templateData.centerName,'Tên trung tâm đã chỉnh');assert.equal(next.templateData.centerPhone,'0900000000');assert.equal(next.templateData.agreementPlace,undefined);
  assert.equal(next.templateData.studentBirthDate,'2002-03-04');assert.equal(next.templateData.guardianName,'');
  for(const key of ['studentIdentityNumber','studentAddress','emergencyPhone','module5Name'])assert.equal(next.templateData[key],undefined,key);
  assert.equal(next.tuitionDue,14200000);assert.equal(values.templateData.studentIdentityNumber,'OLD-ID');
@@ -91,9 +91,14 @@ test('prefilled template information is not editable or required from the manage
  const actual=JSON.parse(readFileSync(new URL('../../G5_BE/src/main/resources/contracts/training-contract-fields.json',import.meta.url),'utf8'));
  assert.equal(actual.fixedValues.centerAddress,'Hà Nội');assert.ok(actual.fixedValues.centerBankAccount);
  const fields=actual.sections.flatMap(section=>section.fields),keys=new Set(fields.map(field=>field.key));
- for(const key of Object.keys(actual.fixedValues))assert.equal(keys.has(key),false,key);
+ for(const field of fields.filter(field=>Object.hasOwn(actual.fixedValues,field.key)))assert.equal(field.readOnly,true,field.key);
  for(const key of ['hasGuardian','module1Name','grossTuition','otherChargesDue','regulationReference'])assert.equal(keys.has(key),false,key);
- const editable=editableTemplateData({centerAddress:'Không dùng giá trị giả',centerBankAccount:'FAKE',studentIdentityNumber:'ID-001',initialTotal:1},actual);
+ const field=fields.find(field=>field.key==='agreementPlace');
+ assert.equal(isComputedTemplateField(field),true);
+ const values={templateData:{agreementPlace:'Địa điểm cũ'}};
+ assert.equal(contractTemplateValue(field,values,{},actual.fixedValues),'Trung tâm dậy nghề Bách Khoa');
+ assert.equal(templateSectionFilled(actual.sections[0],values,{},actual.fixedValues),1);
+ const editable=editableTemplateData({agreementPlace:'Địa điểm cũ',centerAddress:'Không dùng giá trị giả',centerBankAccount:'FAKE',studentIdentityNumber:'ID-001',initialTotal:1},actual);
  assert.deepEqual(editable,{studentIdentityNumber:'ID-001'});
 });
 

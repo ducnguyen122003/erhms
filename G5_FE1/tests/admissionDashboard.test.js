@@ -1,7 +1,8 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {admissionDashboardCodes,admissionEnrollmentTab,admissionHome,admissionMenuActive} from '../src/screens/admissionDashboard.js';
-import {canScreen,screenNavigation} from '../src/screens/access.js';
+import {canScreen,screenNavigation,screens} from '../src/screens/access.js';
+import {actionForms} from '../src/screens/definitions.js';
 
 test('the HR menu has two independently granted admission dashboards',()=>{
  const user={role:'HR',roleId:7};
@@ -16,6 +17,13 @@ test('detail navigation uses the current completeness after additions or removal
  assert.equal(admissionHome({status:'PROFILE_CREATED',documentStatus:'DOCUMENTS_INCOMPLETE'}),'ListAdmissionApplication');
  assert.equal(admissionHome({status:'NEW'}),'ListAdmissionApplication');
  assert.equal(admissionHome({forwardedAt:'2026-11-18T01:00:00Z',documentStatus:'DOCUMENTS_INCOMPLETE'}),'ListAdmissionEnrollment');
+});
+test('admission details offer standalone email editing without a consultation action',()=>{
+ assert.deepEqual(screens.ListAdmissionApplicationDetail.actions,[]);
+ const [email]=actionForms['update-email'];
+ assert.equal(email.key,'email');
+ assert.equal(email.type,'email');
+ assert.equal(email.required,true);
 });
 test('enrollment pages default to the waiting list and use explicit forwarded URLs',()=>{
  assert.equal(admissionEnrollmentTab(), 'waiting');

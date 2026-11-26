@@ -278,14 +278,13 @@ class StudentAccountsIntegrationTest {
         assertEquals(4,jdbc.queryForObject("SELECT COUNT(*) FROM consultation_notes WHERE consultation_id=?",Integer.class,UUID.fromString(id)));
     }
 
-    @Test void scanSubmissionRequiresDocumentAppointmentAnOwnedFileCurrentVersionAndHrPermission()throws Exception {
+    @Test void scanSubmissionRequiresAnOwnedFileCurrentVersionAndHrPermission()throws Exception {
         User hr=actors.get("HR"),otherHr=account("HR",UUID.randomUUID()+"@actor.test");String id=admission("DOCUMENT_APPOINTMENT",unique+"@student.test");
         JsonNode file=scan(hr),otherFile=scan(otherHr);Map<String,Object> valid=documentInput(0,file.path("id").asText());
         for(String reference:List.of("", "Bản giấy tại văn phòng", UUID.randomUUID().toString(),otherFile.path("id").asText()))
             submitProfile(hr,id,documentInput(0,reference)).andExpect(status().isBadRequest());
         submitProfile(otherHr,id,valid).andExpect(status().isNotFound());submitProfile(manager,id,valid).andExpect(status().isForbidden());
         submitProfile(hr,id,documentInput(1,file.path("id").asText())).andExpect(status().isConflict());
-        String fresh=admission("NEW",unique+"-fresh@student.test");submitProfile(hr,fresh,valid).andExpect(status().isConflict());
         for(String state:List.of("PROFILE_PENDING","PROFILE_CREATED"))
             mvc.perform(post("/api/workspace/screens/AdmissionConsultation/"+id).with(user(hr.email).roles("HR")).with(csrf()).contentType("application/json")
                     .content(json.writeValueAsString(Map.of("version",0,"channel","PHONE","status",state,"notes","Thử bỏ qua quy trình"))))

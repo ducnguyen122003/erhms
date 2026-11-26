@@ -1,6 +1,7 @@
 import {useEffect,useRef,useState} from 'react';
 import {Check,Upload} from 'lucide-react';
 import {api} from '../api';
+import {nextVietnamDay} from '../localCalendar';
 import {AdminAside,AdminMessage} from '../admin/AdminUI';
 import {defaults,display} from './definitions';
 import ProfileDocuments from './ProfileDocuments';
@@ -8,7 +9,7 @@ import {consultationFields,consultationPayload,newConsultationValues} from './ad
 import {changeTrainingContractValue,initialTrainingContractValues,isTrainingContract,trainingContractCourseField,trainingContractSelection} from './trainingContract';
 import ContractTemplateForm from './ContractTemplateForm';
 import {editableTemplateData} from './contractTemplate';
-import {signingReviewFields} from './contractSigning';
+import {signingReviewFields,signingReviewPayload} from './contractSigning';
 import ContractSigningDetails from './ContractSigningDetails';
 import {changeClassPlanValue,classPlanDefaultEnd,classPlanPreview,classPlanYear,classPlanYears,weekdayChoices,weeklyPlanLabel} from './classPlanning';
 import './class-management.css';
@@ -62,17 +63,23 @@ function initialValues(code,fields,record,related,options){const next=code==='Ad
 }
 export default function ScreenForm({code,fields,record,related={},options,user,busy,error,errors,notice,onSave,onBack,saveLabel,extra,submitDisabled=false,onLogout}){
  const dirty=useUnsavedChanges(),[values,setValues]=useState(()=>initialValues(code,fields,record,related,options)),[uploading,setUploading]=useState(false),[planError,setPlanError]=useState(''),[contractYear,setContractYear]=useState('');const ref=useRef(null);
+ const initialEquipment=code==='AddEquipmentRequest'&&values.requestType==='INITIAL';
 
- const setValue=(key,value)=>{dirty.current=true;setPlanError('');if(isTrainingContract(code)&&key==='consultationId')setContractYear('');setValues(current=>{
+ const setValue=(key,value)=>{dirty.current=true;setPlanError('');if(isTrainingContract(code)&&['consultationId','courseId'].includes(key))setContractYear('');setValues(current=>{
   if(isTrainingContract(code))return changeTrainingContractValue(current,key,value,options);
   if(code==='AddClass')return changeClassPlanValue(current,key,value,options);
   const next={...current,[key]:value};
+  if(code==='AddEquipmentRequest'&&key==='requestType'&&value==='INITIAL')next.quantity=1;
   if(code==='AdmissionConsultation'&&key==='status'){
    next.appointmentAt='';next.documentDueOn='';next.discontinuationReason='';
   }
   return next;
  });};
- async function submit(event){event.preventDefault();if(busy||uploading||submitDisabled||fixedSession)return;if(code==='AddAsset'&&!batchCodes){setPlanError('Nhập mã có tiền tố chữ (ví dụ BK001 hoặc BK) và số lượng nguyên từ 1 đến 500. Mã trong dải tối đa 40 ký tự và số thứ tự bắt đầu từ 001.');return;}if(code==='AddClass'&&(!planPreview||!planPreview.count)){setPlanError('Chọn năm, khoảng ngày, ngày học và khung giờ hợp lệ. Kế hoạch cần có ít nhất một buổi học.');return;}if(code==='AddClass'&&missingPlanDays){setPlanError('Khoảng ngày đã chọn chưa có '+missingPlanDays+'. Điều chỉnh khoảng ngày hoặc các thứ học trước khi tạo lớp.');return;}const prepared=isTrainingContract(code)&&values.templateData?{...values,templateData:editableTemplateData(values.templateData,options.contractTemplate)}:values;const data=prepareValues(code==='AdmissionConsultation'?consultationPayload(prepared):prepared,visibleFields);if(['AddAsset','EditAsset','AddEquipmentRequest'].includes(code)){delete data.equipmentGroupId;delete data.storageLocationId;}if(code==='AddAsset'){delete data.status;delete data.assetCondition;}const ok=await onSave(data,()=>{dirty.current=false;});if(ok)dirty.current=false;}
+ async function submit(event){event.preventDefault();if(busy||uploading||submitDisabled||fixedSession)return;if(code==='AddAsset'&&!batchCodes){setPlanError('Nhập mã có tiền tố chữ (ví dụ BK001 hoặc BK) và số lượng nguyên từ 1 đến 500. Mã trong dải tối đa 40 ký tự và số thứ tự bắt đầu từ 001.');return;}if(code==='AddClass'&&(!planPreview||!planPreview.count)){setPlanError('Chọn năm, khoảng ngày, ngày học và khung giờ hợp lệ. Kế hoạch cần có ít nhất một buổi học.');return;}if(code==='AddClass'&&missingPlanDays){setPlanError('Khoảng ngày đã chọn chưa có '+missingPlanDays+'. Điều chỉnh khoảng ngày hoặc các thứ học trước khi tạo lớp.');return;}
+  const prepared=code==='ContractSignature'?signingReviewPayload(values):isTrainingContract(code)&&values.templateData?{...values,templateData:editableTemplateData(values.templateData,options.contractTemplate)}:values;
+  const data=prepareValues(code==='AdmissionConsultation'?consultationPayload(prepared,record.email):prepared,visibleFields);
+  if(initialEquipment)data.quantity=1;
+  if(['AddAsset','EditAsset','AddEquipmentRequest'].includes(code)){delete data.equipmentGroupId;delete data.storageLocationId;}if(code==='AddAsset'){delete data.status;delete data.assetCondition;}const ok=await onSave(data,()=>{dirty.current=false;});if(ok)dirty.current=false;}
  const batchCodes=code==='AddAsset'?assetBatchCodes(values.code,values.quantity):null;
  const contractSelection=isTrainingContract(code)?{...trainingContractSelection(values,options),savedRecord:record}:null;
  const formOptions={...options,...(contractSelection?{courses:contractSelection.courses,classes:contractSelection.classes.filter(row=>!contractYear||String(classPlanYear(row))===contractYear)}:{}),attendanceStudents:(related.attendance||[]).map(row=>({id:row.studentId,name:row.studentName}))};
@@ -82,9 +89,11 @@ export default function ScreenForm({code,fields,record,related={},options,user,b
  const missingPlanDays=weekdayChoices.filter(day=>planPreview?.missingWeekdays.includes(day.id)).map(day=>day.name).join(', ');
  const selectedAdmission=contractSelection?.admission;
  const visibleFields=(code==='AdmissionConsultation'?consultationFields(fields,values):code==='ContractSignature'?signingReviewFields(fields,values):fields).map(field=>{
-  if(contractSelection&&field.key==='courseId')return trainingContractCourseField(field,contractSelection);
-  if(contractSelection&&field.key==='classId')return {...field,disabled:!contractSelection.admission};
+  if(contractSelection&&field.key==='courseId')return {...trainingContractCourseField(field,contractSelection),disabled:!selectedAdmission};
+  if(contractSelection&&field.key==='classId')return {...field,disabled:!selectedAdmission||!values.courseId};
   if(contractSelection&&field.key==='startsOn')return {...field,readOnly:true};
+  if(initialEquipment&&field.key==='quantity')return {...field,readOnly:true,displayValue:1};
+  if(initialEquipment&&field.key==='neededOn')return {...field,min:nextVietnamDay()};
   if(code==='EditClass'&&field.key==='status')return {...field,source:field.source.map(status=>({id:status,name:display(status),disabled:status==='CANCELLED'&&Number(record.reservedCount)>0}))};
   if(code==='AddClass'&&field.key==='startsOn'&&Number(values.planYear)>=1900&&Number(values.planYear)<=9999)return {...field,min:values.planYear+'-01-01',max:values.planYear+'-12-31'};
   if(['AddClass','EditClass'].includes(code)&&field.key==='endsOn')return {...field,min:values.startsOn||undefined};
@@ -96,7 +105,7 @@ export default function ScreenForm({code,fields,record,related={},options,user,b
  });
  return <div className="admin-editor-grid"><form className="admin-card admin-form-card" ref={ref} onSubmit={submit} aria-busy={busy||uploading}><div className="admin-form-content"><h2>{code==='AddClass'?'Cấu hình lịch học cho khóa':'Thông tin cần cập nhật'}</h2><p className="admin-muted">Các trường có dấu * là bắt buộc.</p>
   {code==='AddClass'&&<div className="class-form-hint"><p>Chọn một trong bốn khóa đào tạo cố định, giảng viên và phòng học. Kế hoạch lớp dùng chung cho các quản lý học viên. Mã lớp được cấp tự động.</p><p>Lịch học được tạo một lần theo ngày học hằng tuần trong khoảng bắt đầu đến kết thúc. Ngày và khung giờ được chốt khi tạo lớp; kế hoạch năm sau cần tạo riêng.</p>{planningCourse&&<p>Thời lượng khóa học: {planningCourse.durationMonths} tháng. Ngày kết thúc được điền theo ngày bắt đầu; có thể điều chỉnh theo lịch học thực tế.</p>}</div>}
-  {code==='AdmissionConsultation'&&<p className="admin-muted">Ghi nhận một lượt tư vấn mới. Để trống email nếu giữ email đã có trong hồ sơ.</p>}
+  {code==='AdmissionConsultation'&&<p className="admin-muted">Kiểm tra email học viên và sửa trực tiếp nếu cần cập nhật hồ sơ.</p>}
   {code==='AddAsset'&&<p className="admin-muted">Nhập tiền tố như BK để bắt đầu từ BK001, hoặc mã bắt đầu như BK006 để đánh số tiếp. Tối đa 500 thiết bị mỗi lần; tên, ngày nhập, giá trị mỗi thiết bị và phụ kiện dùng chung.</p>}
   {selectedClass&&<div className="class-form-hint"><p><strong>{selectedClass.code} · {selectedClass.name}</strong>{classPlanYear(selectedClass)?' · Kế hoạch '+classPlanYear(selectedClass):''}</p><p>Bắt đầu học: {display(selectedClass.startsOn,'startsOn')}{selectedClass.endsOn?' · Kết thúc: '+display(selectedClass.endsOn,'endsOn'):''}</p><p>Giảng viên: {selectedClass.lecturerName||'Chưa phân công'}{selectedClass.classroomName?' · Phòng: '+selectedClass.classroomName:''}</p>{weeklyPlanLabel(selectedClass)&&<p>Lịch cố định: {weeklyPlanLabel(selectedClass)}</p>}{contractSelection&&selectedClass.remainingSlots!==undefined&&<p>Còn nhận: {selectedClass.remainingSlots} học viên</p>}</div>}
   {fixedSession&&<p className="class-form-hint">Buổi học thuộc kế hoạch đã chốt của lớp. Ngày, giờ và phòng học được giữ theo kế hoạch.</p>}
@@ -104,7 +113,8 @@ export default function ScreenForm({code,fields,record,related={},options,user,b
   {code==='EditClass'&&<p className="admin-muted">Chỉ hủy kế hoạch chưa có hợp đồng giữ chỗ hoặc học viên đã xếp lớp. Để sửa ngày và khung giờ, hủy lớp chưa sử dụng rồi tạo kế hoạch lớp mới.</p>}
   <AdminMessage error={error||planError} notice={notice}/>{selectedAdmission&&<div className="class-form-hint"><p><strong>Khóa học đăng ký: {selectedAdmission.enrollmentCourse||'Chưa cập nhật'}</strong></p><p>Khóa quan tâm ban đầu: {selectedAdmission.programName||'Chưa cập nhật'}</p>{(contractSelection.durationMonths||contractSelection.tuitionFee!==undefined)&&<p>{contractSelection.durationMonths?`Thời lượng tham khảo: ${contractSelection.durationMonths} tháng` :''}{contractSelection.durationMonths&&contractSelection.tuitionFee!==undefined?' · ':''}{contractSelection.tuitionFee!==undefined?`Học phí gốc: ${display(contractSelection.tuitionFee,'tuitionFee')}`:''}</p>}<p>Chọn lớp đã được Admin lập kế hoạch. Ngày bắt đầu lấy theo lớp; học phí có thể điều chỉnh theo thỏa thuận trước khi lưu hợp đồng.</p></div>}
   {contractSelection&&<label className="admin-field class-contract-year">Năm kế hoạch của lớp<select value={contractYear} disabled={busy||uploading} onChange={event=>{const year=event.target.value;setContractYear(year);if(selectedClass&&year&&String(classPlanYear(selectedClass))!==year)setValue('classId','');}}><option value="">Tất cả năm kế hoạch</option>{classPlanYears(contractSelection.classes).map(year=><option key={year} value={year}>{year}</option>)}</select></label>}
-  {selectedAdmission&&contractSelection.classes.length===0&&<p className="admin-message">Chưa có lớp còn nhận học viên cho khóa đăng ký. Liên hệ Admin để lập kế hoạch lớp trước khi lưu hợp đồng.</p>}
+  {selectedAdmission&&!values.courseId&&!contractSelection.registeredName&&<p className="admin-muted">Chọn khóa học để xem các lớp tương ứng.</p>}
+  {selectedAdmission&&(values.courseId||contractSelection.registeredName)&&contractSelection.classes.length===0&&<p className="admin-message">Chưa có lớp còn nhận học viên cho khóa này. Liên hệ Admin để lập kế hoạch lớp trước khi lưu hợp đồng.</p>}
   {code==='ContractSignature'&&<ContractSigningDetails record={record} onLogout={onLogout} showOriginal disabled={busy||uploading}/>}<fieldset disabled={busy||uploading||fixedSession}><Fields fields={visibleFields} values={values} setValue={setValue} options={formOptions} errors={errors} code={code} disabled={busy||fixedSession} onUploading={setUploading}/>
   {code==='AddAsset'&&batchCodes&&<p className="admin-muted" role="status">Sẽ tạo {batchCodes.length} thiết bị: <strong>{batchCodes[0]}{batchCodes.length>1?' – '+batchCodes.at(-1):''}</strong>. Thiết bị mới mặc định sẵn sàng cấp phát.</p>}
   {code==='AddClass'&&planPreview&&<div className="class-form-hint class-plan-preview" aria-live="polite"><p><strong>{planPreview.count} buổi học theo kế hoạch</strong></p>{planPreview.count>0&&<p>Buổi đầu: {display(planPreview.first,'startsOn')} · Buổi cuối: {display(planPreview.last,'endsOn')}</p>}<p>{weeklyPlanLabel(values)}</p>{missingPlanDays&&<p className="field-error">Khoảng ngày đã chọn chưa có {missingPlanDays}. Điều chỉnh khoảng ngày hoặc các thứ học trước khi tạo lớp.</p>}</div>}

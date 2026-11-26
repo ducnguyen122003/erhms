@@ -7,6 +7,7 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import java.nio.charset.StandardCharsets;
 import java.util.LinkedHashMap;
+import java.util.Locale;
 import java.util.Map;
 import java.util.UUID;
 import org.junit.jupiter.api.BeforeEach;
@@ -62,7 +63,7 @@ class AdmissionConsultationIntegrationTest {
         input.put("appointmentAt","2026-12-15T01:30:00Z");input.put("documentDueOn","2026-12-20");input.put("discontinuationReason","Nội dung cũ");
         save(hr,input).andExpect(status().isOk());var record=detail().path("record");
         assertEquals("2026-12-15T01:30:00Z",record.path("appointmentAt").asText());assertTrue(record.path("documentDueOn").isNull());assertTrue(record.path("discontinuationReason").isNull());
-        assertFalse(detail().path("canSubmitProfile").asBoolean());
+        assertTrue(detail().path("canSubmitProfile").asBoolean());
         assertEquals(2,jdbc.queryForObject("SELECT COUNT(*) FROM consultation_notes WHERE consultation_id=? AND outcome='NEEDS_COUNSELING'",Integer.class,admission));
     }
 
@@ -118,6 +119,37 @@ class AdmissionConsultationIntegrationTest {
         assertEquals("DOCUMENT_APPOINTMENT",view.path("record").path("status").asText());assertTrue(view.path("canConsult").asBoolean());
         assertEquals(2,view.path("related").path("history").size());
         assertEquals("Lượt một: cần hỏi gia đình",jdbc.queryForObject("SELECT content FROM consultation_notes WHERE consultation_id=? AND outcome='NEEDS_COUNSELING'",String.class,admission));
+    }
+
+    @Test void admissionDetailWarnsAboutExistingAccountsAndRechecksAfterAnEmailChange()throws Exception {
+        var initial=detail().path("record");
+        String email=initial.path("email").asText();
+        assertFalse(initial.path("emailHasAccount").asBoolean(true));
+
+        User existing=actor("STUDENT");
+        jdbc.update("UPDATE m_user SET email=?,account_enabled=FALSE,account_locked=TRUE WHERE user_id=?",
+                " " + email.toUpperCase(Locale.ROOT) + " ",existing.id);
+        assertTrue(detail().path("record").path("emailHasAccount").asBoolean());
+
+        assertTrue(detail().path("canEditEmail").asBoolean());
+        String updatePath="/api/workspace/screens/ListAdmissionApplicationDetail/" + admission + "/actions/update-email";
+        var edit=Map.of("email","new-"+email,"version",0);
+        mvc.perform(post(updatePath).with(user(hr.email).roles("HR")).with(csrf())
+                .contentType("application/json").content(json.writeValueAsString(edit))).andExpect(status().isOk());
+        var record=detail().path("record");
+        assertEquals("new-" + email,record.path("email").asText());
+        assertFalse(record.path("emailHasAccount").asBoolean(true));
+        assertEquals("NEW",record.path("status").asText());
+        assertEquals(0,detail().path("related").path("history").size());
+
+        mvc.perform(post(updatePath).with(user(hr.email).roles("HR")).with(csrf())
+                .contentType("application/json").content(json.writeValueAsString(edit))).andExpect(status().isConflict());
+        jdbc.update("UPDATE consultation_followups SET forwarded_at=CURRENT_TIMESTAMP WHERE consultation_id=?",admission);
+        assertFalse(detail().path("canEditEmail").asBoolean(true));
+
+        User otherHr=actor("HR");
+        mvc.perform(get("/api/workspace/screens/ListAdmissionApplicationDetail/" + admission)
+                .with(user(otherHr.email).roles("HR"))).andExpect(status().isNotFound());
     }
 
     @Test void discontinuedAdmissionRejectsEveryFurtherConsultationAndTheDirectFormIsReadOnly()throws Exception {

@@ -128,10 +128,7 @@ class ScreenWorkflowIntegrationTest {
  @Test void automaticallyEnrolledStudentAppearsForAttendanceGradingAndClosure()throws Exception{
   String course=createCourse();
   List<String> tests=List.of("Điểm kiểm tra lần 1","Điểm kiểm tra lần 2","Điểm kiểm tra cuối kỳ");
-  jdbc.update("DELETE FROM course_assessments WHERE course_id=?",UUID.fromString(course));
-  for(int index=0;index<tests.size();index++){
-   jdbc.update("INSERT INTO course_assessments(id,course_id,title,weight) VALUES (?,?,?,?)",UUID.randomUUID(),UUID.fromString(course),tests.get(index),index==2?40:30);
-  }
+  configureGraduationAssessments(course,tests);
   String ct=createContract(course);
   jdbc.update("UPDATE training_contracts SET deposit_due=0 WHERE id=?",UUID.fromString(ct));
   importAndConfirm(ct,"TUITION",1000);
@@ -164,14 +161,18 @@ class ScreenWorkflowIntegrationTest {
    action(lecturer,"ClassAttendance",additionalSessions.get(index).toString(),"save",
      values("version",0,"records",List.of(values("studentId",student.id,"status",attendanceStatuses.get(index),"note","")),"finalize",true));
   }
-  var records=List.of(values("enrollmentId",enrollment,"title",tests.get(0),"score",8),
-    values("enrollmentId",enrollment,"title",tests.get(1),"score",8),values("enrollmentId",enrollment,"title",tests.get(2),"score",4));
+  var records=List.of(values("enrollmentId",enrollment,"title",tests.get(0),"score",5),
+    values("enrollmentId",enrollment,"title",tests.get(1),"score",5),values("enrollmentId",enrollment,"title",tests.get(2),"score",5.01));
   var grades=values("version",version(lecturer,"ClassGradebook",cl),"records",records);
   act(manager,"ClassGradebook",cl,"save",grades).andExpect(status().isForbidden());
   action(lecturer,"ClassGradebook",cl,"save",grades);
   assertEquals(0,view(student,"StudentResults",null).path("total").asInt());
-  grades.put("version",version(lecturer,"ClassGradebook",cl));
-  action(lecturer,"ClassGradebook",cl,"publish",grades);
+  for(String title:tests.subList(0,2))publishSavedAssessment(cl,title);
+  assertEquals(2,view(student,"StudentResults",null).path("total").asInt());
+  assertTrue(closureConditions(enrollment).path("academicDetails").path("finalScore").isNull());
+  assertFalse(closureConditions(enrollment).path("academicEligible").asBoolean());
+  assertFalse(closureConditions(enrollment).path("academicFailureEligible").asBoolean());
+  publishSavedAssessment(cl,tests.get(2));
   assertEquals(3,view(student,"StudentResults",null).path("total").asInt());
   assertEquals(0,view(otherStudent,"StudentResults",null).path("total").asInt());
 
@@ -182,7 +183,7 @@ class ScreenWorkflowIntegrationTest {
   assertEquals(5,details.path("totalSessions").asInt());
   assertFalse(details.path("attendanceComplete").asBoolean());
   assertFalse(details.path("attendancePass").asBoolean());
-  assertFalse(details.path("finalPass").asBoolean());
+  assertTrue(details.path("finalPass").asBoolean());
   assertTrue(details.path("totalPass").asBoolean());
   assertFalse(conditions.path("academicFailureEligible").asBoolean());
   act(manager,"TrainingClosureDetail",enrollment,"academic-fail",confirmation).andExpect(status().isConflict());
@@ -191,34 +192,11 @@ class ScreenWorkflowIntegrationTest {
   OffsetDateTime lastStart=firstStart.plusDays(4);
   jdbc.update("UPDATE training_sessions SET starts_at=?,ends_at=? WHERE id=?",lastStart,lastStart.plusHours(2),additionalSessions.get(3));
   conditions=closureConditions(enrollment);
-  assertFalse(conditions.path("academicEligible").asBoolean());
-  assertTrue(conditions.path("academicFailureEligible").asBoolean());
   details=conditions.path("academicDetails");
   assertTrue(details.path("attendanceComplete").asBoolean());
   assertTrue(details.path("attendancePass").asBoolean());
   assertEquals(80.0,details.path("attendancePercent").asDouble());
-  act(manager,"TrainingClosureDetail",enrollment,"academic",confirmation).andExpect(status().isConflict());
-
-  records.forEach(record->record.put("score",5));
-  grades.put("version",version(lecturer,"ClassGradebook",cl));
-  action(lecturer,"ClassGradebook",cl,"publish",grades);
-  details=closureConditions(enrollment).path("academicDetails");
-  assertTrue(details.path("finalPass").asBoolean());
-  assertFalse(details.path("totalPass").asBoolean());
-  assertEquals(5.0,details.path("totalScore").asDouble());
-  act(manager,"TrainingClosureDetail",enrollment,"academic",confirmation).andExpect(status().isConflict());
-
-  records.get(2).put("score",5.01);
-  grades.put("version",version(lecturer,"ClassGradebook",cl));
-  action(lecturer,"ClassGradebook",cl,"save",grades);
-  conditions=closureConditions(enrollment);
-  assertTrue(conditions.path("academicDetails").path("finalScore").isNull());
-  assertFalse(conditions.path("academicEligible").asBoolean());
-  assertFalse(conditions.path("academicFailureEligible").asBoolean());
-  grades.put("version",version(lecturer,"ClassGradebook",cl));
-  action(lecturer,"ClassGradebook",cl,"publish",grades);
-  conditions=closureConditions(enrollment);
-  assertEquals(5.004,conditions.path("academicDetails").path("totalScore").asDouble());
+  assertEquals(5.004,details.path("totalScore").asDouble());
   assertTrue(conditions.path("academicEligible").asBoolean());
   assertFalse(conditions.path("academicFailureEligible").asBoolean());
   act(manager,"TrainingClosureDetail",enrollment,"academic-fail",confirmation).andExpect(status().isConflict());
@@ -244,11 +222,132 @@ class ScreenWorkflowIntegrationTest {
   assertTrue(closureConditions(enrollment).path("ready").asBoolean());
   act(it,"TrainingClosureDetail_Ready",enrollment,"close",values("version",1)).andExpect(status().isForbidden());action(manager,"TrainingClosureDetail_Ready",enrollment,"close",values("version",1));assertEquals("COMPLETED",view(manager,"TrainingClosureDetail",enrollment).path("record").path("closureOutcome").asText());
  }
+
+ @Test void academicReviewRequiresFinalAboveFourAndWeightedScoreAboveFive()throws Exception{
+  String course=createCourse();
+  List<String> tests=List.of("Điểm kiểm tra lần 1","Điểm kiểm tra lần 2","Điểm kiểm tra cuối kỳ");
+  configureGraduationAssessments(course,tests);
+  UUID classId=gradingClass(course);
+  UUID finalAtMinimum=enrollForGrading(classId,student),averageAtMinimum=enrollForGrading(classId,otherStudent);
+  UUID sessionId=UUID.randomUUID();
+  OffsetDateTime startsAt=OffsetDateTime.now().minusDays(1);
+  jdbc.update("INSERT INTO training_sessions(id,class_id,title,starts_at,ends_at,room,attendance_finalized) VALUES (?,?,?,?,?,'P-01',TRUE)",
+    sessionId,classId,"Buổi học",startsAt,startsAt.plusHours(2));
+  for(User learner:List.of(student,otherStudent)){
+   jdbc.update("INSERT INTO training_attendance(id,session_id,student_id,status) VALUES (?,?,?,'PRESENT')",UUID.randomUUID(),sessionId,learner.id);
+  }
+  for(int i=0;i<tests.size();i++){
+   action(lecturer,"ClassGradebook",classId.toString(),"publish",gradePayload(classId.toString(),tests.get(i),List.of(
+     gradeRecord(finalAtMinimum,tests.get(i),i==2?4:8),gradeRecord(averageAtMinimum,tests.get(i),5))));
+  }
+  var finalConditions=closureConditions(finalAtMinimum.toString());
+  assertEquals(4.0,finalConditions.path("academicDetails").path("finalScore").asDouble());
+  assertFalse(finalConditions.path("academicDetails").path("finalPass").asBoolean());
+  assertTrue(finalConditions.path("academicDetails").path("totalPass").asBoolean());
+  assertFalse(finalConditions.path("academicEligible").asBoolean());
+  assertTrue(finalConditions.path("academicFailureEligible").asBoolean());
+  var averageConditions=closureConditions(averageAtMinimum.toString());
+  assertEquals(5.0,averageConditions.path("academicDetails").path("totalScore").asDouble());
+  assertTrue(averageConditions.path("academicDetails").path("finalPass").asBoolean());
+  assertFalse(averageConditions.path("academicDetails").path("totalPass").asBoolean());
+  assertFalse(averageConditions.path("academicEligible").asBoolean());
+  assertTrue(averageConditions.path("academicFailureEligible").asBoolean());
+ }
+
+ @Test void gradePublicationIsPerAssessmentRequiresEveryScoreAndLocksPublishedValues()throws Exception{
+  String course=createCourse();
+  String practical="Thực hành",theory="Lý thuyết";
+  jdbc.update("UPDATE course_assessments SET weight=50 WHERE course_id=?",UUID.fromString(course));
+  jdbc.update("INSERT INTO course_assessments(id,course_id,title,weight) VALUES (?,?,?,50)",UUID.randomUUID(),UUID.fromString(course),theory);
+  UUID classId=gradingClass(course);
+  String cl=classId.toString();
+  UUID first=enrollForGrading(classId,student),second=enrollForGrading(classId,otherStudent);
+  User unrelated=create("STUDENT");
+  act(lecturer,"ClassGradebook",cl,"publish",gradePayload(cl,practical,List.of(gradeRecord(first,theory,5))))
+    .andExpect(status().isBadRequest());
+
+  action(lecturer,"ClassGradebook",cl,"save",gradePayload(cl,null,List.of(
+    gradeRecord(first,practical,0),gradeRecord(second,practical,null),gradeRecord(first,theory,6))));
+  act(lecturer,"ClassGradebook",cl,"publish",gradePayload(cl,practical,List.of())).andExpect(status().isConflict());
+  assertEquals(0,view(student,"StudentResults",null).path("total").asInt());
+  action(lecturer,"ClassGradebook",cl,"publish",gradePayload(cl,practical,List.of(gradeRecord(second,practical,1))));
+
+  // The database clock is fixed within this test transaction, so give the first release a distinct timestamp.
+  OffsetDateTime firstPublishedAt=OffsetDateTime.parse("2025-01-01T00:00:00Z");
+  jdbc.update("UPDATE training_grades SET published_at=? WHERE enrollment_id=? AND title=?",firstPublishedAt,first,practical);
+  var firstResult=view(student,"StudentResults",null).path("items");
+  var secondResult=view(otherStudent,"StudentResults",null).path("items");
+  assertEquals(1,firstResult.size());assertEquals(practical,firstResult.get(0).path("title").asText());
+  assertEquals(0.0,firstResult.get(0).path("score").asDouble(-1));
+  assertEquals(1,secondResult.size());assertEquals(practical,secondResult.get(0).path("title").asText());
+  assertEquals(1.0,secondResult.get(0).path("score").asDouble(-1));
+  assertEquals(0,view(unrelated,"StudentResults",null).path("total").asInt());
+  var publishedAt=firstResult.get(0).path("publishedAt");
+  assertEquals(firstPublishedAt.toInstant().toString(),publishedAt.asText());
+  long publishedVersion=version(lecturer,"ClassGradebook",cl);
+  publishSavedAssessment(cl,practical);
+  assertEquals(publishedVersion,version(lecturer,"ClassGradebook",cl));
+
+  act(lecturer,"ClassGradebook",cl,"save",gradePayload(cl,null,List.of(gradeRecord(first,practical,2))))
+    .andExpect(status().isConflict());
+  act(lecturer,"ClassGradebook",cl,"save",gradePayload(cl,null,List.of(gradeRecord(first,practical,null))))
+    .andExpect(status().isConflict());
+  act(lecturer,"ClassGradebook",cl,"publish",gradePayload(cl,practical,List.of(gradeRecord(second,practical,2))))
+    .andExpect(status().isConflict());
+  action(lecturer,"ClassGradebook",cl,"save",gradePayload(cl,null,List.of(
+    gradeRecord(first,practical,0),gradeRecord(first,theory,7),gradeRecord(second,theory,8))));
+  assertEquals(firstResult,view(student,"StudentResults",null).path("items"));
+  publishSavedAssessment(cl,theory);
+  var results=view(student,"StudentResults",null).path("items");
+  assertEquals(2,results.size());
+  Map<String,JsonNode> byTitle=new HashMap<>();
+  for(JsonNode result:results)byTitle.put(result.path("title").asText(),result);
+  assertEquals(publishedAt,byTitle.get(practical).path("publishedAt"));
+  assertEquals(0.0,byTitle.get(practical).path("score").asDouble(-1));
+  assertEquals(7.0,byTitle.get(theory).path("score").asDouble(-1));
+ }
+
+ void configureGraduationAssessments(String course,List<String> tests){
+  UUID courseId=UUID.fromString(course);
+  jdbc.update("DELETE FROM course_assessments WHERE course_id=?",courseId);
+  for(int index=0;index<tests.size();index++){
+   jdbc.update("INSERT INTO course_assessments(id,course_id,title,weight) VALUES (?,?,?,?)",
+     UUID.randomUUID(),courseId,tests.get(index),index==2?40:30);
+  }
+ }
+
+ UUID gradingClass(String course){
+  UUID id=UUID.randomUUID();
+  jdbc.update("INSERT INTO training_classes(id,code,name,course_id,manager_id,lecturer_id,status) VALUES (?,?,?,?,?,?,'ACTIVE')",
+    id,"L-"+id,"Lớp kiểm tra điểm",UUID.fromString(course),manager.id,lecturer.id);
+  return id;
+ }
+
+ UUID enrollForGrading(UUID classId,User learner){
+  UUID enrollment=UUID.randomUUID();
+  jdbc.update("INSERT INTO training_enrollments(id,class_id,student_id,status) VALUES (?,?,?,'ACTIVE')",enrollment,classId,learner.id);
+  return enrollment;
+ }
+
+ Map<String,Object> gradeRecord(UUID enrollment,String title,Object score){
+  return values("enrollmentId",enrollment.toString(),"title",title,"score",score);
+ }
+
+ Map<String,Object> gradePayload(String cl,String title,List<Map<String,Object>> records)throws Exception{
+  var payload=values("version",version(lecturer,"ClassGradebook",cl),"records",records);
+  if(title!=null)payload.put("assessmentTitle",title);
+  return payload;
+ }
+
+ void publishSavedAssessment(String cl,String title)throws Exception{
+  action(lecturer,"ClassGradebook",cl,"publish",gradePayload(cl,title,List.of()));
+ }
  JsonNode closureConditions(String enrollment)throws Exception{return view(manager,"TrainingClosureDetail",enrollment).path("related").path("conditions");}
  void saveAttendanceAfterFinalization(String session)throws Exception{act(lecturer,"ClassAttendance",session,"save",values("version",1,"records",List.of(values("studentId",student.id,"status","ABSENT","note","")),"finalize",true)).andExpect(status().isConflict());}
  @Test void handoverRecoveryAndRefundAreAtomicScopedAndCannotBeRepeated()throws Exception{
   String ct=createContract(createCourse());importAndConfirm(ct,"TUITION",1000);importAndConfirm(ct,"DEPOSIT",200);String cl=view(manager,"ListClass",null).path("items").get(0).path("id").asText();
-  String req=save(lecturer,"AddEquipmentRequest",null,values("classId",cl,"studentId",student.id,"title","Bộ thiết bị thực hành","quantity",1,"requestType","INITIAL","neededOn","2026-11-15","description","Dùng trong buổi thực hành")).path("id").asText();
+  String neededOn=LocalDate.now(ZoneId.of("Asia/Ho_Chi_Minh")).plusDays(3).toString();
+  String req=save(lecturer,"AddEquipmentRequest",null,values("classId",cl,"studentId",student.id,"title","Bộ thiết bị thực hành","quantity",1,"requestType","INITIAL","neededOn",neededOn,"description","Dùng trong buổi thực hành")).path("id").asText();
   write(student,"AddEquipmentRequest",null,Map.of()).andExpect(status().isForbidden());action(it,"EquipmentRequestDetail_IT",req,"prepare",values("version",0));action(it,"EquipmentRequestDetail_IT",req,"ready",values("version",1));
   String asset=save(it,"AddAsset",null,values("code","TS-"+UUID.randomUUID().toString().substring(0,8),"name","Bộ thực hành","serialNumber","SN1","purchasedOn","2026-11-01","recordedValue",500,"assetCondition","Tốt","accessories","Đầy đủ","status","AVAILABLE")).path("id").asText();
   String loan=save(it,"AssetHandover",req,values("version",2,"assets",List.of(values("id",asset)),"equipmentChecked",true,"studentChecked",true,"signedBy",student.fullName,"receiptEvidence","Biên bản ký","receivedAt","2026-11-07T01:00:00Z","returnDueAt","2027-02-15T01:00:00Z")).path("id").asText();
@@ -321,7 +420,8 @@ class ScreenWorkflowIntegrationTest {
  }
  Map<String,String> loanFixture()throws Exception{
   String ct=createContract(createCourse());importAndConfirm(ct,"TUITION",1000);importAndConfirm(ct,"DEPOSIT",200);String cl=view(manager,"ListClass",null).path("items").get(0).path("id").asText();String en=view(manager,"AutoAssignmentReview",null).path("items").get(0).path("id").asText();
-  String request=save(lecturer,"AddEquipmentRequest",null,values("classId",cl,"studentId",student.id,"title","Thiết bị học tập","quantity",1,"requestType","INITIAL","neededOn","2026-11-15","description","Học thực hành")).path("id").asText();
+  String neededOn=LocalDate.now(ZoneId.of("Asia/Ho_Chi_Minh")).plusDays(3).toString();
+  String request=save(lecturer,"AddEquipmentRequest",null,values("classId",cl,"studentId",student.id,"title","Thiết bị học tập","quantity",1,"requestType","INITIAL","neededOn",neededOn,"description","Học thực hành")).path("id").asText();
   action(it,"EquipmentRequestDetail_IT",request,"prepare",values("version",0));action(it,"EquipmentRequestDetail_IT",request,"ready",values("version",1));
   String asset=save(it,"AddAsset",null,values("code","TS-"+UUID.randomUUID().toString().substring(0,8),"name","Bộ thực hành","serialNumber","SN1","purchasedOn","2026-11-01","recordedValue",500,"assetCondition","Tốt","accessories","Đầy đủ","status","AVAILABLE")).path("id").asText();
   String loan=save(it,"AssetHandover",request,values("version",2,"assets",List.of(values("id",asset)),"equipmentChecked",true,"studentChecked",true,"signedBy",student.fullName,"receiptEvidence","Biên bản ký","receivedAt","2026-11-07T01:00:00Z","returnDueAt","2027-02-15T01:00:00Z")).path("id").asText();return Map.of("contract",ct,"class",cl,"enrollment",en,"asset",asset,"loan",loan);

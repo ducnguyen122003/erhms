@@ -82,6 +82,41 @@ class ContractClassIntegrationTest {
         assertEquals(0,jdbc.queryForObject("SELECT COUNT(*) FROM training_contracts WHERE consultation_id=?",Integer.class,admission));
     }
 
+    @Test void editingARegisteredDraftOnlyAcceptsClassesFromItsCourse()throws Exception{
+        String id=create(input());
+        UUID otherCourse=course(manager,EnrollmentCourses.NAMES.get(1));
+        UUID otherClass=plan(otherCourse,"2027-01-11",20);
+        var edit=input();edit.put("version",0);edit.put("classId",otherClass.toString());
+        write(manager,"EditTrainingContract",id,edit).andExpect(status().isBadRequest()).andExpect(jsonPath("$.fields.classId").exists());
+        edit.put("courseId",otherCourse.toString());
+        write(manager,"EditTrainingContract",id,edit).andExpect(status().isBadRequest()).andExpect(jsonPath("$.fields.courseId").exists());
+
+        UUID validClass=plan(course,"2027-01-18",20);
+        edit.put("classId",validClass.toString());edit.remove("courseId");
+        write(manager,"EditTrainingContract",id,edit).andExpect(status().isOk());
+        var record=read("TrainingContractDetail",id).path("record");
+        assertEquals(validClass.toString(),record.path("classId").asText());
+        assertEquals(course.toString(),record.path("courseId").asText());
+
+        UUID newAdmission=admission(student,EnrollmentCourses.NAMES.get(1));
+        edit.put("version",1);edit.put("consultationId",newAdmission.toString());
+        edit.put("courseId",otherCourse.toString());edit.put("classId",otherClass.toString());
+        write(manager,"EditTrainingContract",id,edit).andExpect(status().isOk());
+        assertEquals(otherCourse.toString(),read("TrainingContractDetail",id).path("record").path("courseId").asText());
+    }
+
+    @Test void aLegacyAdmissionDraftRequiresAnExplicitCourseChangeBeforeBindingAnotherCourse()throws Exception{
+        jdbc.update("UPDATE consultation_registrations SET enrollment_course=NULL WHERE id=?",admission);
+        String id=create(input());
+        UUID otherCourse=course(manager,EnrollmentCourses.NAMES.get(1));
+        UUID otherClass=plan(otherCourse,"2027-01-11",20);
+        var edit=input();edit.put("version",0);edit.put("classId",otherClass.toString());
+        write(manager,"EditTrainingContract",id,edit).andExpect(status().isBadRequest()).andExpect(jsonPath("$.fields.classId").exists());
+        edit.put("courseId",otherCourse.toString());
+        write(manager,"EditTrainingContract",id,edit).andExpect(status().isOk());
+        assertEquals(otherCourse.toString(),read("TrainingContractDetail",id).path("record").path("courseId").asText());
+    }
+
     @Test void sharedPlansKeepEachManagersContractsCandidatesAndEnrolledLearnersPrivate()throws Exception{
         jdbc.update("UPDATE training_classes SET manager_id=? WHERE id=?",otherManager.id,cl);
         for(User actor:List.of(manager,otherManager)){
@@ -121,6 +156,55 @@ class ContractClassIntegrationTest {
         var edit=input();edit.put("version",0);write(manager,"EditTrainingContract",first,edit).andExpect(status().isOk());
         UUID next=admission(actor("STUDENT"),EnrollmentCourses.NAMES.get(0));var second=input();second.put("consultationId",next.toString());write(manager,"AddTrainingContract",null,second).andExpect(status().isBadRequest()).andExpect(jsonPath("$.fields.classId").exists());
         jdbc.update("UPDATE training_contracts SET status='CANCELLED' WHERE id=?",UUID.fromString(first));String replacement=create(second);assertNotEquals(first,replacement);
+    }
+
+    @Test void deletingAnOwnedDraftReopensTheAdmissionAndReleasesTheReservedSeat()throws Exception{
+        jdbc.update("UPDATE training_classes SET capacity=1 WHERE id=?",cl);
+        String id=create(input()), action=id+"/actions/delete-draft";
+        assertEquals(0,read("ClassDetail",cl.toString()).path("record").path("remainingSlots").asInt());
+        write(otherManager,"ListTrainingContract",action,values("version",0)).andExpect(status().isNotFound());
+        write(accountant,"ListTrainingContract",action,values("version",0)).andExpect(status().isForbidden());
+        write(manager,"ListTrainingContract",action,values("version",1)).andExpect(status().isConflict());
+
+        write(manager,"ListTrainingContract",action,values("version",0)).andExpect(status().isOk())
+                .andExpect(jsonPath("$.screen").value("ListTrainingContract"));
+        fetch(manager,"TrainingContractDetail",id).andExpect(status().isNotFound());
+        assertEquals(1,read("ClassDetail",cl.toString()).path("record").path("remainingSlots").asInt());
+        assertEquals("PROFILE_PENDING",jdbc.queryForObject("SELECT status FROM consultation_followups WHERE consultation_id=?",String.class,admission));
+        assertTrue(users.existsById(student.id));
+        assertNotEquals(id,create(input()));
+    }
+
+    @Test void deletionPreservesIssuedContractsAndDraftsWithLinkedFinancialRecords()throws Exception{
+        String id=create(input()), action=id+"/actions/delete-draft";
+        UUID contract=UUID.fromString(id);
+        for(String state:List.of("SENT_FOR_SIGNATURE","SIGNATURE_REVIEW","SIGNED","ACTIVE","COMPLETED","CANCELLED")){
+            jdbc.update("UPDATE training_contracts SET status=? WHERE id=?",state,contract);
+            write(manager,"ListTrainingContract",action,values("version",0)).andExpect(status().isConflict());
+            assertEquals(state,jdbc.queryForObject("SELECT status FROM training_contracts WHERE id=?",String.class,contract));
+        }
+        jdbc.update("UPDATE training_contracts SET status='DRAFT',signature_sent_at=CURRENT_TIMESTAMP WHERE id=?",contract);
+        write(manager,"ListTrainingContract",action,values("version",0)).andExpect(status().isConflict());
+        jdbc.update("UPDATE training_contracts SET signature_sent_at=NULL WHERE id=?",contract);
+        jdbc.update("INSERT INTO financial_transactions(id,contract_id,kind,amount,status) VALUES (?,?,'TUITION',200,'PENDING')",UUID.randomUUID(),contract);
+        write(manager,"ListTrainingContract",action,values("version",0)).andExpect(status().isConflict());
+        assertEquals(1,jdbc.queryForObject("SELECT COUNT(*) FROM financial_transactions WHERE contract_id=?",Integer.class,contract));
+        assertEquals("DRAFT",jdbc.queryForObject("SELECT status FROM training_contracts WHERE id=?",String.class,contract));
+    }
+
+    @Test void deletionKeepsAnotherContractAndOnlyReopensAnExcelAdmissionAfterItsLastDraftIsRemoved()throws Exception{
+        jdbc.update("UPDATE consultation_registrations SET intake_source='EXCEL',enrollment_course=NULL WHERE id=?",admission);
+        jdbc.update("UPDATE consultation_followups SET status='CONTACTED' WHERE consultation_id=?",admission);
+        String first=create(input());
+        UUID another=UUID.randomUUID(), otherCourse=course(manager,EnrollmentCourses.NAMES.get(1));
+        jdbc.update("INSERT INTO training_contracts(id,code,consultation_id,course_id,manager_id,student_id,status) VALUES (?,?,?,?,?,?,'DRAFT')",
+                another,"T-"+another,admission,otherCourse,manager.id,student.id);
+
+        write(manager,"ListTrainingContract",first+"/actions/delete-draft",values("version",0)).andExpect(status().isOk());
+        assertEquals("CONTRACTED",jdbc.queryForObject("SELECT status FROM consultation_followups WHERE consultation_id=?",String.class,admission));
+        fetch(manager,"TrainingContractDetail",another.toString()).andExpect(status().isOk());
+        write(manager,"ListTrainingContract",another+"/actions/delete-draft",values("version",0)).andExpect(status().isOk());
+        assertEquals("CONTACTED",jdbc.queryForObject("SELECT status FROM consultation_followups WHERE consultation_id=?",String.class,admission));
     }
 
     @Test void confirmedFullTuitionPlacesTheStudentInTheContractClassAndUsesTheReservedSeat()throws Exception{

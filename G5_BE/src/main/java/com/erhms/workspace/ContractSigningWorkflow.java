@@ -2,6 +2,7 @@ package com.erhms.workspace;
 
 import com.erhms.admin.service.ScreenPermissionsService;
 import com.erhms.user.entity.User;
+import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import java.time.*;
@@ -10,6 +11,7 @@ import static com.erhms.workspace.WorkflowData.*;
 
 @Service
 public class ContractSigningWorkflow {
+    private static final int MAX_BATCH_SIZE=20;
     final WorkflowData d;
     final ContractTemplateData template;
     final ContractPdfRenderer renderer;
@@ -51,26 +53,90 @@ public class ContractSigningWorkflow {
 
     @Transactional
     public Map<String,Object> send(String id,Map<String,Object> p,User u){
-        role(u,"MANAGER");var c=d.record("contracts",id,u);UUID key=uuid(id);
-        if(!"DRAFT".equals(c.get("status")))throw conflict("Chỉ gửi hợp đồng bản nháp cho tuyển sinh ký.");
-        var followups=c.get("consultationId")==null?List.<Map<String,Object>>of():d.rows("SELECT assigned_to FROM consultation_followups WHERE consultation_id=?",uuid(c.get("consultationId").toString()));
-        Object assigned=followups.isEmpty()?null:followups.get(0).get("assignedTo");
-        long admissions;
-        if(p.get("admissionsId")!=null&&!p.get("admissionsId").toString().isBlank())admissions=number(p,"admissionsId",1,Long.MAX_VALUE);
-        else if(assigned instanceof Number actor)admissions=actor.longValue();
-        else throw invalid("admissionsId","Chọn nhân viên tuyển sinh nhận hợp đồng để in và lấy chữ ký.");
-        lockPeople(c,u,admissions);d.lock("training_contracts",key,p);c=d.record("contracts",id,u);
-        if(!"DRAFT".equals(c.get("status")))throw conflict("Chỉ gửi hợp đồng bản nháp cho tuyển sinh ký.");
+        role(u,"MANAGER");var c=d.record("contracts",id,u);
+        requireDraft(c);
+        long admissions=admissionsRecipient(c);
+        lockPeople(c,u,admissions);
+        sendDocument(documentToSend(lockDraft(uuid(id),p,u),c,u),u);
+        return result("TrainingContractDetail",id,"Đã gửi hợp đồng sang tuyển sinh để in và lấy chữ ký.");
+    }
+
+    @Transactional
+    public Map<String,Object> sendBatch(Map<String,Object> p,User u){
+        role(u,"MANAGER");
+        var selected=items(p,"contracts",MAX_BATCH_SIZE);
+        if(selected.isEmpty())throw invalid("contracts","Chọn ít nhất một hợp đồng bản nháp để gửi tuyển sinh.");
+
+        var requests=new TreeMap<UUID,Map<String,Object>>();
+        for(var item:selected){
+            UUID id=uuid(item,"id");
+            if(requests.putIfAbsent(id,item)!=null)throw invalid("contracts","Mỗi hợp đồng chỉ được chọn một lần.");
+        }
+        var scoped=new LinkedHashMap<UUID,Map<String,Object>>();
+        var recipients=new TreeSet<Long>();
+        for(UUID id:requests.keySet()){
+            var contract=d.record("contracts",id.toString(),u);
+            scoped.put(id,contract);
+            if(contract.get("defaultAdmissionsId") instanceof Number recipient)recipients.add(recipient.longValue());
+        }
+        lockPeople(scoped.values(),u,recipients.toArray(Long[]::new));
+
+        var documents=new ArrayList<SendDocument>();
+        for(var entry:requests.entrySet()){
+            UUID id=entry.getKey();
+            try{documents.add(documentToSend(lockDraft(id,entry.getValue(),u),scoped.get(id),u));}
+            catch(WorkflowException failure){
+                if(failure.status==HttpStatus.NOT_FOUND)throw failure;
+                throw new WorkflowException(failure.status,failure.code,
+                        "Không thể gửi hợp đồng "+scoped.get(id).get("code")+". "+failure.getMessage(),failure.fields);
+            }
+        }
+        for(var document:documents)sendDocument(document,u);
+        return Map.of("screen","ListTrainingContract","id","new","sentCount",documents.size(),
+                "notice","Đã gửi "+documents.size()+" hợp đồng sang tuyển sinh để in và lấy chữ ký.");
+    }
+
+    private Map<String,Object> lockDraft(UUID id,Map<String,Object> input,User u){
+        d.lock("training_contracts",id,input);
+        var contract=d.record("contracts",id.toString(),u);
+        requireDraft(contract);
+        return contract;
+    }
+
+    private void requireDraft(Map<String,Object> contract){
+        if(!"DRAFT".equals(contract.get("status")))throw conflict("Chỉ gửi hợp đồng bản nháp cho tuyển sinh ký.");
+    }
+
+    private long admissionsRecipient(Map<String,Object> contract){
+        if(contract.get("defaultAdmissionsId") instanceof Number recipient)return recipient.longValue();
+        throw invalid("admissionsId","Hồ sơ chưa có nhân viên tuyển sinh phụ trách. Kiểm tra hồ sơ tuyển sinh trước khi gửi.");
+    }
+
+    private void requireAdmissionsRecipient(long admissions){
         var staff=d.rows("SELECT user_id FROM m_user u WHERE u.user_id=? AND u.role_id=7 AND u.account_enabled=TRUE AND u.account_locked=FALSE AND EXISTS(SELECT 1 FROM role_function rf WHERE rf.role_id=u.role_id AND rf.function_code='AdmissionContractSigning')",admissions);
         if(staff.isEmpty())throw invalid("admissionsId","Nhân viên tuyển sinh cần đang hoạt động và có quyền In & ký hợp đồng.");
-        var values=template.values(c,u);template.requireComplete(values);values.put("additionalTerms",Objects.toString(c.get("terms"),""));
-        byte[] pdf=renderer.pdf(values);UUID file=UUID.randomUUID();
-        String filename="Hop-dong-"+c.get("code")+".pdf";
+    }
+
+    private record SendDocument(UUID id,String code,long admissionsId,Map<String,Object> values) {}
+
+    private SendDocument documentToSend(Map<String,Object> contract,Map<String,Object> beforeLock,User u){
+        if(!Objects.equals(contract.get("defaultAdmissionsId"),beforeLock.get("defaultAdmissionsId")))
+            throw conflict("Nhân viên tuyển sinh phụ trách vừa thay đổi. Hãy tải lại trước khi gửi.");
+        long admissions=admissionsRecipient(contract);
+        requireAdmissionsRecipient(admissions);
+        var values=template.values(contract,u);
+        template.requireComplete(values);
+        values.put("additionalTerms",Objects.toString(contract.get("terms"),""));
+        return new SendDocument(uuid(contract.get("id").toString()),contract.get("code").toString(),admissions,values);
+    }
+
+    private void sendDocument(SendDocument document,User u){
+        byte[] pdf=renderer.pdf(document.values());UUID file=UUID.randomUUID();
+        String filename="Hop-dong-"+document.code()+".pdf";
         d.jdbc.update("INSERT INTO workflow_files(id,uploaded_by,filename,content_type,file_size,file_data,upload_screen) VALUES (?,?,?,'application/pdf',?,?,'TrainingContractDetail')",file,u.id,filename,pdf.length,pdf);
-        d.jdbc.update("UPDATE training_contracts SET status='SENT_FOR_SIGNATURE',signature_admissions_id=?,signature_sent_at=CURRENT_TIMESTAMP,print_file_id=?,signature_review_note=NULL,version=version+1 WHERE id=?",admissions,file,key);
-        audit(key,u,"SENT",file,"Gửi tuyển sinh in hợp đồng và lấy chữ ký học viên.");
-        notify(admissions,u,"Hợp đồng cần in và ký","Hợp đồng "+c.get("code")+" đã được QLHV gửi. In bản PDF, lấy chữ ký và tải bản scan lên.","AdmissionContractSigning",id);
-        return result("TrainingContractDetail",id,"Đã gửi hợp đồng sang tuyển sinh để in và lấy chữ ký.");
+        d.jdbc.update("UPDATE training_contracts SET status='SENT_FOR_SIGNATURE',signature_admissions_id=?,signature_sent_at=CURRENT_TIMESTAMP,print_file_id=?,signature_review_note=NULL,version=version+1 WHERE id=?",document.admissionsId(),file,document.id());
+        audit(document.id(),u,"SENT",file,"Gửi tuyển sinh in hợp đồng và lấy chữ ký học viên.");
+        notify(document.admissionsId(),u,"Hợp đồng cần in và ký","Hợp đồng "+document.code()+" đã được QLHV gửi. In bản PDF, lấy chữ ký và tải bản scan lên.","AdmissionContractSigning",document.id().toString());
     }
 
     @Transactional
@@ -99,8 +165,7 @@ public class ContractSigningWorkflow {
         role(u,"MANAGER");var c=d.record("contracts",id,u);UUID key=uuid(id);
         if(!"SIGNATURE_REVIEW".equals(c.get("status"))||c.get("signedScanFileId")==null)throw conflict("Cần tuyển sinh gửi bản scan đã ký trước khi QLHV xác nhận.");
         String decision=choice(p,"decision","APPROVE","REJECT"),note=text(p,"reviewNote",1000,decision.equals("REJECT"));
-        Long accountant=decision.equals("APPROVE")?number(p,"accountantId",1,Long.MAX_VALUE):null;
-        lockPeople(c,u,accountant);d.lock("training_contracts",key,p);c=d.record("contracts",id,u);
+        lockPeople(c,u);d.lock("training_contracts",key,p);c=d.record("contracts",id,u);
         if(!"SIGNATURE_REVIEW".equals(c.get("status"))||c.get("signedScanFileId")==null)throw conflict("Cần tuyển sinh gửi bản scan đã ký trước khi QLHV xác nhận.");
         UUID scan=uuid(c.get("signedScanFileId").toString());
         if(decision.equals("REJECT")){
@@ -109,20 +174,24 @@ public class ContractSigningWorkflow {
             notify(((Number)c.get("signatureAdmissionsId")).longValue(),u,"Bản ký hợp đồng cần bổ sung","Hợp đồng "+c.get("code")+": "+note,"AdmissionContractSigning",id);
             return result("TrainingContractDetail",id,"Đã yêu cầu tuyển sinh bổ sung bản scan đã ký.");
         }
-        d.requireRoleId(accountant,4);
         String handover=text(p,"handoverNote",1000,false);
-        // Finance receives the contract only once the account has also been provisioned.
-        d.jdbc.update("UPDATE training_contracts SET status='SIGNED',signature_approved_at=CURRENT_TIMESTAMP,signature_approved_by=?,signature_review_note=?,accountant_id=?,handover_note=?,handed_over_at=CASE WHEN student_id IS NOT NULL AND (consultation_id IS NULL OR EXISTS(SELECT 1 FROM consultation_followups f WHERE f.consultation_id=training_contracts.consultation_id AND f.profile_student_id=training_contracts.student_id AND f.profile_created_at IS NOT NULL)) THEN CURRENT_TIMESTAMP ELSE NULL END,version=version+1 WHERE id=?",u.id,note,accountant,handover,key);
+        // After account provisioning, the accounting queue exposes unassigned contracts for the first handling accountant to claim.
+        d.jdbc.update("UPDATE training_contracts SET status='SIGNED',signature_approved_at=CURRENT_TIMESTAMP,signature_approved_by=?,signature_review_note=?,handover_note=?,handed_over_at=CASE WHEN student_id IS NOT NULL AND (consultation_id IS NULL OR EXISTS(SELECT 1 FROM consultation_followups f WHERE f.consultation_id=training_contracts.consultation_id AND f.profile_student_id=training_contracts.student_id AND f.profile_created_at IS NOT NULL)) THEN CURRENT_TIMESTAMP ELSE NULL END,version=version+1 WHERE id=?",u.id,note,handover,key);
         audit(key,u,"APPROVED",scan,note);
         notify(((Number)c.get("signatureAdmissionsId")).longValue(),u,"Bản ký hợp đồng đã được xác nhận","QLHV đã xác nhận bản ký hợp đồng "+c.get("code")+".","AdmissionContractSigning",id);
         return result("TrainingContractDetail",id,"Đã xác nhận hợp đồng đã ký. Có thể cấp tài khoản học viên.");
     }
 
     private void lockPeople(Map<String,Object> contract,User actor,Long...extra){
+        lockPeople(List.of(contract),actor,extra);
+    }
+
+    private void lockPeople(Collection<Map<String,Object>> contracts,User actor,Long...extra){
         // Provisioning locks the Manager before the contract. Lock all notification/FK
         // participants first, in stable order, so HR submission and review agree too.
         var ids=new TreeSet<Long>();ids.add(actor.id);
-        for(String key:List.of("managerId","signatureAdmissionsId"))if(contract.get(key) instanceof Number id)ids.add(id.longValue());
+        for(var contract:contracts)
+            for(String key:List.of("managerId","signatureAdmissionsId"))if(contract.get(key) instanceof Number id)ids.add(id.longValue());
         for(Long id:extra)if(id!=null)ids.add(id);
         String placeholders=String.join(",",Collections.nCopies(ids.size(),"?"));
         d.rows("SELECT user_id FROM m_user WHERE user_id IN ("+placeholders+") ORDER BY user_id FOR UPDATE",ids.toArray());

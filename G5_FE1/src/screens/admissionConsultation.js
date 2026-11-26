@@ -6,7 +6,7 @@ export function canRecordConsultation(status){return status!=='NOT_PROCEEDING'&&
 export function newConsultationValues(record={}){
  return {
   id:record.id,version:record.version??0,
-  email:'',channel:'',status:managedAdmissionStates.includes(record.status)?record.status:'',
+  email:record.email??'',channel:'',status:managedAdmissionStates.includes(record.status)?record.status:'',
   notes:'',appointmentAt:'',documentDueOn:'',discontinuationReason:''
  };
 }
@@ -26,9 +26,12 @@ export function consultationFields(fields,values){
  });
 }
 
-export function consultationPayload(values){
- if(managedAdmissionStates.includes(values.status))return {...values};
- return {...values,
+export function consultationPayload(values,currentEmail){
+ const payload={...values};
+ const email=payload.email?.trim();
+ if(!email||email.toLowerCase()===currentEmail?.trim().toLowerCase())delete payload.email;
+ if(managedAdmissionStates.includes(values.status))return payload;
+ return {...payload,
   appointmentAt:values.status==='NEEDS_COUNSELING'?values.appointmentAt||'':'',
   documentDueOn:values.status==='DOCUMENT_APPOINTMENT'?values.documentDueOn||'':'',
   discontinuationReason:values.status==='NOT_PROCEEDING'?values.discontinuationReason||'':'',

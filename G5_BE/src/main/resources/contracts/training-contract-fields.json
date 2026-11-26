@@ -2,6 +2,7 @@
   "title": "Hợp đồng đào tạo nghề Bách Khoa",
   "version": "BK-VTCOMS-2026-03",
   "fixedValues": {
+    "agreementPlace": "Trung tâm dậy nghề Bách Khoa",
     "centerName": "TRUNG TÂM DẠY NGHỀ BÁCH KHOA",
     "centerAddress": "Hà Nội",
     "centerTaxCode": "12423453246134123",
@@ -18,7 +19,7 @@
     {
       "key": "agreement",
       "title": "Thông tin lập hợp đồng",
-      "description": "Thông tin trung tâm và địa điểm đào tạo đã có sẵn trong mẫu. Có thể lưu nháp khi chưa hoàn tất các mục có dấu *.",
+      "description": "Địa điểm lập hợp đồng được điền theo mẫu. Có thể lưu nháp khi chưa hoàn tất các mục có dấu *.",
       "fields": [
         {
           "key": "agreementDate",
@@ -30,8 +31,7 @@
           "key": "agreementPlace",
           "label": "Địa điểm lập hợp đồng",
           "type": "text",
-          "requiredForPdf": true,
-          "maxLength": 255
+          "readOnly": true
         },
         {
           "key": "effectiveOn",
